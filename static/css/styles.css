@@ -1,0 +1,555 @@
+:root {
+    --primary-color: #2c3e50;
+    --secondary-color: #3498db;
+    --accent-color: #e74c3c;
+    --bg-color: #f8f9fa;
+    --card-bg: #ffffff;
+    --text-color: #333;
+    --light-text: #6c757d;
+    --success: #2ecc71;
+    --warning: #f39c12;
+    --danger: #e74c3c;
+    --neutral: #95a5a6;
+}
+
+body {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.navbar {
+    background-color: var(--primary-color);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.main-container {
+    flex: 1;
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+}
+
+.footer {
+    background-color: var(--primary-color);
+    color: white;
+    padding: 1.5rem 0;
+    margin-top: auto;
+}
+
+.card {
+    border: none;
+    border-radius: 10px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+    background-color: var(--card-bg);
+    transition: transform 0.3s, box-shadow 0.3s;
+    margin-bottom: 1.5rem;
+    overflow: hidden;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+}
+
+.card-header {
+    background-color: var(--primary-color);
+    color: white;
+    border-bottom: none;
+    padding: 1rem 1.5rem;
+}
+
+.card-body {
+    padding: 1.5rem;
+}
+
+.home-hero {
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+    color: white;
+    border-radius: 15px;
+    padding: 3rem 2rem;
+    margin-bottom: 2rem;
+}
+
+.btn-primary {
+    background-color: var(--secondary-color);
+    border-color: var(--secondary-color);
+}
+
+.btn-primary:hover {
+    background-color: #2980b9;
+    border-color: #2980b9;
+}
+
+.btn-outline-light:hover {
+    color: var(--primary-color);
+}
+
+/* Strategy colors */
+.strategy-strong-buy {
+    background-color: var(--success);
+    color: white;
+}
+
+.strategy-buy {
+    background-color: #7bed9f;
+    color: var(--text-color);
+}
+
+.strategy-neutral {
+    background-color: var(--neutral);
+    color: white;
+}
+
+.strategy-sell {
+    background-color: #ff7f50;
+    color: var(--text-color);
+}
+
+.strategy-strong-sell {
+    background-color: var(--danger);
+    color: white;
+}
+
+.strategy-badge {
+    padding: 0.5rem 1rem;
+    border-radius: 5px;
+    font-weight: 600;
+    display: inline-block;
+}
+
+.metric-card {
+    background: white;
+    border-radius: 10px;
+    padding: 1rem;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+.metric-value {
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0.5rem 0;
+}
+
+.metric-title {
+    font-size: 0.9rem;
+    color: var(--light-text);
+    margin-bottom: 0;
+}
+
+/* Watchlist styles */
+.watchlist-item {
+    background: white;
+    border-left: 5px solid var(--primary-color);
+    border-radius: 5px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    transition: all 0.3s;
+}
+
+.watchlist-item:hover {
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    transform: translateX(5px);
+}
+
+/* Data table styles */
+.data-table {
+    width: 100%;
+    margin-bottom: 1rem;
+}
+
+.data-table th {
+    background-color: var(--primary-color);
+    color: white;
+    padding: 0.75rem;
+}
+
+.data-table td {
+    padding: 0.75rem;
+    vertical-align: middle;
+}
+
+.data-table tbody tr:nth-child(odd) {
+    background-color: rgba(0, 0, 0, 0.025);
+}
+
+.data-table tbody tr:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+/* Chart container */
+.chart-container {
+    height: 400px;
+    width: 100%;
+    margin-bottom: 2rem;
+}
+
+/* Dashboard styles */
+.dashboard-card {
+    margin-bottom: 1.5rem;
+    height: calc(100% - 1.5rem);
+}
+
+.dashboard-card .card-body {
+    padding: 1rem;
+}
+
+.dashboard-card .card-title {
+    font-size: 1.1rem;
+    margin-bottom: 1rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .home-hero {
+        padding: 2rem 1rem;
+    }
+    
+    .metric-value {
+        font-size: 1.5rem;
+    }
+    
+    .chart-container {
+        height: 350px;
+    }
+}
+
+/* Ticker input styling */
+.ticker-input {
+    font-family: monospace;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+/* Score indicators */
+.score-high {
+    color: var(--success);
+    font-weight: bold;
+}
+
+.score-medium {
+    color: var(--warning);
+    font-weight: bold;
+}
+
+.score-low {
+    color: var(--danger);
+    font-weight: bold;
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.fade-in {
+    animation: fadeIn 0.5s ease-in;
+}
+
+/* Loading spinner */
+.spinner-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 200px;
+}
+
+.spinner {
+    width: 50px;
+    height: 50px;
+    border: 5px solid var(--light-text);
+    border-top: 5px solid var(--secondary-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+:root {
+    --primary-color: #2c3e50;
+    --secondary-color: #3498db;
+    --accent-color: #e74c3c;
+    --bg-color: #f8f9fa;
+    --card-bg: #ffffff;
+    --text-color: #333;
+    --light-text: #6c757d;
+    --success: #2ecc71;
+    --warning: #f39c12;
+    --danger: #e74c3c;
+    --neutral: #95a5a6;
+}
+
+body {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.navbar {
+    background-color: var(--primary-color);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.main-container {
+    flex: 1;
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+}
+
+.footer {
+    background-color: var(--primary-color);
+    color: white;
+    padding: 1.5rem 0;
+    margin-top: auto;
+}
+
+.card {
+    border: none;
+    border-radius: 10px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+    background-color: var(--card-bg);
+    transition: transform 0.3s, box-shadow 0.3s;
+    margin-bottom: 1.5rem;
+    overflow: hidden;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+}
+
+.card-header {
+    background-color: var(--primary-color);
+    color: white;
+    border-bottom: none;
+    padding: 1rem 1.5rem;
+}
+
+.card-body {
+    padding: 1.5rem;
+}
+
+.home-hero {
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+    color: white;
+    border-radius: 15px;
+    padding: 3rem 2rem;
+    margin-bottom: 2rem;
+}
+
+.btn-primary {
+    background-color: var(--secondary-color);
+    border-color: var(--secondary-color);
+}
+
+.btn-primary:hover {
+    background-color: #2980b9;
+    border-color: #2980b9;
+}
+
+.btn-outline-light:hover {
+    color: var(--primary-color);
+}
+
+/* Strategy colors */
+.strategy-strong-buy {
+    background-color: var(--success);
+    color: white;
+}
+
+.strategy-buy {
+    background-color: #7bed9f;
+    color: var(--text-color);
+}
+
+.strategy-neutral {
+    background-color: var(--neutral);
+    color: white;
+}
+
+.strategy-sell {
+    background-color: #ff7f50;
+    color: var(--text-color);
+}
+
+.strategy-strong-sell {
+    background-color: var(--danger);
+    color: white;
+}
+
+.strategy-badge {
+    padding: 0.5rem 1rem;
+    border-radius: 5px;
+    font-weight: 600;
+    display: inline-block;
+}
+
+.metric-card {
+    background: white;
+    border-radius: 10px;
+    padding: 1rem;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+.metric-value {
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0.5rem 0;
+}
+
+.metric-title {
+    font-size: 0.9rem;
+    color: var(--light-text);
+    margin-bottom: 0;
+}
+
+/* Watchlist styles */
+.watchlist-item {
+    background: white;
+    border-left: 5px solid var(--primary-color);
+    border-radius: 5px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    transition: all 0.3s;
+}
+
+.watchlist-item:hover {
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    transform: translateX(5px);
+}
+
+/* Data table styles */
+.data-table {
+    width: 100%;
+    margin-bottom: 1rem;
+}
+
+.data-table th {
+    background-color: var(--primary-color);
+    color: white;
+    padding: 0.75rem;
+}
+
+.data-table td {
+    padding: 0.75rem;
+    vertical-align: middle;
+}
+
+.data-table tbody tr:nth-child(odd) {
+    background-color: rgba(0, 0, 0, 0.025);
+}
+
+.data-table tbody tr:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+/* Chart container */
+.chart-container {
+    height: 400px;
+    width: 100%;
+    margin-bottom: 2rem;
+}
+
+/* Dashboard styles */
+.dashboard-card {
+    margin-bottom: 1.5rem;
+    height: calc(100% - 1.5rem);
+}
+
+.dashboard-card .card-body {
+    padding: 1rem;
+}
+
+.dashboard-card .card-title {
+    font-size: 1.1rem;
+    margin-bottom: 1rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .home-hero {
+        padding: 2rem 1rem;
+    }
+    
+    .metric-value {
+        font-size: 1.5rem;
+    }
+    
+    .chart-container {
+        height: 350px;
+    }
+}
+
+/* Ticker input styling */
+.ticker-input {
+    font-family: monospace;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+/* Score indicators */
+.score-high {
+    color: var(--success);
+    font-weight: bold;
+}
+
+.score-medium {
+    color: var(--warning);
+    font-weight: bold;
+}
+
+.score-low {
+    color: var(--danger);
+    font-weight: bold;
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.fade-in {
+    animation: fadeIn 0.5s ease-in;
+}
+
+/* Loading spinner */
+.spinner-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 200px;
+}
+
+.spinner {
+    width: 50px;
+    height: 50px;
+    border: 5px solid var(--light-text);
+    border-top: 5px solid var(--secondary-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}

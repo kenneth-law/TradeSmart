@@ -1,0 +1,37 @@
+# Bytecode files
+__pycache__/
+*.pyc
+*.pyo
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.whl
+
+# Test and coverage reports
+htmlcov/
+.tox/
+.coverage
+coverage.xml
+
+# Virtual environment
+venv/
+env/
+.venv/
+my_venv/
+
+# Editor-specific files
+.idea/
+*.swp
+*.swo
+.vscode/
+
+# OS-generated files
+.DS_Store
+
+# Python-specific
+*.log
+*.tmp
+local_settings.py
+db.sqlite3

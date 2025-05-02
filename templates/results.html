@@ -1,0 +1,268 @@
+{% extends 'base.html' %}
+
+{% block title %}Analysis Results - TradeSmart Analytics{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="mb-0">Analysis Results</h1>
+    <div>
+        <a href="/" class="btn btn-outline-primary me-2">
+            <i class="fas fa-search me-1"></i>New Analysis
+        </a>
+        <a href="{{ csv_url }}" class="btn btn-success" download>
+            <i class="fas fa-download me-1"></i>Download CSV
+        </a>
+    </div>
+</div>
+
+<!-- Dashboard overview -->
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card dashboard-card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Strategy Distribution</h5>
+            </div>
+            <div class="card-body">
+                <iframe class="w-100" style="height: 350px; border: none;" 
+                        src="{{ url_for('static', filename='sessions/'+session_id+'/'+charts['strategy_dist']) }}"></iframe>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card dashboard-card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-list-alt me-2"></i>Summary</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    {% set category_counts = {
+                        "Strong Buy": categories["Strong Buy"]|length,
+                        "Buy": categories["Buy"]|length,
+                        "Neutral/Watch": categories["Neutral/Watch"]|length,
+                        "Sell": categories["Sell"]|length,
+                        "Strong Sell": categories["Strong Sell"]|length
+                    } %}
+                    
+                    {% for category, count in category_counts.items() %}
+                    <div class="col-6 mb-3">
+                        <div class="metric-card">
+                            <div class="metric-title">{{ category }}</div>
+                            <div class="metric-value {% if category in ['Strong Buy', 'Buy'] %}text-success{% elif category in ['Sell', 'Strong Sell'] %}text-danger{% else %}text-warning{% endif %}">
+                                {{ count }}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    
+                    <div class="col-12">
+                        <div class="metric-card mt-2">
+                            <div class="metric-title">Total Analyzed</div>
+                            <div class="metric-value text-primary">
+                                {{ category_counts.values()|sum }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Watchlist -->
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="fas fa-star me-2"></i>Day Trading Watchlist</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            {% for stock in watchlist %}
+            <div class="col-md-6 col-lg-4">
+                <div class="watchlist-item">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h5 class="mb-0">
+                            <a href="{{ url_for('stock_detail', ticker=stock.ticker) }}" class="text-decoration-none">
+                                {{ stock.ticker }}
+                            </a>
+                        </h5>
+                        <span class="strategy-badge strategy-{{ stock.day_trading_strategy|lower|replace('/', '-') }}">
+                            {{ stock.day_trading_strategy }}
+                        </span>
+                    </div>
+                    <p class="small text-muted mb-2">{{ stock.company_name }}</p>
+                    <div class="row g-2 mb-2">
+                        <div class="col-6">
+                            <div class="p-1 bg-light rounded small">
+                                <strong>Price:</strong> ${{ "%.2f"|format(stock.current_price) }}
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="p-1 bg-light rounded small">
+                                <strong>Score:</strong> {{ "%.1f"|format(stock.day_trading_score) }}
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="p-1 bg-light rounded small">
+                                <strong>RSI7:</strong> {{ "%.1f"|format(stock.rsi7) }}
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="p-1 bg-light rounded small">
+                                <strong>ATR:</strong> {{ "%.2f"|format(stock.atr_pct) }}%
+                            </div>
+                        </div>
+                    </div>
+                    <div class="small">
+                        <strong>MACD:</strong> <span class="{% if stock.macd_trend == 'bullish' %}text-success{% else %}text-danger{% endif %}">{{ stock.macd_trend|upper }}</span>
+                        | <strong>1d:</strong> <span class="{% if stock.return_1d > 0 %}text-success{% elif stock.return_1d < 0 %}text-danger{% else %}text-muted{% endif %}">{{ "%.2f"|format(stock.return_1d) }}%</span>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Charts and Analysis -->
+<div class="row mt-4">
+    <div class="col-lg-6">
+        <div class="card dashboard-card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-chart-scatter me-2"></i>Trading Score vs. Volatility</h5>
+            </div>
+            <div class="card-body">
+                <iframe class="w-100" style="height: 350px; border: none;" 
+                        src="{{ url_for('static', filename='sessions/'+session_id+'/'+charts['score_vs_volatility']) }}"></iframe>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-6">
+        <div class="card dashboard-card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-chart-bar me-2"></i>RSI Distribution</h5>
+            </div>
+            <div class="card-body">
+                <iframe class="w-100" style="height: 350px; border: none;" 
+                        src="{{ url_for('static', filename='sessions/'+session_id+'/'+charts['rsi_dist']) }}"></iframe>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-lg-6">
+        <div class="card dashboard-card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-newspaper me-2"></i>News Sentiment vs. Trading Score</h5>
+            </div>
+            <div class="card-body">
+                <iframe class="w-100" style="height: 350px; border: none;" 
+                        src="{{ url_for('static', filename='sessions/'+session_id+'/'+charts['sentiment_vs_score']) }}"></iframe>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-6">
+        <div class="card dashboard-card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-trophy me-2"></i>Top 15 Stocks by Score</h5>
+            </div>
+            <div class="card-body">
+                <iframe class="w-100" style="height: 350px; border: none;" 
+                        src="{{ url_for('static', filename='sessions/'+session_id+'/'+charts['top_15']) }}"></iframe>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Detailed Results Table -->
+<div class="card mt-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="fas fa-table me-2"></i>Detailed Results</h5>
+        <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="showAllStocks">
+            <label class="form-check-label" for="showAllStocks">Show All Stocks</label>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover data-table" id="resultsTable">
+                <thead>
+                    <tr>
+                        <th>Ticker</th>
+                        <th>Company</th>
+                        <th>Strategy</th>
+                        <th>Score</th>
+                        <th>Price</th>
+                        <th>1d Return</th>
+                        <th>RSI7</th>
+                        <th>ATR%</th>
+                        <th>MACD</th>
+                        <th>Volume</th>
+                        <th>News</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for category in ['Strong Buy', 'Buy', 'Neutral/Watch', 'Sell', 'Strong Sell'] %}
+                        {% for stock in categories[category] %}
+                            <tr class="{% if category != 'Strong Buy' and category != 'Buy' %}d-none other-strategy{% endif %}">
+                                <td><strong>{{ stock.ticker }}</strong></td>
+                                <td>{{ stock.company_name }}</td>
+                                <td>
+                                    <span class="strategy-badge strategy-{{ stock.day_trading_strategy|lower|replace('/', '-') }}">
+                                        {{ stock.day_trading_strategy }}
+                                    </span>
+                                </td>
+                                <td class="{% if stock.day_trading_score >= 70 %}score-high{% elif stock.day_trading_score >= 45 %}score-medium{% else %}score-low{% endif %}">
+                                    {{ "%.1f"|format(stock.day_trading_score) }}
+                                </td>
+                                <td>${{ "%.2f"|format(stock.current_price) }}</td>
+                                <td class="{% if stock.return_1d > 0 %}text-success{% elif stock.return_1d < 0 %}text-danger{% endif %}">
+                                    {{ "%.2f"|format(stock.return_1d) }}%
+                                </td>
+                                <td>{{ "%.1f"|format(stock.rsi7) }}</td>
+                                <td>{{ "%.2f"|format(stock.atr_pct) }}%</td>
+                                <td class="{% if stock.macd_trend == 'bullish' %}text-success{% elif stock.macd_trend == 'bearish' %}text-danger{% endif %}">
+                                    {{ stock.macd_trend|upper }}
+                                </td>
+                                <td>{{ "%.1f"|format(stock.volume_ratio) }}x</td>
+                                <td>{{ stock.news_sentiment_label }}</td>
+                                <td>
+                                    <a href="{{ url_for('stock_detail', ticker=stock.ticker) }}" class="btn btn-sm btn-primary">
+                                        <i class="fas fa-chart-line"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% if failed_tickers %}
+<div class="card mt-4">
+    <div class="card-header bg-warning text-dark">
+        <h5 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>Failed to Retrieve Data</h5>
+    </div>
+    <div class="card-body">
+        <p>Could not retrieve data for the following tickers:</p>
+        <p class="mb-0">{{ failed_tickers|join(', ') }}</p>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.getElementById('showAllStocks').addEventListener('change', function() {
+        const otherRows = document.querySelectorAll('.other-strategy');
+        otherRows.forEach(row => {
+            row.classList.toggle('d-none', !this.checked);
+        });
+    });
+</script>
+{% endblock %}

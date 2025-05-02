@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Analysis in Progress</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <meta http-equiv="refresh" content="5;url={{ url_for('check_status', task_id=task_id) }}">
+    <script>
+        // JavaScript to periodically check the status
+        function checkStatus() {
+            fetch('/check_status/{{ task_id }}')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'completed') {
+                        window.location.href = '/analysis_status/{{ task_id }}';
+                    } else if (data.status === 'failed') {
+                        window.location.href = '/analysis_status/{{ task_id }}';
+                    } else {
+                        // Still running, check again in 3 seconds
+                        setTimeout(checkStatus, 3000);
+                    }
+                });
+        }
+        
+        // Start checking
+        setTimeout(checkStatus, 3000);
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h1>Analysis in Progress</h1>
+        <div class="loading-spinner"></div>
+        <p>Analyzing tickers: <strong>{{ tickers }}</strong></p>
+        <p>Started at: {{ timestamp }}</p>
+        <p>Please wait while we analyze the stocks. This may take a minute...</p>
+    </div>
+</body>
+</html>

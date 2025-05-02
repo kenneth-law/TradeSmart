@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+
+{% block title %}Error - TradeSmart Analytics{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-danger text-white">
+                <h4 class="mb-0"><i class="fas fa-exclamation-circle me-2"></i>Error</h4>
+            </div>
+            <div class="card-body">
+                <p class="lead">{{ error }}</p>
+                <div class="text-center mt-4">
+                    <a href="/" class="btn btn-primary">
+                        <i class="fas fa-home me-2"></i>Return to Home
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

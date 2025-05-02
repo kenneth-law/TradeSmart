@@ -1,0 +1,314 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ stock.ticker }} Analysis - TradeSmart Analytics{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="mb-0">{{ stock.ticker }} <span class="text-muted fs-4">{{ stock.company_name }}</span></h1>
+        <p class="text-muted mb-0">{{ stock.sector }} / {{ stock.industry }}</p>
+    </div>
+    <div>
+        <a href="javascript:history.back()" class="btn btn-outline-primary">
+            <i class="fas fa-arrow-left me-1"></i>Back to Results
+        </a>
+    </div>
+</div>
+
+<!-- Summary Card -->
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Day Trading Summary</h5>
+        <span class="strategy-badge strategy-{{ stock.day_trading_strategy|lower|replace('/', '-') }}">
+            {{ stock.day_trading_strategy }}
+        </span>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6 col-lg-3 mb-3">
+                <div class="metric-card">
+                    <div class="metric-title">Day Trading Score</div>
+                    <div class="metric-value {% if stock.day_trading_score >= 70 %}text-success{% elif stock.day_trading_score >= 45 %}text-warning{% else %}text-danger{% endif %}">
+                        {{ "%.1f"|format(stock.day_trading_score) }}/100
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3 mb-3">
+                <div class="metric-card">
+                    <div class="metric-title">Current Price</div>
+                    <div class="metric-value">
+                        ${{ "%.2f"|format(stock.current_price) }}
+                    </div>
+                    <div class="small {% if stock.return_1d > 0 %}text-success{% elif stock.return_1d < 0 %}text-danger{% endif %}">
+                        {{ "%.2f"|format(stock.return_1d) }}% today
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3 mb-3">
+                <div class="metric-card">
+                    <div class="metric-title">Volatility (ATR%)</div>
+                    <div class="metric-value {% if stock.atr_pct > 2 %}text-success{% elif stock.atr_pct > 1 %}text-warning{% else %}text-danger{% endif %}">
+                        {{ "%.2f"|format(stock.atr_pct) }}%
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3 mb-3">
+                <div class="metric-card">
+                    <div class="metric-title">RSI (7-Day)</div>
+                    <div class="metric-value {% if stock.rsi7 < 30 or stock.rsi7 > 70 %}text-danger{% elif stock.rsi7 < 40 or stock.rsi7 > 60 %}text-warning{% else %}text-success{% endif %}">
+                        {{ "%.1f"|format(stock.rsi7) }}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="mt-3">
+            <h6 class="text-muted">Strategy Details</h6>
+            <p>{{ stock.strategy_details }}</p>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="d-flex align-items-center mb-2">
+                        <div class="me-2" style="width: 100px;">MACD Trend:</div>
+                        <div class="{% if stock.macd_trend == 'bullish' %}text-success{% elif stock.macd_trend == 'bearish' %}text-danger{% else %}text-muted{% endif %} fw-bold">
+                            {{ stock.macd_trend|upper }}
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center mb-2">
+                        <div class="me-2" style="width: 100px;">Volume:</div>
+                        <div>{{ "%.2f"|format(stock.volume_ratio) }}x average</div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="d-flex align-items-center mb-2">
+                        <div class="me-2" style="width: 120px;">News Sentiment:</div>
+                        <div>{{ stock.news_sentiment_label }} ({{ "%.2f"|format(stock.news_sentiment_score) }})</div>
+                    </div>
+                    <div class="d-flex align-items-center mb-2">
+                        <div class="me-2" style="width: 120px;">Moving Avgs:</div>
+                        <div>
+                            {% if stock.above_ma5 %}<span class="badge bg-success me-1">Above MA5</span>{% else %}<span class="badge bg-danger me-1">Below MA5</span>{% endif %}
+                            {% if stock.above_ma20 %}<span class="badge bg-success">Above MA20</span>{% else %}<span class="badge bg-danger">Below MA20</span>{% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Score Breakdown -->
+<div class="row mb-4">
+    {% for section_name, metrics in [
+        ('Technical Indicators', stock.metrics['Technical Indicators']), 
+        ('Volatility Metrics', stock.metrics['Volatility Metrics']),
+        ('Performance Metrics', stock.metrics['Performance Metrics'])
+    ] %}
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="mb-0">{{ section_name }}</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <tbody>
+                        {% for name, value in metrics.items() %}
+                        <tr>
+                            <td>{{ name }}</td>
+                            <td class="text-end">{{ value }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Price Chart -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>Price History</h5>
+    </div>
+    <div class="card-body">
+        <div id="priceChart" style="height: 450px;"></div>
+    </div>
+</div>
+
+<!-- Technical Details -->
+<div class="row mb-4">
+    {% for section_name, metrics in [
+        ('Technical Indicators', stock.metrics['Technical Indicators']), 
+        ('Volatility Metrics', stock.metrics['Volatility Metrics']),
+        ('Performance Metrics', stock.metrics['Performance Metrics'])
+    ] %}
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="mb-0">{{ section_name }}</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <tbody>
+                        {% for name, value in metrics.items() %}
+                        <tr>
+                            <td>{{ name }}</td>
+                            <td class="text-end">{{ value }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Related Stocks -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="fas fa-project-diagram me-2"></i>Industry Peers</h5>
+    </div>
+    <div class="card-body">
+        <div id="peerComparison" class="chart-container"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Render the radar chart from JSON data
+    const radarChartData = JSON.parse('{{ charts.radar|safe }}');
+    Plotly.newPlot('radarChart', radarChartData.data, radarChartData.layout);
+    
+    // Render the score gauge from JSON data
+    const scoreGaugeData = JSON.parse('{{ charts.score_gauge|safe }}');
+    Plotly.newPlot('scoreGauge', scoreGaugeData.data, scoreGaugeData.layout);
+    
+    // Create a price chart
+    document.addEventListener('DOMContentLoaded', function() {
+        fetch(`/api/stock_price_history/{{ stock.ticker }}`)
+            .then(response => response.json())
+            .then(data => {
+                if (!data || !data.dates) {
+                    document.getElementById('priceChart').innerHTML = 'No price data available';
+                    return;
+                }
+                
+                // Create candlestick chart
+                const trace1 = {
+                    x: data.dates,
+                    open: data.open,
+                    high: data.high,
+                    low: data.low,
+                    close: data.close,
+                    type: 'candlestick',
+                    name: '{{ stock.ticker }}',
+                    decreasing: {line: {color: '#e74c3c'}},
+                    increasing: {line: {color: '#2ecc71'}}
+                };
+                
+                // Add moving averages
+                const trace2 = {
+                    x: data.dates,
+                    y: data.ma5,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: '5-Day MA',
+                    line: {color: '#3498db', width: 2}
+                };
+                
+                const trace3 = {
+                    x: data.dates,
+                    y: data.ma20,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: '20-Day MA',
+                    line: {color: '#9b59b6', width: 2}
+                };
+                
+                const layout = {
+                    title: '{{ stock.ticker }} Price Chart (30 Days)',
+                    xaxis: {
+                        rangeslider: {visible: false},
+                        title: 'Date'
+                    },
+                    yaxis: {
+                        title: 'Price ($)'
+                    },
+                    legend: {
+                        orientation: 'h',
+                        y: 1.1,
+                        x: 0.5,
+                        xanchor: 'center'
+                    },
+                    margin: {
+                        l: 50,
+                        r: 50,
+                        b: 50,
+                        t: 50,
+                        pad: 4
+                    }
+                };
+                
+                Plotly.newPlot('priceChart', [trace1, trace2, trace3], layout);
+            })
+            .catch(error => {
+                console.error('Error fetching price history:', error);
+                document.getElementById('priceChart').innerHTML = 'Failed to load price data';
+            });
+            
+        // Load peer comparison data
+        fetch(`/api/industry_peers/{{ stock.ticker }}`)
+            .then(response => response.json())
+            .then(data => {
+                if (!data || data.length === 0) {
+                    document.getElementById('peerComparison').innerHTML = 'No peer comparison data available';
+                    return;
+                }
+                
+                // Create horizontal bar chart
+                const trace = {
+                    y: data.map(item => item.ticker),
+                    x: data.map(item => item.day_trading_score),
+                    type: 'bar',
+                    orientation: 'h',
+                    marker: {
+                        color: data.map(item => {
+                            if (item.day_trading_score >= 70) return '#2ecc71';
+                            if (item.day_trading_score >= 60) return '#27ae60';
+                            if (item.day_trading_score >= 45) return '#f39c12';
+                            if (item.day_trading_score >= 35) return '#e67e22';
+                            return '#e74c3c';
+                        })
+                    }
+                };
+                
+                const layout = {
+                    title: 'Day Trading Score Comparison',
+                    xaxis: {
+                        title: 'Day Trading Score',
+                        range: [0, 100]
+                    },
+                    yaxis: {
+                        title: 'Ticker'
+                    },
+                    margin: {
+                        l: 50,
+                        r: 20,
+                        b: 50,
+                        t: 50,
+                        pad: 4
+                    }
+                };
+                
+                Plotly.newPlot('peerComparison', [trace], layout);
+            })
+            .catch(error => {
+                console.error('Error fetching peer comparison:', error);
+                document.getElementById('peerComparison').innerHTML = 'Failed to load peer comparison data';
+            });
+    });
+</script>
+{% endblock %}

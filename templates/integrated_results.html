@@ -5,13 +5,13 @@
 {% block content %}
 <div class="container mt-4">
     <h1 class="mb-4">Integrated Trading System Results</h1>
-    
+
     <div class="alert alert-success">
         <h5>Analysis Complete</h5>
         <p>Successfully analyzed {{ results.tickers_analyzed }} stocks using {% if results.ml_scoring_used %}ML-based{% else %}traditional{% endif %} scoring.</p>
         <p>Workflow completed in {{ (results.end_time|string)[:19] }}</p>
     </div>
-    
+
     <div class="row">
         <div class="col-md-6">
             <div class="card mb-4">
@@ -52,7 +52,7 @@
                 </div>
             </div>
         </div>
-        
+
         <div class="col-md-6">
             <div class="card mb-4">
                 <div class="card-header bg-primary text-white">
@@ -93,7 +93,7 @@
             </div>
         </div>
     </div>
-    
+
     <!-- Backtest Results -->
     <div class="card mb-4">
         <div class="card-header bg-primary text-white">
@@ -119,7 +119,7 @@
             </div>
         </div>
     </div>
-    
+
     <!-- Watchlist -->
     <div class="card mb-4">
         <div class="card-header bg-primary text-white">
@@ -136,6 +136,7 @@
                             <th>Score</th>
                             <th>Strategy</th>
                             <th>Price</th>
+                            <th>Return %</th>
                             <th>Sector</th>
                             <th>Actions</th>
                         </tr>
@@ -161,6 +162,7 @@
                                 {% endif %}
                             </td>
                             <td>${{ stock.current_price|round(2) }}</td>
+                            <td>{{ (stock.return_percentage * 100)|round(2) }}%</td>
                             <td>{{ stock.sector }}</td>
                             <td>
                                 <a href="/stock/{{ stock.ticker }}" class="btn btn-sm btn-outline-primary">Details</a>
@@ -172,7 +174,7 @@
             </div>
         </div>
     </div>
-    
+
     <!-- Charts -->
     <div class="row">
         {% if 'portfolio_composition' in charts %}
@@ -187,7 +189,7 @@
             </div>
         </div>
         {% endif %}
-        
+
         {% if 'watchlist_scores' in charts %}
         <div class="col-md-6 mb-4">
             <div class="card h-100">
@@ -200,7 +202,7 @@
             </div>
         </div>
         {% endif %}
-        
+
         {% if 'feature_importance' in charts %}
         <div class="col-md-6 mb-4">
             <div class="card h-100">
@@ -214,7 +216,7 @@
         </div>
         {% endif %}
     </div>
-    
+
     <!-- Actions -->
     <div class="d-flex justify-content-between mb-4">
         <a href="/integrated_system" class="btn btn-outline-primary">&larr; Back to Integrated System</a>

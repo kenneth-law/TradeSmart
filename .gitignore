@@ -6,6 +6,7 @@ __pycache__/
 # Distribution / packaging
 build/
 dist/
+static/
 *.egg-info/
 *.whl
 
@@ -35,3 +36,4 @@ my_venv/
 *.tmp
 local_settings.py
 db.sqlite3
+/day_trading_opportunities.csv

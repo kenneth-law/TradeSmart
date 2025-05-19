@@ -28,8 +28,8 @@ def get_stock_data(ticker_symbol):
             - str: An error message if no data is found, otherwise None.
     """
     try:
-        # Generate a cache timestamp (changes every hour)
-        cache_timestamp = datetime.now().strftime('%Y%m%d%H')
+        # Generate a cache timestamp (changes every minute to ensure fresh data)
+        cache_timestamp = datetime.now().strftime('%Y%m%d%H%M')
 
         # Get stock info with caching
         info = get_stock_info(ticker_symbol, cache_timestamp)
@@ -45,16 +45,24 @@ def get_stock_data(ticker_symbol):
         start_date_str = start_date.strftime('%Y-%m-%d')
         end_date_str = end_date.strftime('%Y-%m-%d')
 
-        # Get historical data with caching
-        hist = get_stock_history(ticker_symbol, start_date_str, end_date_str, "1d", cache_timestamp)
+        # Get historical data with caching, force refresh to ensure we have the latest data
+        hist = get_stock_history(ticker_symbol, start_date_str, end_date_str, "1d", cache_timestamp, force_refresh=True)
 
         # For intraday patterns, also get hourly data if available
         intraday_start = end_date - timedelta(days=5)
         intraday_start_str = intraday_start.strftime('%Y-%m-%d')
-        intraday = get_stock_history(ticker_symbol, intraday_start_str, end_date_str, "1h", cache_timestamp)
+        intraday = get_stock_history(ticker_symbol, intraday_start_str, end_date_str, "1h", cache_timestamp, force_refresh=True)
 
         # Calculate technical indicators
         if len(hist) > 0:
+            # Check if we have data for the current trading day
+            today = datetime.now().date()
+            latest_data_date = hist.index[-1].date() if len(hist) > 0 else None
+
+            # Log if we're using data from a previous day
+            if latest_data_date and latest_data_date < today:
+                log_message(f"Using data from {latest_data_date} for {ticker_symbol} (current date: {today})")
+
             # Basic price data
             current_price = hist['Close'].iloc[-1] if not pd.isna(hist['Close'].iloc[-1]) else info.get('currentPrice', 0)
             prev_close = hist['Close'].iloc[-2] if len(hist) > 1 else current_price

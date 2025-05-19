@@ -7,7 +7,10 @@ TradeSmart Analytics is an advanced stock analysis tool designed to identify day
 - **Comprehensive Stock Analysis**: Analyzes stocks using multiple technical indicators, volatility measures, and news sentiment
 - **Real-time Progress Updates**: Provides real-time feedback during analysis with a terminal-like display
 - **Interactive Visualizations**: Generates multiple charts and visualizations to help understand the data
-- **Day Trading Scoring System**: Assigns scores to stocks based on their potential as day trading opportunities
+- **Machine Learning-Based Scoring**: Uses gradient boosted trees to discover non-linear relationships in market data
+- **Industrial-Grade Backtesting**: Provides realistic backtesting with transaction cost modeling and point-in-time integrity
+- **Portfolio Construction**: Implements risk management and position sizing based on expected edge and volatility
+- **Low-Slippage Execution**: Integrates with execution algorithms (TWAP, VWAP) to minimize market impact
 - **Watchlist Generation**: Creates a curated watchlist of the most promising stocks
 - **Detailed Stock Information**: Provides in-depth analysis of individual stocks
 - **News Sentiment Analysis**: Incorporates news sentiment into the analysis
@@ -33,9 +36,9 @@ TradeSmart Analytics is an advanced stock analysis tool designed to identify day
 
 ## Scoring System
 
-The application uses a sophisticated scoring system to evaluate stocks:
+The application offers two scoring systems to evaluate stocks:
 
-### Score Components
+### Traditional Heuristic Scoring
 - **Technical Score (35%)**: Evaluates short-term technical indicators including RSI, MACD, Bollinger Bands, Stochastic Oscillator, and recent price movements
 - **Long-Term Score (15%)**: Assesses long-term performance using 50/200-day moving averages, golden/death crosses, and 30/90-day returns
 - **Volatility Score (20%)**: Measures price volatility using ATR and intraday range
@@ -43,8 +46,36 @@ The application uses a sophisticated scoring system to evaluate stocks:
 - **Gap Potential Score (10%)**: Evaluates potential for gap trading based on pre-market movement and gap frequency
 - **Volume Score (10%)**: Assesses trading volume relative to average
 
+### Machine Learning-Based Scoring
+The new ML-based scoring system uses gradient boosted trees to:
+- Discover non-linear relationships in market data
+- Automatically adjust to changing market conditions
+- Reduce overfitting through feature orthogonalization
+- Provide more stable signals with lower turnover
+- Generate explainable predictions with feature importance
+
 ### Strategy Classification
 Stocks are classified into strategies (Strong Buy, Buy, Neutral/Watch, Sell, Strong Sell) based on their overall score, with strategy details that consider both short-term and long-term performance metrics.
+
+## Advanced Trading Features
+
+### Backtesting Framework
+- **Point-in-Time Integrity**: Includes delisted tickers to avoid survivorship bias
+- **Transaction Cost Modeling**: Models spread, market impact, and fees based on liquidity
+- **Walk-Forward Testing**: Tests strategy robustness across different time periods
+- **Monte Carlo Simulation**: Assesses strategy performance under various market conditions
+
+### Portfolio Management
+- **Position Sizing**: Calculates optimal position sizes based on expected edge and volatility
+- **Risk Controls**: Implements sector and single-name concentration limits
+- **Market Neutrality**: Maintains market-neutral or beta-targeted exposures
+- **Drawdown Protection**: Activates kill switches when drawdowns exceed thresholds
+
+### Execution Algorithms
+- **TWAP (Time-Weighted Average Price)**: Divides orders into equal-sized slices over time
+- **VWAP (Volume-Weighted Average Price)**: Executes orders based on expected volume profile
+- **Smart Order Routing**: Minimizes market impact through intelligent order placement
+- **Dynamic Participation**: Adjusts participation rates based on market liquidity
 
 ## Installation
 
@@ -99,6 +130,14 @@ Stocks are classified into strategies (Strong Buy, Buy, Neutral/Watch, Sell, Str
 - **templates/**: HTML templates for the web interface
 - **static/**: CSS, JavaScript, and generated charts
 - **cache/**: Cached stock data for improved performance
+- **modules/**: Modular components for advanced functionality
+  - **ml_scoring.py**: Machine learning-based scoring system
+  - **backtesting.py**: Industrial-grade backtesting framework
+  - **portfolio_management.py**: Risk management and portfolio construction
+  - **execution.py**: Low-slippage execution algorithms
+  - **technical_analysis.py**: Technical indicators and analysis
+  - **data_retrieval.py**: Data retrieval and caching
+  - **utils.py**: Utility functions
 
 ## Dependencies
 
@@ -108,6 +147,9 @@ Stocks are classified into strategies (Strong Buy, Buy, Neutral/Watch, Sell, Str
 - Plotly: Interactive charts and visualisations
 - OpenAI: News sentiment analysis
 - Requests & BeautifulSoup: Web scraping and HTTP requests
+- scikit-learn: Machine learning algorithms and preprocessing
+- matplotlib: Data visualization for backtesting results
+- joblib: Model serialization and persistence
 
 ## Notes
 

@@ -6,7 +6,6 @@ import plotly.express as px
 import json
 from datetime import datetime, timedelta
 import os
-import stock_analysis
 from curl_cffi import requests
 
 import time
@@ -16,18 +15,16 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for, R
 from threading import Thread
 from queue import Queue
 import json
-from stock_analysis import set_message_handler
 
 # Import integrated trading system
 from modules.trading_system import TradingSystem
 
-
-
-from stock_analysis import (
-    analyze_stocks, format_results, generate_watchlist, save_to_csv, get_stock_data,
-    prepare_price_chart_data, calculate_score_contribution, get_detailed_stock_metrics,
-    format_stock_for_json, get_sector_performance, get_yf_session
-)
+# Import necessary modules
+from modules.utils import set_message_handler, log_message
+from modules.data_retrieval import get_stock_info, get_stock_history, get_yf_session
+from modules.technical_analysis import get_stock_data
+from modules.visualization import prepare_price_chart_data, get_detailed_stock_metrics
+from modules.market_data import get_sector_performance
 
 from requests.cookies import create_cookie
 import yfinance.data as _data
@@ -93,7 +90,7 @@ def analysis_progress_stream():
     return Response(generate(), mimetype="text/event-stream")
 
 def run_analysis_with_updates(tickers, analysis_id, message_queue):
-    """Run stock analysis with progress updates sent to the client"""
+    """Run stock analysis with progress updates sent to the client using the integrated trading system"""
     try:
         # Define a custom message handler for this analysis
         def custom_message_handler(message):
@@ -115,44 +112,26 @@ def run_analysis_with_updates(tickers, analysis_id, message_queue):
             "message": f"Starting analysis of {total_tickers} tickers..."
         })
 
-        ranked_stocks = []
-        failed_tickers = []
+        # Initialize the trading system
+        system = TradingSystem(initial_capital=100000.0)
 
-        # Process each ticker
-        for i, ticker_symbol in enumerate(tickers):
-            # Calculate and send progress update
-            progress = int((i / total_tickers) * 100)
+        # Use the trading system to analyze stocks
+        message_queue.put({
+            "progress": 10,
+            "message": "Initializing trading system..."
+        })
+
+        # Analyze stocks
+        ranked_stocks, failed_tickers = system.analyze_stocks(tickers, use_ml=False)
+
+        # Generate watchlist
+        if ranked_stocks:
             message_queue.put({
-                "progress": progress,
-                "message": f"Processing {i+1}/{total_tickers}: {ticker_symbol}"
+                "progress": 80,
+                "message": "Generating watchlist..."
             })
 
-            # Get stock data
-            try:
-                stock_data, error = get_stock_data(ticker_symbol)
-
-                if error:
-                    message_queue.put({
-                        "message": f"Error: {error}"
-                    })
-                    failed_tickers.append(ticker_symbol)
-                else:
-                    ranked_stocks.append(stock_data)
-                    message_queue.put({
-                        "message": f" {ticker_symbol}: {stock_data['day_trading_strategy']} (Score: {stock_data['day_trading_score']:.1f})"
-                    })
-            except Exception as e:
-                message_queue.put({
-                    "message": f"Error processing {ticker_symbol}: {str(e)}"
-                })
-                failed_tickers.append(ticker_symbol)
-
-            # Brief pause to prevent rate limiting
-            time.sleep(0.3)
-
-        # Sort stocks by score
-        if ranked_stocks:
-            ranked_stocks = sorted(ranked_stocks, key=lambda x: x['day_trading_score'], reverse=True)
+            system.generate_watchlist(ranked_stocks)
 
             # Create session for data storage
             session_id = datetime.now().strftime('%Y%m%d%H%M%S')
@@ -161,7 +140,7 @@ def run_analysis_with_updates(tickers, analysis_id, message_queue):
 
             # Save analysis data
             message_queue.put({
-                "progress": 95,
+                "progress": 90,
                 "message": "Saving analysis results..."
             })
 
@@ -172,7 +151,7 @@ def run_analysis_with_updates(tickers, analysis_id, message_queue):
 
             # Create charts
             message_queue.put({
-                "progress": 98,
+                "progress": 95,
                 "message": "Generating visualizations..."
             })
 
@@ -215,7 +194,7 @@ def index():
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
-    """Handle form submission and display results"""
+    """Handle form submission and display results using the integrated trading system"""
     # Get ticker symbols from form
     ticker_input = request.form.get('tickers', '')
     tickers = [ticker.strip() for ticker in ticker_input.split(',') if ticker.strip()]
@@ -237,8 +216,9 @@ def analyze():
         # Clean up the progress data
         del analysis_progress[session_id]
     else:
-        # Fallback to regular analysis
-        ranked_stocks, failed_tickers = analyze_stocks(tickers)
+        # Fallback to regular analysis using the integrated trading system
+        system = TradingSystem(initial_capital=100000.0)
+        ranked_stocks, failed_tickers = system.analyze_stocks(tickers, use_ml=False)
 
         # Create session folder for charts
         session_id = datetime.now().strftime('%Y%m%d%H%M%S')
@@ -269,7 +249,7 @@ def analyze():
     }
 
     # Generate watchlist
-    watchlist = generate_watchlist_data(df)
+    watchlist = generate_watchlist_data(df, min_score=65, max_stocks=10)
 
     return render_template(
         'results.html',
@@ -283,19 +263,23 @@ def analyze():
 
 @app.route('/stock/<ticker>')
 def stock_detail(ticker):
-    # Get detailed data for a single stock
-    stock_data, error = get_stock_data(ticker)
+    """Display detailed information for a single stock"""
+    try:
+        # Get detailed data for a single stock using the technical_analysis module
+        stock_data, error = get_stock_data(ticker)
 
-    if error or not stock_data:
-        return render_template('error.html', error=f"Error retrieving data for {ticker}: {error}")
+        if error or not stock_data:
+            return render_template('error.html', error=f"Error retrieving data for {ticker}: {error}")
 
-    # Get detailed metrics
-    stock_data['metrics'] = get_detailed_stock_metrics(stock_data)
+        # Get detailed metrics
+        stock_data['metrics'] = get_detailed_stock_metrics(stock_data)
 
-    # Create detailed charts for this stock
-    charts = create_stock_detail_charts(stock_data)
+        # Create detailed charts for this stock
+        charts = create_stock_detail_charts(stock_data)
 
-    return render_template('stock_detail.html', stock=stock_data, charts=charts)
+        return render_template('stock_detail.html', stock=stock_data, charts=charts)
+    except Exception as e:
+        return render_template('error.html', error=f"Error analyzing {ticker}: {str(e)}")
 
 @app.route('/api/stock_price_history/<ticker>')
 def api_price_history(ticker):
@@ -308,30 +292,66 @@ def api_price_history(ticker):
 @app.route('/api/industry_peers/<ticker>')
 def api_industry_peers(ticker):
     """API endpoint to get industry peers for comparison"""
-    stock_data, error = get_stock_data(ticker)
-    if error or not stock_data:
-        return jsonify({"error": f"Failed to retrieve data for {ticker}"}), 404
+    try:
+        # Get stock data using the technical_analysis module
+        stock_data, error = get_stock_data(ticker)
+        if error or not stock_data:
+            return jsonify({"error": f"Failed to retrieve data for {ticker}"}), 404
 
-    # Try to find industry peers (simplified for this example)
-    # In a real application, you would use a database or more sophisticated method
-    industry = stock_data.get('industry', 'Unknown')
-    sector = stock_data.get('sector', 'Unknown')
+        # Try to find industry peers (simplified for this example)
+        # In a real application, you would use a database or more sophisticated method
+        industry = stock_data.get('industry', 'Unknown')
+        sector = stock_data.get('sector', 'Unknown')
 
-    # If possible, get peer companies based on industry/sector
-    # For this example, just return a simple comparison with some major stocks
-    peers = [
-        {"ticker": "AAPL", "day_trading_score": 73.5},
-        {"ticker": "MSFT", "day_trading_score": 68.2},
-        {"ticker": "AMZN", "day_trading_score": 64.7},
-        {"ticker": "GOOGL", "day_trading_score": 61.3},
-        {"ticker": "META", "day_trading_score": 58.9},
-        {"ticker": ticker, "day_trading_score": stock_data['day_trading_score']}
-    ]
+        # Initialize the trading system to get peer data
+        system = TradingSystem(initial_capital=100000.0)
 
-    # Sort by score
-    peers.sort(key=lambda x: x["day_trading_score"], reverse=True)
+        # Define peer tickers based on sector
+        if sector == "Technology":
+            peer_tickers = ["AAPL", "MSFT", "GOOGL", "META", "NVDA"]
+        elif sector == "Consumer Cyclical":
+            peer_tickers = ["AMZN", "TSLA", "HD", "MCD", "NKE"]
+        elif sector == "Financial Services":
+            peer_tickers = ["JPM", "BAC", "WFC", "C", "GS"]
+        else:
+            # Default peers
+            peer_tickers = ["AAPL", "MSFT", "GOOGL", "AMZN", "META"]
 
-    return jsonify(peers)
+        # Add the current ticker if not already in the list
+        if ticker not in peer_tickers:
+            peer_tickers.append(ticker)
+
+        # Get data for peers
+        peers = []
+        for peer_ticker in peer_tickers:
+            try:
+                if peer_ticker == ticker:
+                    # Use the data we already have
+                    peer_data = {
+                        "ticker": ticker,
+                        "day_trading_score": stock_data['day_trading_score']
+                    }
+                else:
+                    # Get data for this peer
+                    peer_stock_data, peer_error = get_stock_data(peer_ticker)
+                    if not peer_error and peer_stock_data:
+                        peer_data = {
+                            "ticker": peer_ticker,
+                            "day_trading_score": peer_stock_data['day_trading_score']
+                        }
+                    else:
+                        continue
+
+                peers.append(peer_data)
+            except Exception:
+                continue
+
+        # Sort by score
+        peers.sort(key=lambda x: x["day_trading_score"], reverse=True)
+
+        return jsonify(peers)
+    except Exception as e:
+        return jsonify({"error": f"Error getting peer data: {str(e)}"}), 500
 
 @app.route('/market_overview')
 def market_overview():
@@ -563,6 +583,17 @@ def create_stock_detail_charts(stock_data):
     return charts
 
 def generate_watchlist_data(df, min_score=65, max_stocks=10):
+    """
+    Generate a watchlist of the most promising stocks.
+
+    Parameters:
+        df (DataFrame): DataFrame containing stock data
+        min_score (float): Minimum score to include in watchlist
+        max_stocks (int): Maximum number of stocks in the watchlist
+
+    Returns:
+        list: Watchlist of stocks
+    """
     # Filter stocks by minimum score
     candidates = df[df['day_trading_score'] >= min_score].to_dict('records')
 
@@ -737,9 +768,15 @@ def patch_yfdata_cookie_basic():
 
     _data.YfData._get_cookie_basic = _patched
 
+# Apply the yfinance cookie patch at module level
+patch_yfdata_cookie_basic()
+
 if __name__ == '__main__':
     # Create necessary directories
     os.makedirs(os.path.join('static', 'sessions'), exist_ok=True)
+
+    # Apply the yfinance cookie patch
+    patch_yfdata_cookie_basic()
 
     # Log successful startup
     print(f"Starting ASX Financial Data Analysis server at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")

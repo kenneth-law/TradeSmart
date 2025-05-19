@@ -1,0 +1,9 @@
+{
+  "timestamp": "2025-05-19 22:13:20",
+  "initial_capital": 100000.0,
+  "market_neutral": true,
+  "is_model_trained": false,
+  "watchlist": [],
+  "portfolio_path": "cache/portfolio/portfolio_state_20250519.json",
+  "market_data": {}
+}

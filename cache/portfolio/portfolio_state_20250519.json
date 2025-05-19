@@ -1,0 +1,26 @@
+{
+  "initial_capital": 100000.0,
+  "current_capital": 100000.0,
+  "peak_capital": 100000.0,
+  "current_drawdown": 0.0,
+  "kill_switch_activated": false,
+  "market_neutral": true,
+  "max_position_size": 0.05,
+  "max_sector_exposure": 0.25,
+  "max_drawdown_threshold": 0.15,
+  "beta_target": 0.0,
+  "portfolio_beta": 0.0,
+  "positions": {},
+  "sector_exposures": {},
+  "equity_curve": [
+    {
+      "date": "2025-05-19",
+      "equity": 100000.0,
+      "cash": 100000.0,
+      "invested": 0.0,
+      "drawdown": 0.0
+    }
+  ],
+  "trade_history": [],
+  "last_updated": "2025-05-19 22:13:20"
+}

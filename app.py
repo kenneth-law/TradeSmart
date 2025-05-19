@@ -16,6 +16,8 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for, R
 from threading import Thread
 from queue import Queue
 import json
+from stock_analysis import set_message_handler
+
 
 
 from stock_analysis import (
@@ -38,9 +40,17 @@ analysis_queues = {}
 # Configure session at app startup to avoid repeated session creation
 yf_session = get_yf_session()
 
+
 @app.route('/analysis_progress')
 def analysis_progress_stream():
     """Server-Sent Events (SSE) endpoint for streaming analysis progress"""
+
+
+    # Add a test message to verify
+    print("DEBUG: analysis_progress_stream route called")
+
+
+
     tickers_input = request.args.get('tickers', '')
     tickers = [ticker.strip() for ticker in tickers_input.split(',') if ticker.strip()]
     
@@ -82,6 +92,18 @@ def analysis_progress_stream():
 def run_analysis_with_updates(tickers, analysis_id, message_queue):
     """Run stock analysis with progress updates sent to the client"""
     try:
+        # Define a custom message handler for this analysis
+        def custom_message_handler(message):
+            # Log to console as well as queue
+            print(f"DEBUG: {message}")
+            message_queue.put({
+                "message": str(message)
+            })
+        
+        # Set the custom message handler
+        set_message_handler(custom_message_handler)
+        
+        # Continue with actual analysis...
         total_tickers = len(tickers)
         
         # Send initial message
@@ -123,7 +145,7 @@ def run_analysis_with_updates(tickers, analysis_id, message_queue):
                 failed_tickers.append(ticker_symbol)
             
             # Brief pause to prevent rate limiting
-            time.sleep(0.5)
+            time.sleep(0.3)
         
         # Sort stocks by score
         if ranked_stocks:
@@ -176,10 +198,12 @@ def run_analysis_with_updates(tickers, analysis_id, message_queue):
         })
     
     finally:
+        # Reset the message handler to default
+        set_message_handler(print)
+        
         # Clean up
         if analysis_id in analysis_queues:
             del analysis_queues[analysis_id]
-
 
 
 @app.route('/')

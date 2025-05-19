@@ -201,6 +201,8 @@
                         <th>MACD</th>
                         <th>Volume</th>
                         <th>News</th>
+                        <th>Raw/Weighted</th>
+                        <th>Headlines</th>
                         <th>Details</th>
                     </tr>
                 </thead>
@@ -229,6 +231,24 @@
                                 </td>
                                 <td>{{ "%.1f"|format(stock.volume_ratio) }}x</td>
                                 <td>{{ stock.news_sentiment_label }}</td>
+                                <td>
+                                    {% if stock.raw_sentiment_score is defined and stock.weighted_sentiment_score is defined %}
+                                        {{ "%.1f"|format(stock.raw_sentiment_score) }}/{{ "%.1f"|format(stock.weighted_sentiment_score) }}
+                                    {% else %}
+                                        N/A
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if stock.headlines is defined and stock.headlines|length > 0 %}
+                                        <button class="btn btn-sm btn-info" type="button" data-bs-toggle="popover" 
+                                                data-bs-trigger="focus" title="News Headlines" 
+                                                data-bs-content="{{ stock.headlines|join('<br>') }}">
+                                            <i class="fas fa-newspaper"></i> View
+                                        </button>
+                                    {% else %}
+                                        No data
+                                    {% endif %}
+                                </td>
                                 <td>
                                     <a href="{{ url_for('stock_detail', ticker=stock.ticker) }}" class="btn btn-sm btn-primary">
                                         <i class="fas fa-chart-line"></i>
@@ -262,6 +282,16 @@
         const otherRows = document.querySelectorAll('.other-strategy');
         otherRows.forEach(row => {
             row.classList.toggle('d-none', !this.checked);
+        });
+    });
+    
+    // Initialize popovers for headlines
+    document.addEventListener('DOMContentLoaded', function() {
+        var popoverTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="popover"]'))
+        var popoverList = popoverTriggerList.map(function (popoverTriggerEl) {
+            return new bootstrap.Popover(popoverTriggerEl, {
+                html: true
+            })
         });
     });
 </script>

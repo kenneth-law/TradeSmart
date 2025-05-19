@@ -34,6 +34,12 @@
                 <form action="/analyze" method="POST" id="analyzeForm">
                     <div class="mb-4">
                         <label for="tickers" class="form-label">Enter Ticker Symbols</label>
+                        <div class="d-flex align-items-center mb-2">
+                            <button type="button" id="loadASX200Btn" class="btn btn-outline-secondary me-2">
+                                <i class="fas fa-list-alt me-1"></i>Load ASX 200
+                            </button>
+                            <small class="text-muted">Click to populate with ASX 200 tickers</small>
+                        </div>
                         <textarea 
                             class="form-control ticker-input" 
                             id="tickers" 
@@ -115,10 +121,20 @@
 
 {% block extra_js %}
 <script>
+    // ASX 200 tickers
+    const asx200Tickers = "APX.AX, BHP.AX, CBA.AX, NAB.AX, WBC.AX, ANZ.AX, CSL.AX, WES.AX, WOW.AX, MQG.AX, TLS.AX, RIO.AX, FMG.AX, GMG.AX, WDS.AX, TCL.AX, TPG.AX, QAN.AX, AGL.AX, ALD.AX, AMP.AX, ASX.AX, AZJ.AX, BXB.AX, COH.AX, CPU.AX, CWY.AX, DMP.AX, EVN.AX, IAG.AX, JHX.AX, LYC.AX, MFG.AX, MGR.AX, MIN.AX, NCM.AX, ORG.AX, OZL.AX, QBE.AX, RHC.AX, S32.AX, SDF.AX, SEK.AX, SHL.AX, STO.AX, SUL.AX, SUN.AX, SYD.AX, TAH.AX, TPW.AX, WTC.AX, XRO.AX, ABC.AX, ABP.AX, AIA.AX, ALQ.AX, AMC.AX, AMP.AX, ANN.AX, APA.AX, ARB.AX, ARG.AX, ARF.AX, ASX.AX, AUB.AX, AVH.AX, AVN.AX, BAP.AX, BEN.AX, BGA.AX, BKL.AX, BLD.AX, BPT.AX, BRG.AX, BSL.AX, BWP.AX, CAR.AX, CBA.AX, CCP.AX, CCX.AX, CGF.AX, CIM.AX, CMW.AX, COE.AX, COL.AX, CQR.AX, CSL.AX, CSR.AX, CTD.AX, CUV.AX, CWN.AX, DXS.AX, ELD.AX, EML.AX, EOS.AX, EVT.AX, FBU.AX, FLT.AX, FMG.AX, GEM.AX, GMA.AX, GNC.AX, GPT.AX, GUD.AX, GWA.AX, HLS.AX, IAG.AX, IGO.AX, ILU.AX, INA.AX, IRE.AX, JHG.AX, JIN.AX, JLG.AX, JHX.AX, KGN.AX, KMD.AX, LNK.AX, LOV.AX, LYC.AX, LLC.AX, M7T.AX, MAH.AX, MAQ.AX, MFG.AX, MGR.AX, MGX.AX, MIN.AX, MND.AX, MPL.AX, MQG.AX, MSB.AX, NCK.AX, NEC.AX, NHC.AX, NHF.AX, NCM.AX, NWS.AX, NXT.AX, NWL.AX, ORA.AX, ORE.AX, ORG.AX, ORI.AX, OZL.AX, PAR.AX, PDL.AX, PLS.AX, PMV.AX, PNI.AX, PNV.AX, PPH.AX, PTM.AX, QAN.AX, QBE.AX, QUB.AX, RBL.AX, RFF.AX, RHC.AX, RIO.AX, RMD.AX, RRL.AX, RSG.AX, S32.AX, SDF.AX, SFR.AX, SGM.AX, SHL.AX, SIQ.AX, SKC.AX, SLR.AX, SGM.AX, SGR.AX, SGP.AX, SKI.AX, SM1.AX, SOL.AX, SPK.AX, SSM.AX, SUL.AX, SUN.AX, SVW.AX, SWM.AX, SYD.AX, TAH.AX, TCL.AX, TGR.AX, TLS.AX, TNE.AX, TPW.AX, TWE.AX, TYR.AX, VEA.AX, VGI.AX, VUK.AX, VRT.AX, WAF.AX, WAM.AX, WBC.AX, WEB.AX, WES.AX, WGX.AX, WPL.AX, WOR.AX, WOW.AX, WPR.AX, WTC.AX, XRO.AX, YAL.AX, Z1P.AX, ZIM.AX";
+
+    // Load ASX 200 tickers button
+    document.getElementById('loadASX200Btn').addEventListener('click', function() {
+        document.getElementById('tickers').value = asx200Tickers;
+    });
+
+    // Analysis form submission
     document.getElementById('analyzeForm').addEventListener('submit', function(e) {
         e.preventDefault(); // Prevent default form submission
         
         document.getElementById('analyzeBtn').disabled = true;
+        document.getElementById('loadASX200Btn').disabled = true;
         document.getElementById('loadingIndicator').classList.remove('d-none');
         
         // Get ticker symbols
@@ -128,6 +144,7 @@
         if (tickers.length === 0) {
             alert('Please enter at least one ticker symbol');
             document.getElementById('analyzeBtn').disabled = false;
+            document.getElementById('loadASX200Btn').disabled = false;
             document.getElementById('loadingIndicator').classList.add('d-none');
             return;
         }
@@ -183,6 +200,7 @@
                 // Re-enable button after error
                 setTimeout(() => {
                     document.getElementById('analyzeBtn').disabled = false;
+                    document.getElementById('loadASX200Btn').disabled = false;
                 }, 3000);
             }
         };
@@ -190,6 +208,10 @@
         evtSource.onerror = function() {
             terminal.innerHTML += '<div class="terminal-line error-line">Connection to server lost.</div>';
             evtSource.close();
+            
+            // Re-enable buttons on error
+            document.getElementById('analyzeBtn').disabled = false;
+            document.getElementById('loadASX200Btn').disabled = false;
         };
     });
 </script>

@@ -11,7 +11,7 @@ from modules.data_retrieval import get_stock_info, get_stock_history
 from modules.news_sentiment import get_news_sentiment_with_timeframes
 from modules.utils import log_message
 
-def get_stock_data(ticker_symbol):
+def get_stock_data(ticker_symbol, historical_data=None):
     """
     Fetches and computes stock market data and technical indicators for the given ticker symbol. The function
     retrieves basic stock information, historical price data, and intraday data when available. It calculates
@@ -21,6 +21,8 @@ def get_stock_data(ticker_symbol):
 
     Parameters:
         ticker_symbol (str): The symbol representing the stock (e.g., 'AAPL', 'GOOGL').
+        historical_data (pandas.DataFrame, optional): Pre-loaded historical data to use instead of fetching new data.
+                                                     Used primarily for backtesting and ML training.
 
     Returns:
         tuple: A tuple containing the following elements:
@@ -37,21 +39,31 @@ def get_stock_data(ticker_symbol):
         if not info:
             return None, f"No data found for {ticker_symbol}"
 
-        # Get historical data for technical indicators
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=180)  # Extended from 30 to 180 days for long-term analysis
+        # Use provided historical data if available, otherwise fetch it
+        if historical_data is not None:
+            hist = historical_data.copy()  # Create a copy to avoid SettingWithCopyWarning
+            # For backtesting/ML training, we don't need intraday data
+            intraday = pd.DataFrame()
+        else:
+            # Get historical data for technical indicators
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=180)  # Extended from 30 to 180 days for long-term analysis
 
-        # Format dates for caching
-        start_date_str = start_date.strftime('%Y-%m-%d')
-        end_date_str = end_date.strftime('%Y-%m-%d')
+            # Format dates for caching
+            start_date_str = start_date.strftime('%Y-%m-%d')
+            end_date_str = end_date.strftime('%Y-%m-%d')
 
-        # Get historical data with caching, force refresh to ensure we have the latest data
-        hist = get_stock_history(ticker_symbol, start_date_str, end_date_str, "1d", cache_timestamp, force_refresh=True)
+            # Get historical data with caching, force refresh to ensure we have the latest data
+            hist = get_stock_history(ticker_symbol, start_date_str, end_date_str, "1d", cache_timestamp, force_refresh=True)
+            # Create a copy to ensure we're not working with a view
+            hist = hist.copy()
 
-        # For intraday patterns, also get hourly data if available
-        intraday_start = end_date - timedelta(days=5)
-        intraday_start_str = intraday_start.strftime('%Y-%m-%d')
-        intraday = get_stock_history(ticker_symbol, intraday_start_str, end_date_str, "1h", cache_timestamp, force_refresh=True)
+            # For intraday patterns, also get hourly data if available
+            intraday_start = end_date - timedelta(days=5)
+            intraday_start_str = intraday_start.strftime('%Y-%m-%d')
+            intraday = get_stock_history(ticker_symbol, intraday_start_str, end_date_str, "1h", cache_timestamp, force_refresh=True)
+            # Create a copy to ensure we're not working with a view
+            intraday = intraday.copy()
 
         # Calculate technical indicators
         if len(hist) > 0:
@@ -68,11 +80,11 @@ def get_stock_data(ticker_symbol):
             prev_close = hist['Close'].iloc[-2] if len(hist) > 1 else current_price
 
             # Moving averages - both short-term for day trading and long-term for trend analysis
-            hist['MA5'] = hist['Close'].rolling(window=5).mean()
-            hist['MA10'] = hist['Close'].rolling(window=10).mean()
-            hist['MA20'] = hist['Close'].rolling(window=20).mean()
-            hist['MA50'] = hist['Close'].rolling(window=50).mean()  # Medium-term trend
-            hist['MA200'] = hist['Close'].rolling(window=200).mean()  # Long-term trend
+            hist.loc[:, 'MA5'] = hist['Close'].rolling(window=5).mean()
+            hist.loc[:, 'MA10'] = hist['Close'].rolling(window=10).mean()
+            hist.loc[:, 'MA20'] = hist['Close'].rolling(window=20).mean()
+            hist.loc[:, 'MA50'] = hist['Close'].rolling(window=50).mean()  # Medium-term trend
+            hist.loc[:, 'MA200'] = hist['Close'].rolling(window=200).mean()  # Long-term trend
 
             # Check if price is above/below key moving averages
             above_ma5 = current_price > hist['MA5'].iloc[-1] if not pd.isna(hist['MA5'].iloc[-1]) else False
@@ -96,17 +108,17 @@ def get_stock_data(ticker_symbol):
 
             # Volatility measures
             # ATR (Average True Range)
-            hist['high_low'] = hist['High'] - hist['Low']
-            hist['high_close'] = np.abs(hist['High'] - hist['Close'].shift(1))
-            hist['low_close'] = np.abs(hist['Low'] - hist['Close'].shift(1))
-            hist['tr'] = hist[['high_low', 'high_close', 'low_close']].max(axis=1)
-            hist['atr14'] = hist['tr'].rolling(window=14).mean()
+            hist.loc[:, 'high_low'] = hist['High'] - hist['Low']
+            hist.loc[:, 'high_close'] = np.abs(hist['High'] - hist['Close'].shift(1))
+            hist.loc[:, 'low_close'] = np.abs(hist['Low'] - hist['Close'].shift(1))
+            hist.loc[:, 'tr'] = hist[['high_low', 'high_close', 'low_close']].max(axis=1)
+            hist.loc[:, 'atr14'] = hist['tr'].rolling(window=14).mean()
 
             # Bollinger Bands (20-day, 2 standard deviations)
-            hist['bb_middle'] = hist['Close'].rolling(window=20).mean()
-            hist['bb_std'] = hist['Close'].rolling(window=20).std()
-            hist['bb_upper'] = hist['bb_middle'] + 2 * hist['bb_std']
-            hist['bb_lower'] = hist['bb_middle'] - 2 * hist['bb_std']
+            hist.loc[:, 'bb_middle'] = hist['Close'].rolling(window=20).mean()
+            hist.loc[:, 'bb_std'] = hist['Close'].rolling(window=20).std()
+            hist.loc[:, 'bb_upper'] = hist['bb_middle'] + 2 * hist['bb_std']
+            hist.loc[:, 'bb_lower'] = hist['bb_middle'] - 2 * hist['bb_std']
 
             # Calculate BB position (0 = at lower band, 1 = at upper band)
             bb_range = hist['bb_upper'].iloc[-1] - hist['bb_lower'].iloc[-1]
@@ -117,45 +129,45 @@ def get_stock_data(ticker_symbol):
             gain = delta.where(delta > 0, 0).rolling(window=7).mean()
             loss = -delta.where(delta < 0, 0).rolling(window=7).mean()
             rs = gain / loss
-            hist['RSI7'] = 100 - (100 / (1 + rs))
+            hist.loc[:, 'RSI7'] = 100 - (100 / (1 + rs))
 
             # Standard 14-day RSI
             gain14 = delta.where(delta > 0, 0).rolling(window=14).mean()
             loss14 = -delta.where(delta < 0, 0).rolling(window=14).mean()
             rs14 = gain14 / loss14
-            hist['RSI14'] = 100 - (100 / (1 + rs14))
+            hist.loc[:, 'RSI14'] = 100 - (100 / (1 + rs14))
 
             # Momentum indicators
             # Recent and longer-term returns
-            hist['return_1d'] = hist['Close'].pct_change(periods=1) * 100
-            hist['return_3d'] = hist['Close'].pct_change(periods=3) * 100
-            hist['return_5d'] = hist['Close'].pct_change(periods=5) * 100
-            hist['return_30d'] = hist['Close'].pct_change(periods=30) * 100  # Monthly return
-            hist['return_90d'] = hist['Close'].pct_change(periods=90) * 100  # Quarterly return
+            hist.loc[:, 'return_1d'] = hist['Close'].pct_change(periods=1) * 100
+            hist.loc[:, 'return_3d'] = hist['Close'].pct_change(periods=3) * 100
+            hist.loc[:, 'return_5d'] = hist['Close'].pct_change(periods=5) * 100
+            hist.loc[:, 'return_30d'] = hist['Close'].pct_change(periods=30) * 100  # Monthly return
+            hist.loc[:, 'return_90d'] = hist['Close'].pct_change(periods=90) * 100  # Quarterly return
 
             # Stochastic Oscillator (14-day)
-            hist['lowest_low'] = hist['Low'].rolling(window=14).min()
-            hist['highest_high'] = hist['High'].rolling(window=14).max()
-            hist['%K'] = ((hist['Close'] - hist['lowest_low']) / (hist['highest_high'] - hist['lowest_low'])) * 100
-            hist['%D'] = hist['%K'].rolling(window=3).mean()  # 3-day SMA of %K
+            hist.loc[:, 'lowest_low'] = hist['Low'].rolling(window=14).min()
+            hist.loc[:, 'highest_high'] = hist['High'].rolling(window=14).max()
+            hist.loc[:, '%K'] = ((hist['Close'] - hist['lowest_low']) / (hist['highest_high'] - hist['lowest_low'])) * 100
+            hist.loc[:, '%D'] = hist['%K'].rolling(window=3).mean()  # 3-day SMA of %K
 
             # On-Balance Volume (OBV)
-            hist['obv'] = 0
+            hist.loc[:, 'obv'] = 0
             hist.loc[hist['Close'] > hist['Close'].shift(1), 'obv'] = hist['Volume']
             hist.loc[hist['Close'] < hist['Close'].shift(1), 'obv'] = -hist['Volume']
             hist.loc[hist['Close'] == hist['Close'].shift(1), 'obv'] = 0
-            hist['obv'] = hist['obv'].cumsum()
-            hist['obv_ma20'] = hist['obv'].rolling(window=20).mean()  # 20-day MA of OBV
+            hist.loc[:, 'obv'] = hist['obv'].cumsum()
+            hist.loc[:, 'obv_ma20'] = hist['obv'].rolling(window=20).mean()  # 20-day MA of OBV
 
             # MACD for trend direction
-            hist['ema12'] = hist['Close'].ewm(span=12, adjust=False).mean()
-            hist['ema26'] = hist['Close'].ewm(span=26, adjust=False).mean()
-            hist['macd'] = hist['ema12'] - hist['ema26']
-            hist['signal'] = hist['macd'].ewm(span=9, adjust=False).mean()
-            hist['macd_hist'] = hist['macd'] - hist['signal']
+            hist.loc[:, 'ema12'] = hist['Close'].ewm(span=12, adjust=False).mean()
+            hist.loc[:, 'ema26'] = hist['Close'].ewm(span=26, adjust=False).mean()
+            hist.loc[:, 'macd'] = hist['ema12'] - hist['ema26']
+            hist.loc[:, 'signal'] = hist['macd'].ewm(span=9, adjust=False).mean()
+            hist.loc[:, 'macd_hist'] = hist['macd'] - hist['signal']
 
             # Volume analysis
-            hist['volume_ma5'] = hist['Volume'].rolling(window=5).mean()
+            hist.loc[:, 'volume_ma5'] = hist['Volume'].rolling(window=5).mean()
             volume_ratio = hist['Volume'].iloc[-1] / hist['volume_ma5'].iloc[-1] if hist['volume_ma5'].iloc[-1] > 0 else 1
 
             # Intraday volatility (if available)

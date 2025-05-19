@@ -15,12 +15,36 @@ TradeSmart Analytics is an advanced stock analysis tool designed to identify day
 
 ## Technical Indicators Used
 
+### Short-Term Indicators
 - **RSI (Relative Strength Index)**: Measures the speed and change of price movements
 - **MACD (Moving Average Convergence Divergence)**: Trend-following momentum indicator
-- **Moving Averages**: Identifies trend direction
+- **Short-Term Moving Averages (5, 10, 20-day)**: Identifies short-term trend direction
 - **ATR (Average True Range)**: Measures market volatility
 - **Bollinger Bands**: Indicates overbought or oversold conditions
 - **Volume Analysis**: Compares current volume to average volume
+- **Stochastic Oscillator**: Compares a security's closing price to its price range over a specific period
+- **On-Balance Volume (OBV)**: Relates volume to price change to predict trend strength
+
+### Long-Term Performance Metrics
+- **Long-Term Moving Averages (50, 200-day)**: Identifies medium and long-term trend direction
+- **Golden Cross/Death Cross**: Signals major trend changes (50-day MA crossing 200-day MA)
+- **Extended Historical Data (180 days)**: Provides more context for analysis
+- **Medium and Long-Term Returns (30-day, 90-day)**: Measures performance over longer periods
+
+## Scoring System
+
+The application uses a sophisticated scoring system to evaluate stocks:
+
+### Score Components
+- **Technical Score (35%)**: Evaluates short-term technical indicators including RSI, MACD, Bollinger Bands, Stochastic Oscillator, and recent price movements
+- **Long-Term Score (15%)**: Assesses long-term performance using 50/200-day moving averages, golden/death crosses, and 30/90-day returns
+- **Volatility Score (20%)**: Measures price volatility using ATR and intraday range
+- **News Sentiment Score (10%)**: Analyzes recent news sentiment using natural language processing
+- **Gap Potential Score (10%)**: Evaluates potential for gap trading based on pre-market movement and gap frequency
+- **Volume Score (10%)**: Assesses trading volume relative to average
+
+### Strategy Classification
+Stocks are classified into strategies (Strong Buy, Buy, Neutral/Watch, Sell, Strong Sell) based on their overall score, with strategy details that consider both short-term and long-term performance metrics.
 
 ## Installation
 

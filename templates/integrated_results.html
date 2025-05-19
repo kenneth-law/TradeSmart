@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+
+{% block title %}Integrated Trading System Results{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-4">Integrated Trading System Results</h1>
+    
+    <div class="alert alert-success">
+        <h5>Analysis Complete</h5>
+        <p>Successfully analyzed {{ results.tickers_analyzed }} stocks using {% if results.ml_scoring_used %}ML-based{% else %}traditional{% endif %} scoring.</p>
+        <p>Workflow completed in {{ (results.end_time|string)[:19] }}</p>
+    </div>
+    
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Analysis Summary</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-striped">
+                        <tr>
+                            <th>Stocks Analyzed:</th>
+                            <td>{{ results.tickers_analyzed }}</td>
+                        </tr>
+                        <tr>
+                            <th>Stocks Ranked:</th>
+                            <td>{{ results.ranked_stocks_count }}</td>
+                        </tr>
+                        <tr>
+                            <th>Failed Tickers:</th>
+                            <td>{{ results.failed_tickers_count }}</td>
+                        </tr>
+                        <tr>
+                            <th>Watchlist Size:</th>
+                            <td>{{ results.watchlist_count }}</td>
+                        </tr>
+                        <tr>
+                            <th>ML Model Trained:</th>
+                            <td>{% if results.ml_model_trained %}Yes{% else %}No{% endif %}</td>
+                        </tr>
+                        <tr>
+                            <th>Buy Recommendations:</th>
+                            <td>{{ results.buy_recommendations }}</td>
+                        </tr>
+                        <tr>
+                            <th>Sell Recommendations:</th>
+                            <td>{{ results.sell_recommendations }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Portfolio Summary</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-striped">
+                        <tr>
+                            <th>Total Value:</th>
+                            <td>${{ portfolio_summary.total_value|round(2)|format_number }}</td>
+                        </tr>
+                        <tr>
+                            <th>Cash:</th>
+                            <td>${{ portfolio_summary.cash|round(2)|format_number }} ({{ portfolio_summary.cash_percentage|round(1) }}%)</td>
+                        </tr>
+                        <tr>
+                            <th>Invested:</th>
+                            <td>${{ portfolio_summary.invested_value|round(2)|format_number }} ({{ portfolio_summary.invested_percentage|round(1) }}%)</td>
+                        </tr>
+                        <tr>
+                            <th>Number of Positions:</th>
+                            <td>{{ portfolio_summary.num_positions }}</td>
+                        </tr>
+                        <tr>
+                            <th>Portfolio Beta:</th>
+                            <td>{{ portfolio_summary.portfolio_beta|round(2) }}</td>
+                        </tr>
+                        <tr>
+                            <th>Current Drawdown:</th>
+                            <td>{{ (portfolio_summary.current_drawdown * 100)|round(2) }}%</td>
+                        </tr>
+                        <tr>
+                            <th>Kill Switch:</th>
+                            <td>{% if portfolio_summary.kill_switch_activated %}<span class="text-danger">Activated</span>{% else %}<span class="text-success">Not Activated</span>{% endif %}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Backtest Results -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Backtest Results</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <table class="table table-striped">
+                        <tr>
+                            <th>Total Return:</th>
+                            <td>{{ (results.backtest_return * 100)|round(2) }}%</td>
+                        </tr>
+                        <tr>
+                            <th>Sharpe Ratio:</th>
+                            <td>{{ results.backtest_sharpe|round(2) }}</td>
+                        </tr>
+                    </table>
+                </div>
+                <div class="col-md-6">
+                    <a href="/backtest" class="btn btn-outline-primary">Run Detailed Backtest</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Watchlist -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Watchlist</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Ticker</th>
+                            <th>Company</th>
+                            <th>Score</th>
+                            <th>Strategy</th>
+                            <th>Price</th>
+                            <th>Sector</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for stock in watchlist %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td><strong>{{ stock.ticker }}</strong></td>
+                            <td>{{ stock.company_name }}</td>
+                            <td>{{ stock.day_trading_score|round(1) }}</td>
+                            <td>
+                                {% if stock.day_trading_strategy == 'Strong Buy' %}
+                                <span class="badge bg-success">Strong Buy</span>
+                                {% elif stock.day_trading_strategy == 'Buy' %}
+                                <span class="badge bg-primary">Buy</span>
+                                {% elif stock.day_trading_strategy == 'Neutral/Watch' %}
+                                <span class="badge bg-warning text-dark">Neutral</span>
+                                {% elif stock.day_trading_strategy == 'Sell' %}
+                                <span class="badge bg-danger">Sell</span>
+                                {% elif stock.day_trading_strategy == 'Strong Sell' %}
+                                <span class="badge bg-dark">Strong Sell</span>
+                                {% endif %}
+                            </td>
+                            <td>${{ stock.current_price|round(2) }}</td>
+                            <td>{{ stock.sector }}</td>
+                            <td>
+                                <a href="/stock/{{ stock.ticker }}" class="btn btn-sm btn-outline-primary">Details</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Charts -->
+    <div class="row">
+        {% if 'portfolio_composition' in charts %}
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Portfolio Composition</h5>
+                </div>
+                <div class="card-body">
+                    <iframe src="/static/sessions/{{ session_id }}/{{ charts.portfolio_composition }}" width="100%" height="400" frameborder="0"></iframe>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        
+        {% if 'watchlist_scores' in charts %}
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Watchlist Scores</h5>
+                </div>
+                <div class="card-body">
+                    <iframe src="/static/sessions/{{ session_id }}/{{ charts.watchlist_scores }}" width="100%" height="400" frameborder="0"></iframe>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        
+        {% if 'feature_importance' in charts %}
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">ML Feature Importance</h5>
+                </div>
+                <div class="card-body">
+                    <iframe src="/static/sessions/{{ session_id }}/{{ charts.feature_importance }}" width="100%" height="400" frameborder="0"></iframe>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    
+    <!-- Actions -->
+    <div class="d-flex justify-content-between mb-4">
+        <a href="/integrated_system" class="btn btn-outline-primary">&larr; Back to Integrated System</a>
+        <div>
+            <a href="/backtest" class="btn btn-outline-secondary me-2">Run Backtest</a>
+            <a href="/portfolio" class="btn btn-outline-secondary">Portfolio Management</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

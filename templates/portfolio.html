@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+
+{% block title %}Portfolio Management{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-4">Portfolio Management</h1>
+    
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">About Portfolio Management</h5>
+        </div>
+        <div class="card-body">
+            <p>The portfolio management system implements robust risk controls and position sizing:</p>
+            <ul>
+                <li><strong>Position Sizing:</strong> Calculates optimal position sizes based on expected edge and volatility</li>
+                <li><strong>Risk Controls:</strong> Implements sector and single-name concentration limits</li>
+                <li><strong>Market Neutrality:</strong> Maintains market-neutral or beta-targeted exposures</li>
+                <li><strong>Drawdown Protection:</strong> Activates kill switches when drawdowns exceed thresholds</li>
+            </ul>
+            <p>This system helps construct and manage portfolios with proper risk controls and diversification.</p>
+        </div>
+    </div>
+    
+    {% if error %}
+    <div class="alert alert-danger">{{ error }}</div>
+    {% endif %}
+    
+    {% if portfolio_summary %}
+    <!-- Portfolio Summary -->
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Portfolio Summary</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-striped">
+                        <tr>
+                            <th>Total Value:</th>
+                            <td>${{ portfolio_summary.total_value|round(2)|format_number }}</td>
+                        </tr>
+                        <tr>
+                            <th>Cash:</th>
+                            <td>${{ portfolio_summary.cash|round(2)|format_number }} ({{ portfolio_summary.cash_percentage|round(1) }}%)</td>
+                        </tr>
+                        <tr>
+                            <th>Invested:</th>
+                            <td>${{ portfolio_summary.invested_value|round(2)|format_number }} ({{ portfolio_summary.invested_percentage|round(1) }}%)</td>
+                        </tr>
+                        <tr>
+                            <th>Number of Positions:</th>
+                            <td>{{ portfolio_summary.num_positions }}</td>
+                        </tr>
+                        <tr>
+                            <th>Portfolio Beta:</th>
+                            <td>{{ portfolio_summary.portfolio_beta|round(2) }}</td>
+                        </tr>
+                        <tr>
+                            <th>Current Drawdown:</th>
+                            <td>{{ (portfolio_summary.current_drawdown * 100)|round(2) }}%</td>
+                        </tr>
+                        <tr>
+                            <th>Kill Switch:</th>
+                            <td>{% if portfolio_summary.kill_switch_activated %}<span class="text-danger">Activated</span>{% else %}<span class="text-success">Not Activated</span>{% endif %}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Sector Exposures</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Sector</th>
+                                <th>Value</th>
+                                <th>Percentage</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for sector, data in portfolio_summary.sector_exposures.items() %}
+                            <tr>
+                                <td>{{ sector }}</td>
+                                <td>${{ data.value|round(2)|format_number }}</td>
+                                <td>{{ data.percentage|round(1) }}%</td>
+                            </tr>
+                            {% endfor %}
+                            <tr class="table-secondary">
+                                <td><strong>Cash</strong></td>
+                                <td>${{ portfolio_summary.cash|round(2)|format_number }}</td>
+                                <td>{{ portfolio_summary.cash_percentage|round(1) }}%</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Positions -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Positions</h5>
+        </div>
+        <div class="card-body">
+            {% if positions %}
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>Ticker</th>
+                            <th>Shares</th>
+                            <th>Cost Basis</th>
+                            <th>Current Price</th>
+                            <th>Current Value</th>
+                            <th>Profit/Loss</th>
+                            <th>P/L %</th>
+                            <th>Sector</th>
+                            <th>Entry Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for ticker, position in positions.items() %}
+                        <tr>
+                            <td><strong>{{ ticker }}</strong></td>
+                            <td>{{ position.shares }}</td>
+                            <td>${{ position.cost_basis|round(2) }}</td>
+                            <td>${{ position.current_price|round(2) }}</td>
+                            <td>${{ position.current_value|round(2)|format_number }}</td>
+                            <td>
+                                {% set pl = position.current_value - (position.cost_basis * position.shares) %}
+                                <span class="{% if pl >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                    ${{ pl|round(2)|format_number }}
+                                </span>
+                            </td>
+                            <td>
+                                {% set pl_pct = ((position.current_price / position.cost_basis) - 1) * 100 %}
+                                <span class="{% if pl_pct >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                    {{ pl_pct|round(2) }}%
+                                </span>
+                            </td>
+                            <td>{{ position.sector }}</td>
+                            <td>{{ position.entry_date }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-info">
+                No positions in portfolio. Run the integrated system to generate trade recommendations and build a portfolio.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-info">
+        <h5>No Portfolio Data Available</h5>
+        <p>You don't have an active portfolio yet. Use the integrated trading system to analyze stocks and generate trade recommendations.</p>
+        <a href="/integrated_system" class="btn btn-primary mt-2">Go to Integrated System</a>
+    </div>
+    {% endif %}
+    
+    <!-- Actions -->
+    <div class="d-flex justify-content-between mb-4">
+        <a href="/" class="btn btn-outline-primary">&larr; Back to Home</a>
+        <div>
+            <a href="/integrated_system" class="btn btn-outline-secondary me-2">Integrated System</a>
+            <a href="/backtest" class="btn btn-outline-secondary">Backtesting</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,41 +1,12 @@
 # TradeSmart Analytics
 
-![GitHub CI](https://github.com/mattermost-community/focalboard/actions/workflows/prod-release.yml/badge.svg)
-
-TradeSmart Analytics is an advanced stock analysis tool designed to identify day trading opportunities through comprehensive technical analysis, volatility measures, and news sentiment analysis. The application provides a user-friendly web interface for analysing stocks, particularly focused on the Australian Securities Exchange (ASX).
-
-
-
-[System Architecture](https://tradevision.up.railway.app/documentation/system_architecture)
-<img width="1113" height="863" alt="image" src="https://github.com/user-attachments/assets/e712bc85-26ab-440d-8da8-5ccf1cd5113e" />
-
-
-## DISCLAIMER:
-This software is provided for educational and informational purposes only.
-The author(s) are not registered investment advisors and do not provide financial advice.
-This software does not guarantee accuracy of data and should not be the sole basis for any investment decision.
-Users run and use this software at their own risk. The author(s) accept no liability for any loss or damage 
-resulting from its use. Always consult with a qualified financial professional before making investment decisions.
-
-## Terms of Use
-
-By using this software, you agree:
-1. To use it at your own risk
-2. Not to hold the author(s) liable for any damages
-3. To comply with the terms of the [LICENSE](https://www.apache.org/licenses/LICENSE-2.0.txt)
-4. That this is not financial advice
-
-This project is not affiliated with the ASX or any financial institution.
-
-## License
-
-This project is licensed under the Apache License 2.0 - see the ([LICENSE](https://www.apache.org/licenses/LICENSE-2.0.txt) file for details.
+TradeSmart Analytics is an advanced stock analysis tool designed to identify day trading opportunities through comprehensive technical analysis, volatility measures, and news sentiment analysis. The application provides a user-friendly web interface for analyzing stocks, particularly focused on the Australian Securities Exchange (ASX).
 
 ## Features
 
 - **Comprehensive Stock Analysis**: Analyzes stocks using multiple technical indicators, volatility measures, and news sentiment
 - **Real-time Progress Updates**: Provides real-time feedback during analysis with a terminal-like display
-- **Interactive Visualizations**: Generates multiple charts and visualisations to help understand the data
+- **Interactive Visualizations**: Generates multiple charts and visualizations to help understand the data
 - **Machine Learning-Based Scoring**: Uses gradient boosted trees to discover non-linear relationships in market data
 - **Industrial-Grade Backtesting**: Provides realistic backtesting with transaction cost modeling and point-in-time integrity
 - **Portfolio Construction**: Implements risk management and position sizing based on expected edge and volatility
@@ -76,26 +47,12 @@ The application offers two scoring systems to evaluate stocks:
 - **Volume Score (10%)**: Assesses trading volume relative to average
 
 ### Machine Learning-Based Scoring
-The ML-based scoring system uses Gradient Boosted Decision Trees (GBDT) to:
+The new ML-based scoring system uses gradient boosted trees to:
 - Discover non-linear relationships in market data
 - Automatically adjust to changing market conditions
-- Reduce overfitting through feature orthogonalization and regularization
+- Reduce overfitting through feature orthogonalization
 - Provide more stable signals with lower turnover
 - Generate explainable predictions with feature importance
-
-#### GBDT Implementation Details
-- **Model Types**: Supports both regression (score prediction) and classification (buy/sell signals)
-- **Feature Engineering**: Extracts 30+ technical indicators as features
-- **Preprocessing Pipeline**:
-  - Robust scaling to handle outliers
-  - Feature selection using mutual information
-  - Dimensionality reduction with PCA to reduce multicollinearity
-- **Training Process**:
-  - Time series cross-validation to prevent lookahead bias
-  - Hyperparameter tuning for optimal performance
-  - L1 regularization and Huber loss for robustness
-- **Per-Ticker Models**: Supports individual models for each ticker for more accurate predictions
-- **Automatic Retraining**: Models can be scheduled for periodic retraining to adapt to changing market conditions
 
 ### Strategy Classification
 Stocks are classified into strategies (Strong Buy, Buy, Neutral/Watch, Sell, Strong Sell) based on their overall score, with strategy details that consider both short-term and long-term performance metrics.
@@ -108,38 +65,11 @@ Stocks are classified into strategies (Strong Buy, Buy, Neutral/Watch, Sell, Str
 - **Walk-Forward Testing**: Tests strategy robustness across different time periods
 - **Monte Carlo Simulation**: Assesses strategy performance under various market conditions
 
-<img width="1113" height="846" alt="image" src="https://github.com/user-attachments/assets/02f6458e-25ad-48d5-ac7f-e946528e05ff" />
-
-
-#### Backtesting System Architecture
-- **Backtester Class**: Core engine that simulates trading over historical data
-  - Day-by-day simulation with realistic order execution
-  - Support for custom strategy functions
-  - Integration with ML scoring for model-driven strategies
-- **Transaction Cost Model**: Realistic modeling of trading costs
-  - Spread estimation based on price, volume, and volatility
-  - Market impact calculation for larger orders
-  - Fee structure modeling for different exchanges
-- **BacktestResult Class**: Comprehensive performance analysis
-  - Equity curve tracking and drawdown analysis
-  - Trade-by-trade record keeping
-  - Performance metrics calculation (Sharpe, Sortino, Win Rate, etc.)
-  - Detailed reporting with visualizations
-- **Strategy Functions**:
-  - ML-based strategy using GBDT predictions with risk management
-  - Technical indicator strategies for benchmarking
-  - Custom strategy support through function interface
-
-
-
 ### Portfolio Management
 - **Position Sizing**: Calculates optimal position sizes based on expected edge and volatility
 - **Risk Controls**: Implements sector and single-name concentration limits
 - **Market Neutrality**: Maintains market-neutral or beta-targeted exposures
 - **Drawdown Protection**: Activates kill switches when drawdowns exceed thresholds
-
-<img width="1113" height="935" alt="image" src="https://github.com/user-attachments/assets/4bed9640-ea3f-4d99-ad20-cdc02931b1bb" />
-
 
 ### Execution Algorithms
 - **TWAP (Time-Weighted Average Price)**: Divides orders into equal-sized slices over time
@@ -172,8 +102,6 @@ Stocks are classified into strategies (Strong Buy, Buy, Neutral/Watch, Sell, Str
 
 ## Usage
 
-### Local Development
-
 1. Start the Flask application:
    ```
    python app.py
@@ -181,7 +109,7 @@ Stocks are classified into strategies (Strong Buy, Buy, Neutral/Watch, Sell, Str
 
 2. Open your web browser and navigate to:
    ```
-   http://localhost:8080
+   http://localhost:5000
    ```
 
 3. Enter ticker symbols for analysis (comma-separated) or use the "Load ASX 200" button to populate with Australian stocks.
@@ -194,51 +122,9 @@ Stocks are classified into strategies (Strong Buy, Buy, Neutral/Watch, Sell, Str
    - Technical indicator charts
    - Detailed metrics table
 
-## Deployment
-
-### Deploying to Railway
-
-The application is configured to be deployed to Railway, a platform for deploying web applications.
-
-1. Create a Railway account at [railway.app](https://railway.app/)
-
-2. Install the Railway CLI:
-   ```
-   npm i -g @railway/cli
-   ```
-
-3. Login to Railway:
-   ```
-   railway login
-   ```
-
-4. Initialize a new Railway project:
-   ```
-   railway init
-   ```
-
-5. Deploy the application:
-   ```
-   railway up
-   ```
-
-6. Open the deployed application:
-   ```
-   railway open
-   ```
-
-The application uses the following files for deployment:
-- `wsgi.py`: Entry point for the WSGI server
-- `Procfile`: Tells Railway how to run the application
-- `requirements.txt`: Lists all dependencies, including Gunicorn
-
-You can also deploy directly from GitHub by connecting your repository to Railway.
-
 ## Project Structure
 
 - **app.py**: Main Flask application with routes and chart generation
-- **wsgi.py**: Entry point for WSGI servers in production
-- **Procfile**: Configuration file for Railway deployment
 - **stock_analysis.py**: Core stock analysis functionality
 - **yfinance_cookie_patch.py**: Patch for the yfinance library to handle cookies properly
 - **templates/**: HTML templates for the web interface
@@ -256,7 +142,6 @@ You can also deploy directly from GitHub by connecting your repository to Railwa
 ## Dependencies
 
 - Flask: Web framework
-- Gunicorn: WSGI HTTP server for production deployment
 - Pandas & NumPy: Data manipulation
 - yfinance: Yahoo Finance API for stock data
 - Plotly: Interactive charts and visualisations
@@ -273,6 +158,9 @@ You can also deploy directly from GitHub by connecting your repository to Railwa
 - Re-run analysis before market open for fresh data
 - Check news sentiment for potential catalysts
 
+## License
+
+[Specify license information here]
 
 ## Acknowledgements
 

@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}Integrated Trading System{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-4">Integrated Trading System</h1>
+    
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">About the Integrated Trading System</h5>
+        </div>
+        <div class="card-body">
+            <p>The integrated trading system combines multiple advanced components:</p>
+            <ul>
+                <li><strong>ML-Based Scoring:</strong> Uses machine learning to discover non-linear relationships in market data</li>
+                <li><strong>Backtesting Framework:</strong> Tests strategies with realistic transaction costs and point-in-time data</li>
+                <li><strong>Portfolio Management:</strong> Implements risk controls and position sizing based on expected edge</li>
+                <li><strong>Execution Algorithms:</strong> Minimizes market impact through smart order routing</li>
+            </ul>
+            <p>This system provides a complete workflow from analysis to trade execution.</p>
+        </div>
+    </div>
+    
+    {% if error %}
+    <div class="alert alert-danger">{{ error }}</div>
+    {% endif %}
+    
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Run Integrated System</h5>
+        </div>
+        <div class="card-body">
+            <form action="/run_integrated_system" method="post">
+                <div class="form-group mb-3">
+                    <label for="tickers"><strong>Enter Ticker Symbols</strong> (comma-separated):</label>
+                    <input type="text" class="form-control" id="tickers" name="tickers" placeholder="AAPL, MSFT, GOOGL, AMZN, META" required>
+                    <small class="form-text text-muted">For ASX stocks, use the format: APX.AX, WBC.AX, etc.</small>
+                </div>
+                
+                <div class="form-group mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="use_ml" name="use_ml" value="true" checked>
+                        <label class="form-check-label" for="use_ml">
+                            Use ML-based scoring (recommended)
+                        </label>
+                        <small class="form-text text-muted d-block">Uses gradient boosted trees to discover non-linear relationships in market data.</small>
+                    </div>
+                </div>
+                
+                <div class="form-group mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="execute_trades" name="execute_trades" value="true">
+                        <label class="form-check-label" for="execute_trades">
+                            Execute recommended trades (simulation only)
+                        </label>
+                        <small class="form-text text-muted d-block">Simulates trade execution and updates portfolio accordingly.</small>
+                    </div>
+                </div>
+                
+                <div class="d-flex justify-content-between">
+                    <button type="submit" class="btn btn-primary">Run Integrated System</button>
+                    <div>
+                        <a href="/backtest" class="btn btn-outline-secondary me-2">Backtesting</a>
+                        <a href="/portfolio" class="btn btn-outline-secondary">Portfolio Management</a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div class="mt-4">
+        <a href="/" class="btn btn-outline-primary">&larr; Back to Home</a>
+    </div>
+</div>
+{% endblock %}

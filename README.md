@@ -2,6 +2,27 @@
 
 TradeSmart Analytics is an advanced stock analysis tool designed to identify day trading opportunities through comprehensive technical analysis, volatility measures, and news sentiment analysis. The application provides a user-friendly web interface for analyzing stocks, particularly focused on the Australian Securities Exchange (ASX).
 
+## DISCLAIMER:
+This software is provided for educational and informational purposes only.
+The author(s) are not registered investment advisors and do not provide financial advice.
+This software does not guarantee accuracy of data and should not be the sole basis for any investment decision.
+Users run and use this software at their own risk. The author(s) accept no liability for any loss or damage 
+resulting from its use. Always consult with a qualified financial professional before making investment decisions.
+
+## Terms of Use
+
+By using this software, you agree:
+1. To use it at your own risk
+2. Not to hold the author(s) liable for any damages
+3. To comply with the terms of the [LICENSE](LICENSE)
+4. That this is not financial advice
+
+This project is not affiliated with the ASX or any financial institution.
+
+## License
+
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+
 ## Features
 
 - **Comprehensive Stock Analysis**: Analyzes stocks using multiple technical indicators, volatility measures, and news sentiment
@@ -158,9 +179,6 @@ Stocks are classified into strategies (Strong Buy, Buy, Neutral/Watch, Sell, Str
 - Re-run analysis before market open for fresh data
 - Check news sentiment for potential catalysts
 
-## License
-
-[Specify license information here]
 
 ## Acknowledgements
 

@@ -27,6 +27,19 @@ import time
 message_handler = print  # Default to regular print
 
 def set_message_handler(handler):
+    """
+    Sets the global message handler for the application.
+
+    This function allows assigning a custom message processing handler to the
+    global `message_handler` variable. The provided handler should be a callable
+    function or object that can process incoming messages.
+
+    Parameters:
+        handler: Callable
+            A callable object or function that will handle the processing of
+            messages. The exact behavior of the handler depends on the provided
+            implementation.
+    """
     global message_handler
     message_handler = handler
 
@@ -51,7 +64,37 @@ def get_yf_session():
 
 
 def get_news_sentiment_with_timeframes(ticker_symbol, company_name):
-    """Get news sentiment with multiple timeframes, applying weights based on recency"""
+    """
+    Analyzes the sentiment of market news headlines for a given company over various
+    timeframes using search results obtained from Google News. The sentiment is derived from
+    the headlines sourced for the company and adjusted based on their respective timeframes.
+    The function also cleans the company name to standardize its representation and accounts
+    for ASX-specific stock ticker formatting.
+
+    The sentiment is provided as a numerical score and corresponding label, with an
+    additional textual comment summarizing the findings.
+
+    Parameters:
+        ticker_symbol (str): The stock ticker symbol for the company being analyzed. Must
+            include '.AX' as a suffix for ASX stocks if applicable.
+        company_name (str): The full name of the company to analyze, including potential
+            stock designations like "LTD" or "GROUP".
+
+    Returns:
+        tuple: A three-element tuple consisting of:
+            - sentiment_score (float): The computed sentiment score, ranging from -1.0
+              (very negative) to 1.0 (very positive). A score of 0 is neutral.
+            - sentiment_label (str): A descriptive label corresponding to the sentiment score
+              (e.g., "Neutral", "Positive").
+            - sentiment_comment (str): A brief textual explanation summarizing the sentiment
+              and its implications based on the analyzed headlines.
+
+    Raises:
+        Exception: An error may be raised for issues occurring during network requests,
+        HTML parsing, or the API call for sentiment analysis. Such instances will be logged
+        as warnings without halting the process.
+
+    """
     
     print(f"Starting news analysis for {company_name} ({ticker_symbol})")
     
@@ -195,7 +238,7 @@ def get_news_sentiment_with_timeframes(ticker_symbol, company_name):
     
     print(f"Found {len(all_headlines)} headlines in total")
     
-    # Now, if an OpenAI API key is available, analyze the sentiment using these headlines
+    # Now, if an OpenAI API key is available, analyse the sentiment using these headlines
     if "OPENAI_API_KEY" in os.environ and os.environ["OPENAI_API_KEY"]:
         client = openai.OpenAI(api_key=os.environ["OPENAI_API_KEY"])
         
@@ -285,6 +328,25 @@ def get_stock_info(ticker_symbol, timestamp=None):
 
 @lru_cache(maxsize=100)
 def get_stock_history(ticker_symbol, start_date, end_date, interval="1d", timestamp=None):
+    """
+    Fetches historical stock data for a given ticker symbol over a specified date range.
+
+    This function uses Yahoo Finance to retrieve stock data. It applies a small random
+    delay before making requests to mimic human-like behavior. The function is cached
+    using LRU cache to store the results for faster access if the same query is made
+    within the cache size limit.
+
+    Arguments:
+        ticker_symbol (str): The stock ticker symbol of the company.
+        start_date (str): The starting date for historical stock data in the format 'YYYY-MM-DD'.
+        end_date (str): The ending date for historical stock data in the format 'YYYY-MM-DD'.
+        interval (str): The interval for stock data. Defaults to "1d".
+        timestamp (datetime, optional): Optional timestamp to indicate request time.
+
+    Returns:
+        DataFrame: A Pandas DataFrame containing the historical stock data for the given
+        ticker symbol and date range.
+    """
     session = get_yf_session()
     
     # Add a small random delay to appear more human-like
@@ -294,7 +356,21 @@ def get_stock_history(ticker_symbol, start_date, end_date, interval="1d", timest
     return ticker.history(start=start_date, end=end_date, interval=interval)
 
 def get_stock_data(ticker_symbol):
-    """Get detailed stock data for day trading analysis"""
+    """
+    Fetches and computes stock market data and technical indicators for the given ticker symbol. The function
+    retrieves basic stock information, historical price data, and intraday data when available. It calculates
+    a variety of technical indicators such as moving averages, Bollinger Bands, RSI, ATR, and others to
+    support both day trading and longer-term analysis. The function also identifies patterns like gap-ups
+    and gap-downs along with volatility measures.
+
+    Parameters:
+        ticker_symbol (str): The symbol representing the stock (e.g., 'AAPL', 'GOOGL').
+
+    Returns:
+        tuple: A tuple containing the following elements:
+            - dict: A dictionary with the computed stock indicators and statistics.
+            - str: An error message if no data is found, otherwise None.
+    """
     try:
         # Generate a cache timestamp (changes every hour)
         cache_timestamp = datetime.now().strftime('%Y%m%d%H')
@@ -671,7 +747,29 @@ def get_stock_data(ticker_symbol):
         return None, f"Error retrieving data for {ticker_symbol}: {str(e)}"
 
 def analyze_stocks(ticker_list, delay=1):
-    """Analyze multiple stocks for day trading opportunities"""
+    """
+    Analyzes a list of stock tickers to identify day trading opportunities. This function retrieves stock
+    data for the provided tickers, applies a day trading strategy, and ranks them based on their day
+    trading score. Tickers that encounter errors during data fetching will be recorded separately.
+
+    Parameters:
+    ticker_list: list of str
+        A list of stock ticker symbols to analyze.
+    delay: int, optional
+        The delay between processing each ticker, specified in seconds. Default is 1 second.
+
+    Returns:
+    tuple
+        A tuple containing two elements:
+        - ranked_stocks: list of dict
+            A list of dictionaries representing stock data, sorted by their day trading score
+            in descending order.
+        - failed_tickers: list of str
+            A list of ticker symbols for which the fetching of stock data failed.
+
+    Raises:
+    None
+    """
     stock_analysis = []
     failed_tickers = []
     
@@ -700,7 +798,29 @@ def analyze_stocks(ticker_list, delay=1):
     return ranked_stocks, failed_tickers
 
 def format_results(ranked_stocks, failed_tickers=None, top_n=20):
-    """Format the analysis results for display with day trading focus"""
+    """
+    Formats the analysis results for ranked stocks showcasing day trading opportunities
+    organized by strategy, highest volatility, and strongest news sentiment. The output
+    returns a detailed string representation tailored for readability and thorough analysis.
+    If no stocks are provided, it returns a fallback message. Optionally highlights any
+    tickers for which data retrieval failed.
+
+    Parameters:
+        ranked_stocks (list[dict]): A list of dictionaries where each dictionary represents
+            a stock with relevant information such as 'ticker', 'company_name',
+            'day_trading_strategy', 'current_price', 'day_trading_score', 'atr_pct',
+            'rsi7', 'return_1d', 'macd_trend', 'news_sentiment_label',
+            'news_sentiment_score', 'volume_ratio', and 'strategy_details'.
+        failed_tickers (list[str], optional): A list of string tickers for which data retrieval failed.
+            Defaults to None.
+        top_n (int, optional): Maximum number of stocks to display per strategy category.
+            Defaults to 20.
+
+    Returns:
+        str: A formatted string summarizing day trading opportunities, highlighting
+        top-ranked stocks by strategy, volatility, and news sentiment, alongside
+        any missing data points.
+    """
     if not ranked_stocks:
         return "No stocks to display."
         

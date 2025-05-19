@@ -33,6 +33,13 @@ import yfinance.data as _data
 app = Flask(__name__)
 
 
+# Register Jinja2 filters
+@app.template_filter('format_number')
+def format_number_filter(value):
+    """Format a number with commas as thousand separators"""
+    return "{:,}".format(value)
+
+
 analysis_progress = {}
 analysis_logs = {}
 analysis_queues = {}

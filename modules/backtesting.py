@@ -31,33 +31,33 @@ class TransactionCostModel:
     Models realistic transaction costs including spread, market impact, and fees.
     Costs are adjusted based on stock liquidity, volatility, and time of day.
     """
-    
+
     def __init__(self, base_commission=0.005, min_commission=1.0):
         """
         Initialize the transaction cost model.
-        
+
         Parameters:
             base_commission (float): Base commission rate in percentage
             min_commission (float): Minimum commission per trade in dollars
         """
         self.base_commission = base_commission
         self.min_commission = min_commission
-    
+
     def estimate_spread(self, price, volume, volatility):
         """
         Estimate bid-ask spread based on price, volume, and volatility.
-        
+
         Parameters:
             price (float): Current stock price
             volume (float): Average daily volume
             volatility (float): Stock volatility (e.g., ATR as percentage)
-            
+
         Returns:
             float: Estimated spread as percentage of price
         """
         # Base spread as function of price (higher for lower-priced stocks)
         base_spread = 0.05 if price < 5 else 0.02 if price < 20 else 0.01
-        
+
         # Adjust for volume (higher spread for lower volume)
         volume_factor = 1.0
         if volume < 100000:
@@ -66,72 +66,72 @@ class TransactionCostModel:
             volume_factor = 1.5
         elif volume < 1000000:
             volume_factor = 1.2
-        
+
         # Adjust for volatility (higher spread for more volatile stocks)
         volatility_factor = 1.0 + (volatility / 10.0)
-        
+
         return base_spread * volume_factor * volatility_factor
-    
+
     def estimate_market_impact(self, price, volume, trade_size):
         """
         Estimate market impact based on trade size relative to average volume.
-        
+
         Parameters:
             price (float): Current stock price
             volume (float): Average daily volume
             trade_size (float): Number of shares to trade
-            
+
         Returns:
             float: Estimated market impact as percentage of price
         """
         # Calculate trade size as percentage of average daily volume
         trade_volume_pct = (trade_size * price) / (volume * price) * 100
-        
+
         # Square root model for market impact
         impact = 0.1 * np.sqrt(trade_volume_pct / 10.0) if trade_volume_pct > 0 else 0
-        
+
         return min(impact, 1.0)  # Cap at 1%
-    
+
     def calculate_transaction_cost(self, price, shares, volume, volatility, is_buy=True):
         """
         Calculate total transaction cost for a trade.
-        
+
         Parameters:
             price (float): Current stock price
             shares (int): Number of shares to trade
             volume (float): Average daily volume
             volatility (float): Stock volatility
             is_buy (bool): True if buying, False if selling
-            
+
         Returns:
             tuple: (total_cost_dollars, total_cost_percentage)
         """
         # Estimate spread
         spread_pct = self.estimate_spread(price, volume, volatility)
         spread_cost = price * spread_pct / 2  # Half spread for each side
-        
+
         # Estimate market impact
         impact_pct = self.estimate_market_impact(price, volume, shares)
         impact_cost = price * impact_pct
-        
+
         # Calculate commission
         commission = max(self.min_commission, price * shares * self.base_commission / 100)
-        
+
         # Total cost
         total_cost_dollars = (spread_cost + impact_cost) * shares + commission
         total_cost_percentage = (total_cost_dollars / (price * shares)) * 100
-        
+
         return total_cost_dollars, total_cost_percentage
 
 class BacktestResult:
     """
     Stores and analyzes the results of a backtest.
     """
-    
+
     def __init__(self, strategy_name, initial_capital, start_date, end_date):
         """
         Initialize the backtest result.
-        
+
         Parameters:
             strategy_name (str): Name of the strategy
             initial_capital (float): Initial capital in dollars
@@ -142,7 +142,7 @@ class BacktestResult:
         self.initial_capital = initial_capital
         self.start_date = start_date
         self.end_date = end_date
-        
+
         # Performance metrics
         self.final_capital = initial_capital
         self.total_return = 0.0
@@ -151,23 +151,23 @@ class BacktestResult:
         self.max_drawdown = 0.0
         self.win_rate = 0.0
         self.profit_factor = 0.0
-        
+
         # Daily performance data
         self.daily_returns = []
         self.equity_curve = []
         self.drawdown_curve = []
-        
+
         # Trade history
         self.trades = []
-        
+
         # Transaction costs
         self.total_transaction_costs = 0.0
         self.transaction_cost_percentage = 0.0
-    
+
     def add_trade(self, date, ticker, action, price, shares, cost):
         """
         Add a trade to the history.
-        
+
         Parameters:
             date (datetime): Date of the trade
             ticker (str): Ticker symbol
@@ -186,13 +186,13 @@ class BacktestResult:
             'value': price * shares,
             'net_value': price * shares - cost
         })
-        
+
         self.total_transaction_costs += cost
-    
+
     def update_equity(self, date, equity):
         """
         Update the equity curve.
-        
+
         Parameters:
             date (datetime): Current date
             equity (float): Current equity value
@@ -201,13 +201,13 @@ class BacktestResult:
             'date': date,
             'equity': equity
         })
-        
+
         # Calculate daily return
         if len(self.equity_curve) > 1:
             prev_equity = self.equity_curve[-2]['equity']
             daily_return = (equity / prev_equity) - 1
             self.daily_returns.append(daily_return)
-        
+
         # Update drawdown
         if len(self.equity_curve) > 0:
             peak = max([e['equity'] for e in self.equity_curve])
@@ -216,57 +216,57 @@ class BacktestResult:
                 'date': date,
                 'drawdown': drawdown
             })
-            
+
             self.max_drawdown = max(self.max_drawdown, drawdown)
-    
+
     def calculate_metrics(self):
         """Calculate performance metrics from the backtest data."""
         if not self.equity_curve:
             return
-        
+
         # Final capital and total return
         self.final_capital = self.equity_curve[-1]['equity']
         self.total_return = (self.final_capital / self.initial_capital) - 1
-        
+
         # Annualized return
         days = (datetime.strptime(self.end_date, '%Y-%m-%d') - 
                 datetime.strptime(self.start_date, '%Y-%m-%d')).days
         years = days / 365.0
         self.annualized_return = ((1 + self.total_return) ** (1 / years)) - 1 if years > 0 else 0
-        
+
         # Sharpe ratio (assuming risk-free rate of 0)
         if self.daily_returns:
             daily_return_mean = np.mean(self.daily_returns)
             daily_return_std = np.std(self.daily_returns)
             self.sharpe_ratio = (daily_return_mean / daily_return_std) * np.sqrt(252) if daily_return_std > 0 else 0
-        
+
         # Win rate and profit factor
         winning_trades = [t for t in self.trades if 
                           (t['action'] == 'SELL' and t['net_value'] > 0) or 
                           (t['action'] == 'BUY' and t['net_value'] > 0)]
-        
+
         total_trades = len(self.trades)
         self.win_rate = len(winning_trades) / total_trades if total_trades > 0 else 0
-        
+
         # Transaction cost percentage
         total_trade_value = sum(t['value'] for t in self.trades)
         self.transaction_cost_percentage = (self.total_transaction_costs / total_trade_value * 100) if total_trade_value > 0 else 0
-    
+
     def generate_report(self):
         """
         Generate a comprehensive backtest report.
-        
+
         Returns:
             str: Formatted report text
         """
         self.calculate_metrics()
-        
+
         report = f"Backtest Report: {self.strategy_name}\n"
         report += f"{'=' * 50}\n"
         report += f"Period: {self.start_date} to {self.end_date}\n"
         report += f"Initial Capital: ${self.initial_capital:,.2f}\n"
         report += f"Final Capital: ${self.final_capital:,.2f}\n\n"
-        
+
         report += f"Performance Metrics:\n"
         report += f"{'=' * 50}\n"
         report += f"Total Return: {self.total_return:.2%}\n"
@@ -274,38 +274,38 @@ class BacktestResult:
         report += f"Sharpe Ratio: {self.sharpe_ratio:.2f}\n"
         report += f"Maximum Drawdown: {self.max_drawdown:.2%}\n"
         report += f"Win Rate: {self.win_rate:.2%}\n\n"
-        
+
         report += f"Transaction Costs:\n"
         report += f"{'=' * 50}\n"
         report += f"Total Transaction Costs: ${self.total_transaction_costs:,.2f}\n"
         report += f"Transaction Cost Percentage: {self.transaction_cost_percentage:.2%}\n\n"
-        
+
         report += f"Trade Summary:\n"
         report += f"{'=' * 50}\n"
         report += f"Total Trades: {len(self.trades)}\n"
-        
+
         return report
 
 class Backtester:
     """
     Backtesting engine for stock trading strategies.
     """
-    
+
     def __init__(self, initial_capital=100000.0):
         """
         Initialize the backtester.
-        
+
         Parameters:
             initial_capital (float): Initial capital in dollars
         """
         self.initial_capital = initial_capital
         self.transaction_cost_model = TransactionCostModel()
-    
+
     def run_backtest(self, strategy, tickers, start_date, end_date, 
                      use_point_in_time_universe=True, include_delisted=True):
         """
         Run a backtest for the given strategy and parameters.
-        
+
         Parameters:
             strategy (callable): Strategy function that returns buy/sell signals
             tickers (list): List of ticker symbols to include
@@ -313,12 +313,12 @@ class Backtester:
             end_date (str): End date in 'YYYY-MM-DD' format
             use_point_in_time_universe (bool): Whether to use point-in-time universe
             include_delisted (bool): Whether to include delisted tickers
-            
+
         Returns:
             BacktestResult: Object containing backtest results
         """
         log_message(f"Starting backtest from {start_date} to {end_date} with {len(tickers)} tickers")
-        
+
         # Initialize result object
         result = BacktestResult(
             strategy_name=strategy.__name__,
@@ -326,20 +326,20 @@ class Backtester:
             start_date=start_date,
             end_date=end_date
         )
-        
+
         # Initialize portfolio
         portfolio = {
             'cash': self.initial_capital,
             'positions': {},  # ticker -> {'shares': int, 'cost_basis': float}
             'equity': self.initial_capital
         }
-        
+
         # Get date range
         start_dt = datetime.strptime(start_date, '%Y-%m-%d')
         end_dt = datetime.strptime(end_date, '%Y-%m-%d')
         date_range = [start_dt + timedelta(days=x) for x in range((end_dt - start_dt).days + 1)]
         trading_days = [d for d in date_range if d.weekday() < 5]  # Exclude weekends
-        
+
         # Get historical data for all tickers
         ticker_data = {}
         for ticker in tqdm(tickers, desc="Loading historical data"):
@@ -349,22 +349,22 @@ class Backtester:
                     ticker_data[ticker] = hist
             except Exception as e:
                 log_message(f"Error loading data for {ticker}: {e}")
-        
+
         # Run the backtest day by day
         for day in tqdm(trading_days, desc="Running backtest"):
             day_str = day.strftime('%Y-%m-%d')
-            
+
             # Skip if no market data for this day (holiday, weekend)
             if all(day.date() not in data.index.date for data in ticker_data.values()):
                 continue
-            
+
             # Get universe for this day
             if use_point_in_time_universe:
                 # Use only tickers that have data up to this day
                 universe = [t for t in ticker_data if day.date() in ticker_data[t].index.date]
             else:
                 universe = list(ticker_data.keys())
-            
+
             # Update portfolio value
             portfolio_value = portfolio['cash']
             for ticker, position in portfolio['positions'].items():
@@ -373,63 +373,63 @@ class Backtester:
                     position['current_price'] = price
                     position['current_value'] = price * position['shares']
                     portfolio_value += position['current_value']
-            
+
             portfolio['equity'] = portfolio_value
             result.update_equity(day, portfolio_value)
-            
+
             # Get signals from strategy
             signals = {}
             for ticker in universe:
                 try:
                     # Get data up to this day
-                    hist_slice = ticker_data[ticker][ticker_data[ticker].index.date <= day.date()]
-                    
+                    hist_slice = ticker_data[ticker][ticker_data[ticker].index.date <= day.date()].copy()
+
                     if len(hist_slice) < 10:  # Need enough history for indicators
                         continue
-                    
+
                     # Get stock data for this point in time
                     stock_data, error = get_stock_data(ticker, historical_data=hist_slice)
-                    
+
                     if error or not stock_data:
                         continue
-                    
+
                     # Get signal from strategy
                     signal = strategy(stock_data)
                     if signal:
                         signals[ticker] = signal
                 except Exception as e:
                     log_message(f"Error processing {ticker} on {day_str}: {e}")
-            
+
             # Execute trades based on signals
             for ticker, signal in signals.items():
                 try:
                     if ticker not in ticker_data or day.date() not in ticker_data[ticker].index.date:
                         continue
-                    
+
                     price = ticker_data[ticker].loc[ticker_data[ticker].index.date == day.date(), 'Close'].iloc[0]
                     volume = ticker_data[ticker].loc[ticker_data[ticker].index.date == day.date(), 'Volume'].iloc[0]
-                    
+
                     # Get volatility (ATR as percentage)
                     volatility = 2.0  # Default if not available
                     if 'atr_pct' in stock_data:
                         volatility = stock_data['atr_pct']
-                    
+
                     if signal['action'] == 'BUY':
                         # Calculate position size
                         cash_to_use = portfolio['cash'] * signal.get('size', 0.1)  # Default 10% of cash
                         shares = int(cash_to_use / price)
-                        
+
                         if shares > 0 and cash_to_use <= portfolio['cash']:
                             # Calculate transaction cost
                             cost, cost_pct = self.transaction_cost_model.calculate_transaction_cost(
                                 price, shares, volume, volatility, is_buy=True
                             )
-                            
+
                             # Execute trade if affordable
                             if cost + (price * shares) <= portfolio['cash']:
                                 # Update portfolio
                                 portfolio['cash'] -= (price * shares + cost)
-                                
+
                                 if ticker in portfolio['positions']:
                                     # Update existing position
                                     position = portfolio['positions'][ticker]
@@ -446,64 +446,64 @@ class Backtester:
                                         'current_price': price,
                                         'current_value': price * shares
                                     }
-                                
+
                                 # Record trade
                                 result.add_trade(day, ticker, 'BUY', price, shares, cost)
-                    
+
                     elif signal['action'] == 'SELL' and ticker in portfolio['positions']:
                         position = portfolio['positions'][ticker]
                         shares_to_sell = int(position['shares'] * signal.get('size', 1.0))  # Default sell all
-                        
+
                         if shares_to_sell > 0:
                             # Calculate transaction cost
                             cost, cost_pct = self.transaction_cost_model.calculate_transaction_cost(
                                 price, shares_to_sell, volume, volatility, is_buy=False
                             )
-                            
+
                             # Execute trade
                             portfolio['cash'] += (price * shares_to_sell - cost)
-                            
+
                             # Update position
                             position['shares'] -= shares_to_sell
                             if position['shares'] <= 0:
                                 del portfolio['positions'][ticker]
-                            
+
                             # Record trade
                             result.add_trade(day, ticker, 'SELL', price, shares_to_sell, cost)
-                
+
                 except Exception as e:
                     log_message(f"Error executing trade for {ticker} on {day_str}: {e}")
-        
+
         # Calculate final metrics
         result.calculate_metrics()
-        
+
         log_message(f"Backtest completed. Final equity: ${result.final_capital:,.2f}, Return: {result.total_return:.2%}")
-        
+
         return result
 
 # Simple strategy functions
 def ml_strategy(stock_data):
     """ML-based strategy using the day_trading_score"""
     score = stock_data.get('day_trading_score', 0)
-    
+
     if score >= 70:
         return {'action': 'BUY', 'size': 0.2}
     elif score <= 30:
         return {'action': 'SELL', 'size': 1.0}
-    
+
     return None
 
 def simple_technical_strategy(stock_data):
     """Simple technical strategy based on RSI and Bollinger Bands"""
     rsi = stock_data.get('rsi14', 50)
     bb_position = stock_data.get('bb_position', 0.5)
-    
+
     # Buy when oversold
     if rsi < 30 and bb_position < 0.2:
         return {'action': 'BUY', 'size': 0.15}
-    
+
     # Sell when overbought
     if rsi > 70 and bb_position > 0.8:
         return {'action': 'SELL', 'size': 1.0}
-    
+
     return None

@@ -33,13 +33,6 @@ import yfinance.data as _data
 app = Flask(__name__)
 
 
-# Register Jinja2 filters
-@app.template_filter('format_number')
-def format_number_filter(value):
-    """Format a number with commas as thousand separators"""
-    return "{:,}".format(value)
-
-
 analysis_progress = {}
 analysis_logs = {}
 analysis_queues = {}
@@ -305,8 +298,6 @@ def api_industry_peers(ticker):
         if error or not stock_data:
             return jsonify({"error": f"Failed to retrieve data for {ticker}"}), 404
 
-        # Try to find industry peers (simplified for this example)
-        # In a real application, you would use a database or more sophisticated method
         industry = stock_data.get('industry', 'Unknown')
         sector = stock_data.get('sector', 'Unknown')
 
@@ -777,6 +768,11 @@ def patch_yfdata_cookie_basic():
 
 # Apply the yfinance cookie patch at module level
 patch_yfdata_cookie_basic()
+
+@app.template_filter('format_number')
+def format_number_filter(value):
+    """Format a number with commas as thousands separators"""
+    return "{:,}".format(value)
 
 if __name__ == '__main__':
     # Create necessary directories

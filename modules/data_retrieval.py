@@ -77,8 +77,8 @@ def get_stock_history(ticker_symbol, start_date, end_date, interval="1d", timest
 
     session = get_yf_session()
 
-    # Add a small random delay to appear more human-like
-    time.sleep(random.uniform(0.5, 2.0))
+    # Add a small random delay to appear more human-like (reduced for performance)
+    time.sleep(random.uniform(0.1, 1))
 
     ticker = yf.Ticker(ticker_symbol, session=session)
     return ticker.history(start=start_date, end=end_date, interval=interval)

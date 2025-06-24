@@ -22,26 +22,38 @@ import random
 from modules.utils import log_message
 from modules.data_retrieval import get_stock_history
 from modules.technical_analysis import get_stock_data
+from modules.ml_scoring import score_stock_ml
 
 # Create cache directory for backtest results if it doesn't exist
 os.makedirs('cache/backtest_results', exist_ok=True)
 
 class TransactionCostModel:
+
+
+
     """
     Models realistic transaction costs including spread, market impact, and fees.
     Costs are adjusted based on stock liquidity, volatility, and time of day.
     """
 
-    def __init__(self, base_commission=0.005, min_commission=1.0):
+    def __init__(self):
         """
-        Initialize the transaction cost model.
+        Initialize the transaction cost model with a flat rate commission.
+        """
+        """
+         def __init__(self, base_commission=0.0035, min_commission=0.5):
+            '''
+            Initialize the transaction cost model.
 
-        Parameters:
-            base_commission (float): Base commission rate in percentage
-            min_commission (float): Minimum commission per trade in dollars
+            Parameters:
+                base_commission (float): Base commission rate in percentage
+                min_commission (float): Minimum commission per trade in dollars
+            '''
+            self.base_commission = base_commission
+            self.min_commission = min_commission   
         """
-        self.base_commission = base_commission
-        self.min_commission = min_commission
+
+        self.flat_commission = 10.0  # Flat rate of $10 per transaction
 
     def estimate_spread(self, price, volume, volatility):
         """
@@ -56,19 +68,19 @@ class TransactionCostModel:
             float: Estimated spread as percentage of price
         """
         # Base spread as function of price (higher for lower-priced stocks)
-        base_spread = 0.05 if price < 5 else 0.02 if price < 20 else 0.01
+        base_spread = 0.03 if price < 5 else 0.01 if price < 20 else 0.005
 
         # Adjust for volume (higher spread for lower volume)
         volume_factor = 1.0
         if volume < 100000:
-            volume_factor = 2.0
-        elif volume < 500000:
             volume_factor = 1.5
-        elif volume < 1000000:
+        elif volume < 500000:
             volume_factor = 1.2
+        elif volume < 1000000:
+            volume_factor = 1.1
 
         # Adjust for volatility (higher spread for more volatile stocks)
-        volatility_factor = 1.0 + (volatility / 10.0)
+        volatility_factor = 1.0 + (volatility / 15.0)
 
         return base_spread * volume_factor * volatility_factor
 
@@ -87,10 +99,20 @@ class TransactionCostModel:
         # Calculate trade size as percentage of average daily volume
         trade_volume_pct = (trade_size * price) / (volume * price) * 100
 
-        # Square root model for market impact
-        impact = 0.1 * np.sqrt(trade_volume_pct / 10.0) if trade_volume_pct > 0 else 0
+        # No impact for very small trades (less than 0.1% of daily volume)
+        if trade_volume_pct < 0.1:
+            return 0.0
 
-        return min(impact, 1.0)  # Cap at 1%
+        # Reduced square root model for market impact
+        impact = 0.05 * np.sqrt(trade_volume_pct / 20.0) if trade_volume_pct > 0 else 0
+
+        # Higher price stocks typically have lower impact
+        if price > 50:
+            impact *= 0.8
+        elif price > 100:
+            impact *= 0.6
+
+        return min(impact, 0.5)  # Cap at 0.5%
 
     def calculate_transaction_cost(self, price, shares, volume, volatility, is_buy=True):
         """
@@ -115,11 +137,19 @@ class TransactionCostModel:
         impact_cost = price * impact_pct
 
         # Calculate commission
-        commission = max(self.min_commission, price * shares * self.base_commission / 100)
+        # commission = max(self.min_commission, price * shares * self.base_commission / 100)
+
+        # Use flat rate commission
+        commission = self.flat_commission
 
         # Total cost
         total_cost_dollars = (spread_cost + impact_cost) * shares + commission
-        total_cost_percentage = (total_cost_dollars / (price * shares)) * 100
+
+        # Avoid division by zero
+        if price * shares > 0:
+            total_cost_percentage = (total_cost_dollars / (price * shares)) * 100
+        else:
+            total_cost_percentage = 0.0
 
         return total_cost_dollars, total_cost_percentage
 
@@ -226,7 +256,11 @@ class BacktestResult:
 
         # Final capital and total return
         self.final_capital = self.equity_curve[-1]['equity']
-        self.total_return = (self.final_capital / self.initial_capital) - 1
+        # Avoid division by zero
+        if self.initial_capital > 0:
+            self.total_return = (self.final_capital / self.initial_capital) - 1
+        else:
+            self.total_return = 0.0
 
         # Annualized return
         days = (datetime.strptime(self.end_date, '%Y-%m-%d') - 
@@ -302,7 +336,7 @@ class Backtester:
         self.transaction_cost_model = TransactionCostModel()
 
     def run_backtest(self, strategy, tickers, start_date, end_date, 
-                     use_point_in_time_universe=True, include_delisted=True):
+                     use_point_in_time_universe=True, include_delisted=True, ml_scorer=None):
         """
         Run a backtest for the given strategy and parameters.
 
@@ -313,6 +347,7 @@ class Backtester:
             end_date (str): End date in 'YYYY-MM-DD' format
             use_point_in_time_universe (bool): Whether to use point-in-time universe
             include_delisted (bool): Whether to include delisted tickers
+            ml_scorer (MLScorer): Optional pre-initialized ML scorer for ML strategies
 
         Returns:
             BacktestResult: Object containing backtest results
@@ -392,6 +427,10 @@ class Backtester:
 
                     if error or not stock_data:
                         continue
+
+                    # Apply ML scoring if using ml_strategy
+                    if strategy.__name__ == 'ml_strategy':
+                        stock_data = score_stock_ml(stock_data, ml_scorer)
 
                     # Get signal from strategy
                     signal = strategy(stock_data)
@@ -483,13 +522,48 @@ class Backtester:
 
 # Simple strategy functions
 def ml_strategy(stock_data):
-    """ML-based strategy using the day_trading_score"""
+    """ML-based strategy using the day_trading_score with improved risk management"""
     score = stock_data.get('day_trading_score', 0)
 
-    if score >= 70:
-        return {'action': 'BUY', 'size': 0.2}
-    elif score <= 30:
-        return {'action': 'SELL', 'size': 1.0}
+    # Get volatility and volume metrics for risk management
+    volatility = stock_data.get('atr_pct', 5.0)
+    volume_ratio = stock_data.get('volume_ratio', 1.0)
+
+    # Skip low volume days (avoid illiquid conditions)
+    if volume_ratio < 0.7:
+        return None
+
+    # Adjust position size based on volatility (smaller positions for higher volatility)
+    if volatility <= 0:
+        position_size = 0
+    else:
+        position_size = max(0.05, 0.15 / (volatility / 5.0))
+
+    # Limit maximum position size
+    position_size = min(position_size, 0.15)
+
+    # More conservative entry criteria (higher threshold)
+    if score >= 75:
+        # Check for confirmation signals
+        rsi = stock_data.get('rsi14', 50)
+        bb_position = stock_data.get('bb_position', 0.5)
+
+        # Only buy if not overbought
+        if rsi < 70 and bb_position < 0.8:
+            return {'action': 'BUY', 'size': position_size}
+
+    # More conservative exit criteria (hold longer)
+    elif score <= 25:
+        # Only sell if we have confirmation
+        rsi = stock_data.get('rsi14', 50)
+        bb_position = stock_data.get('bb_position', 0.5)
+
+        if rsi > 30 or bb_position > 0.2:
+            return {'action': 'SELL', 'size': 1.0}
+
+    # Add partial profit taking at moderate scores
+    elif score <= 40 and score > 25:
+        return {'action': 'SELL', 'size': 0.5}  # Sell half the position
 
     return None
 

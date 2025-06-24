@@ -174,18 +174,26 @@ class TradingSystem:
 
         log_message(f"Running {strategy} strategy backtest from {start_date} to {end_date}")
 
+        # Train ML model if using ML strategy and model is not trained
+        if strategy == 'ml' and not self.is_model_trained:
+            log_message("ML model not trained. Training model before running backtest...")
+            self.train_ml_model(tickers)
+            if not self.is_model_trained:
+                log_message("Warning: ML model training failed. Backtest may use fallback scoring.")
+
         # Select strategy function
         if strategy == 'ml':
             strategy_func = ml_strategy
         else:
             strategy_func = simple_technical_strategy
 
-        # Run backtest
+        # Run backtest with ML scorer if using ML strategy
         result = self.backtester.run_backtest(
             strategy=strategy_func,
             tickers=tickers,
             start_date=start_date,
-            end_date=end_date
+            end_date=end_date,
+            ml_scorer=self.ml_scorer if strategy == 'ml' and self.is_model_trained else None
         )
 
         self.last_backtest_result = result

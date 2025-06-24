@@ -68,12 +68,26 @@ The application offers two scoring systems to evaluate stocks:
 - **Volume Score (10%)**: Assesses trading volume relative to average
 
 ### Machine Learning-Based Scoring
-The new ML-based scoring system uses gradient boosted trees to:
+The ML-based scoring system uses Gradient Boosted Decision Trees (GBDT) to:
 - Discover non-linear relationships in market data
 - Automatically adjust to changing market conditions
-- Reduce overfitting through feature orthogonalization
+- Reduce overfitting through feature orthogonalization and regularization
 - Provide more stable signals with lower turnover
 - Generate explainable predictions with feature importance
+
+#### GBDT Implementation Details
+- **Model Types**: Supports both regression (score prediction) and classification (buy/sell signals)
+- **Feature Engineering**: Extracts 30+ technical indicators as features
+- **Preprocessing Pipeline**:
+  - Robust scaling to handle outliers
+  - Feature selection using mutual information
+  - Dimensionality reduction with PCA to reduce multicollinearity
+- **Training Process**:
+  - Time series cross-validation to prevent lookahead bias
+  - Hyperparameter tuning for optimal performance
+  - L1 regularization and Huber loss for robustness
+- **Per-Ticker Models**: Supports individual models for each ticker for more accurate predictions
+- **Automatic Retraining**: Models can be scheduled for periodic retraining to adapt to changing market conditions
 
 ### Strategy Classification
 Stocks are classified into strategies (Strong Buy, Buy, Neutral/Watch, Sell, Strong Sell) based on their overall score, with strategy details that consider both short-term and long-term performance metrics.
@@ -85,6 +99,25 @@ Stocks are classified into strategies (Strong Buy, Buy, Neutral/Watch, Sell, Str
 - **Transaction Cost Modeling**: Models spread, market impact, and fees based on liquidity
 - **Walk-Forward Testing**: Tests strategy robustness across different time periods
 - **Monte Carlo Simulation**: Assesses strategy performance under various market conditions
+
+#### Backtesting System Architecture
+- **Backtester Class**: Core engine that simulates trading over historical data
+  - Day-by-day simulation with realistic order execution
+  - Support for custom strategy functions
+  - Integration with ML scoring for model-driven strategies
+- **Transaction Cost Model**: Realistic modeling of trading costs
+  - Spread estimation based on price, volume, and volatility
+  - Market impact calculation for larger orders
+  - Fee structure modeling for different exchanges
+- **BacktestResult Class**: Comprehensive performance analysis
+  - Equity curve tracking and drawdown analysis
+  - Trade-by-trade record keeping
+  - Performance metrics calculation (Sharpe, Sortino, Win Rate, etc.)
+  - Detailed reporting with visualizations
+- **Strategy Functions**:
+  - ML-based strategy using GBDT predictions with risk management
+  - Technical indicator strategies for benchmarking
+  - Custom strategy support through function interface
 
 ### Portfolio Management
 - **Position Sizing**: Calculates optimal position sizes based on expected edge and volatility

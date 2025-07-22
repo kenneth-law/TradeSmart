@@ -36,9 +36,12 @@ class TransactionCostModel:
     Costs are adjusted based on stock liquidity, volatility, and time of day.
     """
 
-    def __init__(self):
+    def __init__(self, custom_transaction_cost=None):
         """
-        Initialize the transaction cost model with a flat rate commission.
+        Initialize the transaction cost model with a flat rate commission or custom value.
+
+        Parameters:
+            custom_transaction_cost (float): Optional fixed transaction cost value
         """
         """
          def __init__(self, base_commission=0.0035, min_commission=0.5):
@@ -53,7 +56,8 @@ class TransactionCostModel:
             self.min_commission = min_commission   
         """
 
-        self.flat_commission = 10.0  # Flat rate of $10 per transaction
+        self.custom_transaction_cost = custom_transaction_cost
+        self.flat_commission = 10.0  # Default flat rate of $10 per transaction if no custom value
 
     def estimate_spread(self, price, volume, volatility):
         """
@@ -128,22 +132,26 @@ class TransactionCostModel:
         Returns:
             tuple: (total_cost_dollars, total_cost_percentage)
         """
-        # Estimate spread
-        spread_pct = self.estimate_spread(price, volume, volatility)
-        spread_cost = price * spread_pct / 2  # Half spread for each side
+        # If custom transaction cost is provided, use it directly
+        if self.custom_transaction_cost is not None:
+            total_cost_dollars = self.custom_transaction_cost
+        else:
+            # Estimate spread
+            spread_pct = self.estimate_spread(price, volume, volatility)
+            spread_cost = price * spread_pct / 2  # Half spread for each side
 
-        # Estimate market impact
-        impact_pct = self.estimate_market_impact(price, volume, shares)
-        impact_cost = price * impact_pct
+            # Estimate market impact
+            impact_pct = self.estimate_market_impact(price, volume, shares)
+            impact_cost = price * impact_pct
 
-        # Calculate commission
-        # commission = max(self.min_commission, price * shares * self.base_commission / 100)
+            # Calculate commission
+            # commission = max(self.min_commission, price * shares * self.base_commission / 100)
 
-        # Use flat rate commission
-        commission = self.flat_commission
+            # Use flat rate commission
+            commission = self.flat_commission
 
-        # Total cost
-        total_cost_dollars = (spread_cost + impact_cost) * shares + commission
+            # Total cost
+            total_cost_dollars = (spread_cost + impact_cost) * shares + commission
 
         # Avoid division by zero
         if price * shares > 0:
@@ -325,18 +333,20 @@ class Backtester:
     Backtesting engine for stock trading strategies.
     """
 
-    def __init__(self, initial_capital=100000.0):
+    def __init__(self, initial_capital=100000.0, custom_transaction_cost=None):
         """
         Initialize the backtester.
 
         Parameters:
             initial_capital (float): Initial capital in dollars
+            custom_transaction_cost (float): Optional fixed transaction cost value
         """
         self.initial_capital = initial_capital
-        self.transaction_cost_model = TransactionCostModel()
+        self.transaction_cost_model = TransactionCostModel(custom_transaction_cost)
 
     def run_backtest(self, strategy, tickers, start_date, end_date, 
-                     use_point_in_time_universe=True, include_delisted=True, ml_scorer=None):
+                     use_point_in_time_universe=True, include_delisted=True, ml_scorer=None,
+                     custom_transaction_cost=None):
         """
         Run a backtest for the given strategy and parameters.
 
@@ -348,11 +358,16 @@ class Backtester:
             use_point_in_time_universe (bool): Whether to use point-in-time universe
             include_delisted (bool): Whether to include delisted tickers
             ml_scorer (MLScorer): Optional pre-initialized ML scorer for ML strategies
+            custom_transaction_cost (float): Optional fixed transaction cost value
 
         Returns:
             BacktestResult: Object containing backtest results
         """
         log_message(f"Starting backtest from {start_date} to {end_date} with {len(tickers)} tickers")
+
+        # If custom transaction cost is provided, update the transaction cost model
+        if custom_transaction_cost is not None:
+            self.transaction_cost_model = TransactionCostModel(custom_transaction_cost)
 
         # Initialize result object
         result = BacktestResult(

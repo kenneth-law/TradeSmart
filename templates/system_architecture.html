@@ -1,0 +1,1721 @@
+{% extends "base.html" %}
+
+{% block title %}System Architecture - TradeSmart Analytics{% endblock %}
+
+{% block extra_css %}
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Helvetica Neue', 'Arial', sans-serif;
+            background: #ffffff;
+            color: #000000;
+            line-height: 1.4;
+            font-weight: 400;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #000000;
+            margin-bottom: 60px;
+            font-size: 2.5rem;
+            font-weight: 300;
+            letter-spacing: -0.02em;
+            text-transform: uppercase;
+        }
+
+        .tabs {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 40px;
+            flex-wrap: wrap;
+            gap: 2px;
+            border: 2px solid #000000;
+        }
+
+        .tab-button {
+            background: #ffffff;
+            border: none;
+            padding: 16px 24px;
+            color: #000000;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 12px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-right: 2px solid #000000;
+            min-width: 140px;
+        }
+
+        .tab-button:last-child {
+            border-right: none;
+        }
+
+        .tab-button:hover {
+            background: #f5f5f5;
+        }
+
+        .tab-button.active {
+            background: #000000;
+            color: #ffffff;
+        }
+
+        .tab-content {
+            display: none;
+            background: #ffffff;
+            border: 2px solid #000000;
+            padding: 40px;
+            margin-bottom: 40px;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .flowchart {
+            text-align: center;
+            margin: 0;
+        }
+
+        .flowchart h2 {
+            color: #000000;
+            margin-bottom: 40px;
+            font-size: 1.8rem;
+            font-weight: 400;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .flowchart svg {
+            max-width: 100%;
+            height: auto;
+            border: 2px solid #000000;
+            background: #ffffff;
+        }
+
+        .node {
+            cursor: pointer;
+        }
+
+        .node rect {
+            fill: #ffffff;
+            stroke: #000000;
+            stroke-width: 2;
+            rx: 0;
+            ry: 0;
+        }
+
+        .node.process rect {
+            fill: #f8f8f8;
+            stroke: #000000;
+        }
+
+        .node.decision rect {
+            fill: #e8e8e8;
+            stroke: #000000;
+        }
+
+        .node.terminal rect {
+            fill: #000000;
+            stroke: #000000;
+        }
+
+        .node.data rect {
+            fill: #ffffff;
+            stroke: #000000;
+            stroke-dasharray: 4,4;
+        }
+
+        .node text {
+            fill: #000000;
+            font-weight: 400;
+            font-size: 11px;
+            text-anchor: middle;
+            dominant-baseline: middle;
+            font-family: 'Helvetica Neue', 'Arial', sans-serif;
+        }
+
+        .node.terminal text {
+            fill: #ffffff;
+            font-weight: 500;
+        }
+
+        .edge {
+            stroke: #000000;
+            stroke-width: 1.5;
+            fill: none;
+            marker-end: url(#arrowhead);
+        }
+
+        .edge-label {
+            font-size: 9px;
+            fill: #666666;
+            text-anchor: middle;
+            font-family: 'Helvetica Neue', 'Arial', sans-serif;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .infographic {
+            background: #ffffff;
+            border: 2px solid #000000;
+            padding: 40px;
+            color: #000000;
+        }
+
+        .infographic h2 {
+            text-align: center;
+            font-size: 2.2rem;
+            margin-bottom: 40px;
+            font-weight: 300;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 2px;
+            margin-top: 40px;
+            border: 2px solid #000000;
+        }
+
+        .info-card {
+            background: #ffffff;
+            border-right: 2px solid #000000;
+            border-bottom: 2px solid #000000;
+            padding: 30px;
+        }
+
+        .info-card:nth-child(2n) {
+            background: #f8f8f8;
+        }
+
+        .info-card:last-child {
+            border-bottom: none;
+        }
+
+        .info-card h3 {
+            font-size: 1.2rem;
+            margin-bottom: 20px;
+            color: #000000;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .info-card ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .info-card li {
+            padding: 8px 0;
+            border-bottom: 1px solid #e0e0e0;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .info-card li:last-child {
+            border-bottom: none;
+        }
+
+        .feature-marker {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #000000;
+            margin-right: 12px;
+            vertical-align: middle;
+        }
+
+        .summary-section {
+            text-align: center;
+            margin-top: 60px;
+            padding: 40px;
+            background: #f8f8f8;
+            border: 2px solid #000000;
+        }
+
+        .summary-section h3 {
+            font-size: 1.5rem;
+            margin-bottom: 30px;
+            font-weight: 400;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .workflow-chain {
+            font-size: 1.1rem;
+            line-height: 2;
+            font-weight: 400;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .workflow-arrow {
+            font-weight: 700;
+            margin: 0 10px;
+        }
+
+        .methodology-note {
+            margin-top: 30px;
+            font-style: italic;
+            font-size: 16px;
+            color: #333333;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        @media (max-width: 768px) {
+            .tabs {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .tab-button {
+                border-right: none;
+                border-bottom: 2px solid #000000;
+                text-align: center;
+            }
+
+            .tab-button:last-child {
+                border-bottom: none;
+            }
+
+            h1 {
+                font-size: 2rem;
+            }
+
+            .flowchart h2 {
+                font-size: 1.5rem;
+            }
+
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .info-card {
+                border-right: none;
+            }
+        }
+
+        /* Remove right border from last column items */
+        .info-card:nth-child(2n) {
+            border-right: none;
+        }
+
+        @media (min-width: 769px) {
+            .info-card:nth-child(2n) {
+                border-right: 2px solid #000000;
+            }
+
+            .info-card:nth-child(4n) {
+                border-right: none;
+            }
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+    <div class="container">
+        <h1>TradeSmart Analytics System Architecture</h1>
+
+        <div class="tabs">
+            <button class="tab-button active" onclick="showTab('overview')">System Overview</button>
+            <button class="tab-button" onclick="showTab('workflow')">Main Workflow</button>
+            <button class="tab-button" onclick="showTab('ml-training')">ML Training</button>
+            <button class="tab-button" onclick="showTab('analysis')">Stock Analysis</button>
+            <button class="tab-button" onclick="showTab('portfolio')">Portfolio Mgmt</button>
+            <button class="tab-button" onclick="showTab('execution')">Trade Execution</button>
+            <button class="tab-button" onclick="showTab('scoring')">Scoring System</button>
+            <button class="tab-button" onclick="showTab('backtesting')">Backtesting</button>
+            <button class="tab-button" onclick="showTab('infographic')">System Overview</button>
+        </div>
+
+        <!-- System Overview Tab -->
+        <div id="overview" class="tab-content active">
+            <div class="flowchart">
+                <h2>System Architecture Overview</h2>
+                <svg width="1200" height="700" viewBox="0 0 1200 700">
+                    <defs>
+                        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+                            <polygon points="0 0, 10 3.5, 0 7" fill="#000000"/>
+                        </marker>
+                    </defs>
+
+                    <!-- User Interface -->
+                    <g class="node terminal">
+                        <rect x="50" y="50" width="160" height="60"/>
+                        <text x="130" y="85">USER INTERFACE</text>
+                    </g>
+
+                    <!-- Data Layer -->
+                    <g class="node data">
+                        <rect x="300" y="50" width="160" height="60"/>
+                        <text x="380" y="85">DATA RETRIEVAL</text>
+                    </g>
+
+                    <!-- Analysis Engine -->
+                    <g class="node process">
+                        <rect x="550" y="50" width="160" height="60"/>
+                        <text x="630" y="85">ANALYSIS ENGINE</text>
+                    </g>
+
+                    <!-- ML Module -->
+                    <g class="node data">
+                        <rect x="300" y="180" width="160" height="60"/>
+                        <text x="380" y="215">ML SCORING</text>
+                    </g>
+
+                    <!-- Technical Analysis -->
+                    <g class="node process">
+                        <rect x="550" y="180" width="160" height="60"/>
+                        <text x="630" y="215">TECHNICAL ANALYSIS</text>
+                    </g>
+
+                    <!-- Portfolio Manager -->
+                    <g class="node process">
+                        <rect x="800" y="50" width="160" height="60"/>
+                        <text x="880" y="85">PORTFOLIO MANAGER</text>
+                    </g>
+
+                    <!-- Risk Management -->
+                    <g class="node decision">
+                        <rect x="800" y="180" width="160" height="60"/>
+                        <text x="880" y="215">RISK MANAGEMENT</text>
+                    </g>
+
+                    <!-- Trade Execution -->
+                    <g class="node terminal">
+                        <rect x="1000" y="50" width="160" height="60"/>
+                        <text x="1080" y="85">TRADE EXECUTION</text>
+                    </g>
+
+                    <!-- Backtesting -->
+                    <g class="node process">
+                        <rect x="300" y="310" width="160" height="60"/>
+                        <text x="380" y="345">BACKTESTING</text>
+                    </g>
+
+                    <!-- Reporting -->
+                    <g class="node terminal">
+                        <rect x="550" y="310" width="160" height="60"/>
+                        <text x="630" y="345">REPORTING</text>
+                    </g>
+
+                    <!-- Watchlist -->
+                    <g class="node data">
+                        <rect x="800" y="310" width="160" height="60"/>
+                        <text x="880" y="345">WATCHLIST</text>
+                    </g>
+
+                    <!-- Connections -->
+                    <path class="edge" d="M 210 80 L 290 80"/>
+                    <path class="edge" d="M 460 80 L 540 80"/>
+                    <path class="edge" d="M 710 80 L 790 80"/>
+                    <path class="edge" d="M 960 80 L 990 80"/>
+
+                    <path class="edge" d="M 380 110 L 380 170"/>
+                    <path class="edge" d="M 630 110 L 630 170"/>
+                    <path class="edge" d="M 880 110 L 880 170"/>
+
+                    <path class="edge" d="M 380 240 L 380 300"/>
+                    <path class="edge" d="M 630 240 L 630 300"/>
+                    <path class="edge" d="M 880 240 L 880 300"/>
+
+                    <path class="edge" d="M 460 215 L 540 215"/>
+                    <path class="edge" d="M 710 215 L 790 215"/>
+
+                    <path class="edge" d="M 460 345 L 540 345"/>
+                    <path class="edge" d="M 710 345 L 790 345"/>
+                </svg>
+            </div>
+        </div>
+
+        <!-- Main Workflow Tab -->
+        <div id="workflow" class="tab-content">
+            <div class="flowchart">
+                <h2>Integrated Trading System Workflow</h2>
+                <svg width="1200" height="800" viewBox="0 0 1200 800">
+                    <defs>
+                        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+                            <polygon points="0 0, 10 3.5, 0 7" fill="#000000"/>
+                        </marker>
+                    </defs>
+
+                    <!-- Start -->
+                    <g class="node terminal">
+                        <rect x="50" y="50" width="120" height="50"/>
+                        <text x="110" y="80">START SYSTEM</text>
+                    </g>
+
+                    <!-- User Input -->
+                    <g class="node data">
+                        <rect x="220" y="50" width="120" height="50"/>
+                        <text x="280" y="80">USER INPUT</text>
+                    </g>
+
+                    <!-- Initialize -->
+                    <g class="node process">
+                        <rect x="390" y="50" width="120" height="50"/>
+                        <text x="450" y="80">INITIALIZE</text>
+                    </g>
+
+                    <!-- ML Training Decision -->
+                    <g class="node decision">
+                        <rect x="560" y="30" width="120" height="90"/>
+                        <text x="620" y="65">ML ENABLED</text>
+                        <text x="620" y="80">TRAIN MODEL</text>
+                        <text x="620" y="95">DECISION</text>
+                    </g>
+
+                    <!-- ML Training -->
+                    <g class="node process">
+                        <rect x="730" y="50" width="120" height="50"/>
+                        <text x="790" y="80">TRAIN ML MODEL</text>
+                    </g>
+
+                    <!-- Stock Analysis -->
+                    <g class="node process">
+                        <rect x="390" y="170" width="120" height="50"/>
+                        <text x="450" y="200">STOCK ANALYSIS</text>
+                    </g>
+
+                    <!-- Generate Watchlist -->
+                    <g class="node process">
+                        <rect x="560" y="170" width="120" height="50"/>
+                        <text x="620" y="200">GENERATE</text>
+                        <text x="620" y="215">WATCHLIST</text>
+                    </g>
+
+                    <!-- Update Portfolio -->
+                    <g class="node process">
+                        <rect x="730" y="170" width="120" height="50"/>
+                        <text x="790" y="200">UPDATE</text>
+                        <text x="790" y="215">PORTFOLIO</text>
+                    </g>
+
+                    <!-- Trade Recommendations -->
+                    <g class="node process">
+                        <rect x="390" y="290" width="120" height="50"/>
+                        <text x="450" y="315">TRADE</text>
+                        <text x="450" y="330">RECOMMENDATIONS</text>
+                    </g>
+
+                    <!-- Execute Trades Decision -->
+                    <g class="node decision">
+                        <rect x="560" y="270" width="120" height="90"/>
+                        <text x="620" y="305">EXECUTE</text>
+                        <text x="620" y="320">TRADES</text>
+                        <text x="620" y="335">DECISION</text>
+                    </g>
+
+                    <!-- Execute Trades -->
+                    <g class="node terminal">
+                        <rect x="730" y="290" width="120" height="50"/>
+                        <text x="790" y="320">EXECUTE TRADES</text>
+                    </g>
+
+                    <!-- Save State -->
+                    <g class="node process">
+                        <rect x="390" y="410" width="120" height="50"/>
+                        <text x="450" y="440">SAVE STATE</text>
+                    </g>
+
+                    <!-- Backtest -->
+                    <g class="node process">
+                        <rect x="560" y="410" width="120" height="50"/>
+                        <text x="620" y="440">BACKTEST</text>
+                    </g>
+
+                    <!-- Results -->
+                    <g class="node terminal">
+                        <rect x="730" y="410" width="120" height="50"/>
+                        <text x="790" y="440">SHOW RESULTS</text>
+                    </g>
+
+                    <!-- Connections -->
+                    <path class="edge" d="M 170 75 L 210 75"/>
+                    <path class="edge" d="M 340 75 L 380 75"/>
+                    <path class="edge" d="M 510 75 L 550 75"/>
+                    <path class="edge" d="M 680 75 L 720 75"/>
+
+                    <path class="edge" d="M 620 120 L 620 160"/>
+                    <path class="edge" d="M 450 120 L 450 160"/>
+
+                    <path class="edge" d="M 510 195 L 550 195"/>
+                    <path class="edge" d="M 680 195 L 720 195"/>
+
+                    <path class="edge" d="M 450 220 L 450 280"/>
+                    <path class="edge" d="M 510 315 L 550 315"/>
+                    <path class="edge" d="M 680 315 L 720 315"/>
+
+                    <path class="edge" d="M 450 340 L 450 400"/>
+                    <path class="edge" d="M 510 435 L 550 435"/>
+                    <path class="edge" d="M 680 435 L 720 435"/>
+
+                    <!-- Labels -->
+                    <text x="700" y="45" class="edge-label">YES</text>
+                    <text x="480" y="140" class="edge-label">NO/CONTINUE</text>
+                    <text x="700" y="285" class="edge-label">YES</text>
+                    <text x="480" y="380" class="edge-label">CONTINUE</text>
+                </svg>
+            </div>
+        </div>
+
+        <!-- ML Training Tab -->
+        <div id="ml-training" class="tab-content">
+            <div class="flowchart">
+                <h2>Machine Learning Model Training Process</h2>
+                <svg width="1000" height="600" viewBox="0 0 1000 600">
+                    <defs>
+                        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+                            <polygon points="0 0, 10 3.5, 0 7" fill="#000000"/>
+                        </marker>
+                    </defs>
+
+                    <!-- Start -->
+                    <g class="node terminal">
+                        <rect x="50" y="50" width="140" height="50"/>
+                        <text x="120" y="75">COLLECT TRAINING</text>
+                        <text x="120" y="90">DATA</text>
+                    </g>
+
+                    <!-- Feature Engineering -->
+                    <g class="node process">
+                        <rect x="250" y="50" width="140" height="50"/>
+                        <text x="320" y="75">FEATURE</text>
+                        <text x="320" y="90">ENGINEERING</text>
+                    </g>
+
+                    <!-- Preprocessing -->
+                    <g class="node process">
+                        <rect x="450" y="50" width="140" height="50"/>
+                        <text x="520" y="80">PREPROCESSING</text>
+                    </g>
+
+                    <!-- Split Data -->
+                    <g class="node process">
+                        <rect x="650" y="50" width="140" height="50"/>
+                        <text x="720" y="75">TRAIN/TEST</text>
+                        <text x="720" y="90">SPLIT</text>
+                    </g>
+
+                    <!-- Cross Validation -->
+                    <g class="node process">
+                        <rect x="450" y="170" width="140" height="50"/>
+                        <text x="520" y="195">CROSS</text>
+                        <text x="520" y="210">VALIDATION</text>
+                    </g>
+
+                    <!-- Hyperparameter Tuning -->
+                    <g class="node process">
+                        <rect x="250" y="170" width="140" height="50"/>
+                        <text x="320" y="185">HYPERPARAMETER</text>
+                        <text x="320" y="200">TUNING</text>
+                    </g>
+
+                    <!-- Train GBDT -->
+                    <g class="node process">
+                        <rect x="50" y="170" width="140" height="50"/>
+                        <text x="120" y="185">TRAIN GBDT</text>
+                        <text x="120" y="200">MODEL</text>
+                    </g>
+
+                    <!-- Validate -->
+                    <g class="node decision">
+                        <rect x="250" y="290" width="140" height="50"/>
+                        <text x="320" y="315">VALIDATE</text>
+                        <text x="320" y="330">PERFORMANCE</text>
+                    </g>
+
+                    <!-- Save Model -->
+                    <g class="node terminal">
+                        <rect x="450" y="290" width="140" height="50"/>
+                        <text x="520" y="320">SAVE MODEL</text>
+                    </g>
+
+                    <!-- Features List -->
+                    <g class="node data">
+                        <rect x="50" y="410" width="180" height="120"/>
+                        <text x="140" y="435">30+ Technical Features</text>
+                        <text x="140" y="455">RSI, MACD, Bollinger</text>
+                        <text x="140" y="475">Moving Averages</text>
+                        <text x="140" y="495">Volume Analysis</text>
+                        <text x="140" y="515">Volatility Measures</text>
+                    </g>
+
+                    <!-- Preprocessing Details -->
+                    <g class="node data">
+                        <rect x="280" y="410" width="180" height="120"/>
+                        <text x="370" y="435">Preprocessing Steps</text>
+                        <text x="370" y="455">Robust Scaling</text>
+                        <text x="370" y="475">Feature Selection</text>
+                        <text x="370" y="495">PCA Dimensionality</text>
+                        <text x="370" y="515">Reduction</text>
+                    </g>
+
+                    <!-- Model Details -->
+                    <g class="node data">
+                        <rect x="510" y="410" width="180" height="120"/>
+                        <text x="600" y="435">GBDT Configuration</text>
+                        <text x="600" y="455">L1 Regularization</text>
+                        <text x="600" y="475">Huber Loss Function</text>
+                        <text x="600" y="495">Feature Importance</text>
+                        <text x="600" y="515">Analysis</text>
+                    </g>
+
+                    <!-- Connections -->
+                    <path class="edge" d="M 190 75 L 240 75"/>
+                    <path class="edge" d="M 390 75 L 440 75"/>
+                    <path class="edge" d="M 590 75 L 640 75"/>
+
+                    <path class="edge" d="M 720 100 L 720 130 L 520 130 L 520 160"/>
+                    <path class="edge" d="M 390 195 L 440 195"/>
+                    <path class="edge" d="M 250 195 L 190 195"/>
+
+                    <path class="edge" d="M 120 220 L 120 250 L 320 250 L 320 280"/>
+                    <path class="edge" d="M 390 315 L 440 315"/>
+
+                    <!-- Back to tuning if not satisfied -->
+                    <path class="edge" d="M 320 340 L 320 370 L 200 370 L 200 195" stroke-dasharray="5,5"/>
+
+                    <text x="700" y="140" class="edge-label">TIME SERIES SPLIT</text>
+                    <text x="220" y="385" class="edge-label">RETUNE IF NEEDED</text>
+                </svg>
+            </div>
+        </div>
+
+        <!-- Stock Analysis Tab -->
+        <div id="analysis" class="tab-content">
+            <div class="flowchart">
+                <h2>Comprehensive Stock Analysis Process</h2>
+                <svg width="1200" height="700" viewBox="0 0 1200 700">
+                    <defs>
+                        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+                            <polygon points="0 0, 10 3.5, 0 7" fill="#000000"/>
+                        </marker>
+                    </defs>
+
+                    <!-- Input Stock -->
+                    <g class="node terminal">
+                        <rect x="50" y="50" width="120" height="50"/>
+                        <text x="110" y="80">INPUT STOCK</text>
+                    </g>
+
+                    <!-- Get Stock Info -->
+                    <g class="node data">
+                        <rect x="220" y="50" width="120" height="50"/>
+                        <text x="280" y="75">GET STOCK</text>
+                        <text x="280" y="90">INFO</text>
+                    </g>
+
+                    <!-- Historical Data -->
+                    <g class="node data">
+                        <rect x="390" y="50" width="120" height="50"/>
+                        <text x="450" y="75">HISTORICAL</text>
+                        <text x="450" y="90">DATA</text>
+                    </g>
+
+                    <!-- Technical Indicators -->
+                    <g class="node process">
+                        <rect x="220" y="150" width="120" height="50"/>
+                        <text x="280" y="175">TECHNICAL</text>
+                        <text x="280" y="190">INDICATORS</text>
+                    </g>
+
+                    <!-- Short-term -->
+                    <g class="node process">
+                        <rect x="50" y="250" width="100" height="80"/>
+                        <text x="100" y="275">SHORT-TERM</text>
+                        <text x="100" y="290">RSI, MACD</text>
+                        <text x="100" y="305">MA5, MA10</text>
+                        <text x="100" y="320">STOCHASTIC</text>
+                    </g>
+
+                    <!-- Medium-term -->
+                    <g class="node process">
+                        <rect x="180" y="250" width="100" height="80"/>
+                        <text x="230" y="275">MEDIUM-TERM</text>
+                        <text x="230" y="290">MA20, MA50</text>
+                        <text x="230" y="305">BOLLINGER</text>
+                        <text x="230" y="320">ATR</text>
+                    </g>
+
+                    <!-- Long-term -->
+                    <g class="node process">
+                        <rect x="310" y="250" width="100" height="80"/>
+                        <text x="360" y="275">LONG-TERM</text>
+                        <text x="360" y="290">MA200</text>
+                        <text x="360" y="305">GOLDEN CROSS</text>
+                        <text x="360" y="320">TRENDS</text>
+                    </g>
+
+                    <!-- Volume Analysis -->
+                    <g class="node process">
+                        <rect x="440" y="250" width="100" height="80"/>
+                        <text x="490" y="275">VOLUME</text>
+                        <text x="490" y="290">OBV</text>
+                        <text x="490" y="305">VOL RATIO</text>
+                        <text x="490" y="320">PATTERNS</text>
+                    </g>
+
+                    <!-- ML Scoring -->
+                    <g class="node decision">
+                        <rect x="600" y="150" width="120" height="50"/>
+                        <text x="660" y="175">ML SCORING</text>
+                        <text x="660" y="190">ENABLED</text>
+                    </g>
+
+                    <!-- Apply ML Model -->
+                    <g class="node process">
+                        <rect x="600" y="250" width="120" height="50"/>
+                        <text x="660" y="275">APPLY ML</text>
+                        <text x="660" y="290">MODEL</text>
+                    </g>
+
+                    <!-- Traditional Scoring -->
+                    <g class="node process">
+                        <rect x="780" y="150" width="120" height="50"/>
+                        <text x="840" y="175">TRADITIONAL</text>
+                        <text x="840" y="190">SCORING</text>
+                    </g>
+
+                    <!-- Combine Scores -->
+                    <g class="node process">
+                        <rect x="600" y="380" width="120" height="50"/>
+                        <text x="660" y="405">COMBINE</text>
+                        <text x="660" y="420">SCORES</text>
+                    </g>
+
+                    <!-- Strategy Assignment -->
+                    <g class="node terminal">
+                        <rect x="780" y="380" width="120" height="50"/>
+                        <text x="840" y="405">STRATEGY</text>
+                        <text x="840" y="420">ASSIGNMENT</text>
+                    </g>
+
+                    <!-- News Sentiment -->
+                    <g class="node data">
+                        <rect x="950" y="150" width="120" height="50"/>
+                        <text x="1010" y="175">NEWS</text>
+                        <text x="1010" y="190">SENTIMENT</text>
+                    </g>
+
+                    <!-- Pattern Recognition -->
+                    <g class="node process">
+                        <rect x="950" y="250" width="120" height="50"/>
+                        <text x="1010" y="275">PATTERN</text>
+                        <text x="1010" y="290">RECOGNITION</text>
+                    </g>
+
+                    <!-- Strategy Categories -->
+                    <g class="node data">
+                        <rect x="950" y="380" width="150" height="140"/>
+                        <text x="1025" y="405">Strategy Categories</text>
+                        <text x="1025" y="425">Strong Buy: 80-100</text>
+                        <text x="1025" y="445">Buy: 60-79</text>
+                        <text x="1025" y="465">Neutral: 40-59</text>
+                        <text x="1025" y="485">Sell: 20-39</text>
+                        <text x="1025" y="505">Strong Sell: 0-19</text>
+                    </g>
+
+                    <!-- Connections -->
+                    <path class="edge" d="M 170 75 L 210 75"/>
+                    <path class="edge" d="M 340 75 L 380 75"/>
+                    <path class="edge" d="M 280 100 L 280 140"/>
+
+                    <path class="edge" d="M 280 200 L 280 220 L 100 220 L 100 240"/>
+                    <path class="edge" d="M 230 240 L 230 200"/>
+                    <path class="edge" d="M 360 240 L 360 200"/>
+                    <path class="edge" d="M 490 240 L 490 200"/>
+
+                    <path class="edge" d="M 450 100 L 450 120 L 660 120 L 660 140"/>
+                    <path class="edge" d="M 660 200 L 660 240"/>
+                    <path class="edge" d="M 720 175 L 770 175"/>
+
+                    <path class="edge" d="M 660 300 L 660 370"/>
+                    <path class="edge" d="M 720 405 L 770 405"/>
+
+                    <path class="edge" d="M 900 175 L 940 175"/>
+                    <path class="edge" d="M 1010 200 L 1010 240"/>
+                    <path class="edge" d="M 900 405 L 940 405"/>
+
+                    <!-- Labels -->
+                    <text x="680" y="235" class="edge-label">YES</text>
+                    <text x="750" y="170" class="edge-label">NO</text>
+                </svg>
+            </div>
+        </div>
+
+        <!-- Portfolio Management Tab -->
+        <div id="portfolio" class="tab-content">
+            <div class="flowchart">
+                <h2>Portfolio Management & Risk Control</h2>
+                <svg width="1100" height="650" viewBox="0 0 1100 650">
+                    <defs>
+                        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+                            <polygon points="0 0, 10 3.5, 0 7" fill="#000000"/>
+                        </marker>
+                    </defs>
+
+                    <!-- Current Portfolio -->
+                    <g class="node terminal">
+                        <rect x="50" y="50" width="140" height="50"/>
+                        <text x="120" y="75">CURRENT</text>
+                        <text x="120" y="90">PORTFOLIO</text>
+                    </g>
+
+                    <!-- Update Prices -->
+                    <g class="node process">
+                        <rect x="250" y="50" width="140" height="50"/>
+                        <text x="320" y="75">UPDATE MARKET</text>
+                        <text x="320" y="90">PRICES</text>
+                    </g>
+
+                    <!-- Calculate Value -->
+                    <g class="node process">
+                        <rect x="450" y="50" width="140" height="50"/>
+                        <text x="520" y="75">CALCULATE</text>
+                        <text x="520" y="90">PORTFOLIO VALUE</text>
+                    </g>
+
+                    <!-- Risk Assessment -->
+                    <g class="node decision">
+                        <rect x="650" y="30" width="140" height="90"/>
+                        <text x="720" y="65">RISK ASSESSMENT</text>
+                        <text x="720" y="80">WITHIN LIMITS</text>
+                        <text x="720" y="95">VALIDATION</text>
+                    </g>
+
+                    <!-- Sector Analysis -->
+                    <g class="node process">
+                        <rect x="250" y="170" width="140" height="50"/>
+                        <text x="320" y="195">SECTOR</text>
+                        <text x="320" y="210">EXPOSURE</text>
+                    </g>
+
+                    <!-- Beta Calculation -->
+                    <g class="node process">
+                        <rect x="450" y="170" width="140" height="50"/>
+                        <text x="520" y="195">BETA</text>
+                        <text x="520" y="210">CALCULATION</text>
+                    </g>
+
+                    <!-- Position Sizing -->
+                    <g class="node process">
+                        <rect x="650" y="170" width="140" height="50"/>
+                        <text x="720" y="195">POSITION</text>
+                        <text x="720" y="210">SIZING</text>
+                    </g>
+
+                    <!-- Generate Recommendations -->
+                    <g class="node process">
+                        <rect x="850" y="170" width="140" height="50"/>
+                        <text x="920" y="185">GENERATE</text>
+                        <text x="920" y="200">RECOMMENDATIONS</text>
+                    </g>
+
+                    <!-- Buy Recommendations -->
+                    <g class="node terminal">
+                        <rect x="150" y="290" width="140" height="50"/>
+                        <text x="220" y="315">BUY</text>
+                        <text x="220" y="330">RECOMMENDATIONS</text>
+                    </g>
+
+                    <!-- Sell Recommendations -->
+                    <g class="node terminal">
+                        <rect x="350" y="290" width="140" height="50"/>
+                        <text x="420" y="315">SELL</text>
+                        <text x="420" y="330">RECOMMENDATIONS</text>
+                    </g>
+
+                    <!-- Hold Decisions -->
+                    <g class="node terminal">
+                        <rect x="550" y="290" width="140" height="50"/>
+                        <text x="620" y="315">HOLD</text>
+                        <text x="620" y="330">DECISIONS</text>
+                    </g>
+
+                    <!-- Rebalance -->
+                    <g class="node terminal">
+                        <rect x="750" y="290" width="140" height="50"/>
+                        <text x="820" y="315">REBALANCE</text>
+                        <text x="820" y="330">PORTFOLIO</text>
+                    </g>
+
+                    <!-- Risk Controls -->
+                    <g class="node data">
+                        <rect x="50" y="450" width="200" height="140"/>
+                        <text x="150" y="475">Risk Controls</text>
+                        <text x="150" y="495">Max 5% single position</text>
+                        <text x="150" y="510">Max 20% sector exposure</text>
+                        <text x="150" y="525">Beta target: 0.0 ± 0.2</text>
+                        <text x="150" y="540">Max 10% daily drawdown</text>
+                        <text x="150" y="555">Stop loss: -2% position</text>
+                        <text x="150" y="570">Liquidity requirements</text>
+                    </g>
+
+                    <!-- Position Sizing Logic -->
+                    <g class="node data">
+                        <rect x="300" y="450" width="200" height="140"/>
+                        <text x="400" y="475">Position Sizing Logic</text>
+                        <text x="400" y="495">Score-based allocation</text>
+                        <text x="400" y="510">Volatility adjustment</text>
+                        <text x="400" y="525">Available capital</text>
+                        <text x="400" y="540">Correlation analysis</text>
+                        <text x="400" y="555">Sector limit compliance</text>
+                        <text x="400" y="570">Kelly criterion</text>
+                    </g>
+
+                    <!-- Performance Metrics -->
+                    <g class="node data">
+                        <rect x="550" y="450" width="200" height="140"/>
+                        <text x="650" y="475">Performance Metrics</text>
+                        <text x="650" y="495">Total return</text>
+                        <text x="650" y="510">Sharpe ratio</text>
+                        <text x="650" y="525">Maximum drawdown</text>
+                        <text x="650" y="540">Win rate</text>
+                        <text x="650" y="555">Alpha vs market</text>
+                        <text x="650" y="570">Information ratio</text>
+                    </g>
+
+                    <!-- Emergency Actions -->
+                    <g class="node terminal">
+                        <rect x="850" y="50" width="140" height="50"/>
+                        <text x="920" y="75">EMERGENCY</text>
+                        <text x="920" y="90">ACTIONS</text>
+                    </g>
+
+                    <!-- Connections -->
+                    <path class="edge" d="M 190 75 L 240 75"/>
+                    <path class="edge" d="M 390 75 L 440 75"/>
+                    <path class="edge" d="M 590 75 L 640 75"/>
+                    <path class="edge" d="M 790 75 L 840 75"/>
+
+                    <path class="edge" d="M 320 120 L 320 160"/>
+                    <path class="edge" d="M 520 120 L 520 160"/>
+                    <path class="edge" d="M 720 120 L 720 160"/>
+                    <path class="edge" d="M 920 120 L 920 160"/>
+
+                    <path class="edge" d="M 390 195 L 440 195"/>
+                    <path class="edge" d="M 590 195 L 640 195"/>
+                    <path class="edge" d="M 790 195 L 840 195"/>
+
+                    <path class="edge" d="M 920 220 L 920 250 L 220 250 L 220 280"/>
+                    <path class="edge" d="M 420 280 L 420 220"/>
+                    <path class="edge" d="M 620 280 L 620 220"/>
+                    <path class="edge" d="M 820 280 L 820 220"/>
+
+                    <!-- Risk limit breach -->
+                    <path class="edge" d="M 720 30 L 720 10 L 920 10 L 920 40" stroke-dasharray="5,5"/>
+
+                    <text x="800" y="70" class="edge-label">NO</text>
+                    <text x="750" y="140" class="edge-label">YES</text>
+                    <text x="750" y="25" class="edge-label">BREACH</text>
+                </svg>
+            </div>
+        </div>
+
+        <!-- Trade Execution Tab -->
+        <div id="execution" class="tab-content">
+            <div class="flowchart">
+                <h2>Smart Trade Execution System</h2>
+                <svg width="1000" height="600" viewBox="0 0 1000 600">
+                    <defs>
+                        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+                            <polygon points="0 0, 10 3.5, 0 7" fill="#000000"/>
+                        </marker>
+                    </defs>
+
+                    <!-- Trade Recommendations -->
+                    <g class="node terminal">
+                        <rect x="50" y="50" width="150" height="50"/>
+                        <text x="125" y="75">TRADE</text>
+                        <text x="125" y="90">RECOMMENDATIONS</text>
+                    </g>
+
+                    <!-- Execution Decision -->
+                    <g class="node decision">
+                        <rect x="250" y="30" width="150" height="90"/>
+                        <text x="325" y="65">EXECUTE TRADES</text>
+                        <text x="325" y="80">USER ENABLED</text>
+                        <text x="325" y="95">VALIDATION</text>
+                    </g>
+
+                    <!-- Order Type Selection -->
+                    <g class="node process">
+                        <rect x="450" y="50" width="150" height="50"/>
+                        <text x="525" y="75">SELECT ORDER</text>
+                        <text x="525" y="90">TYPE</text>
+                    </g>
+
+                    <!-- Market Order -->
+                    <g class="node terminal">
+                        <rect x="250" y="170" width="120" height="50"/>
+                        <text x="310" y="195">MARKET</text>
+                        <text x="310" y="210">ORDER</text>
+                    </g>
+
+                    <!-- TWAP Algorithm -->
+                    <g class="node process">
+                        <rect x="400" y="170" width="120" height="50"/>
+                        <text x="460" y="195">TWAP</text>
+                        <text x="460" y="210">ALGORITHM</text>
+                    </g>
+
+                    <!-- VWAP Algorithm -->
+                    <g class="node process">
+                        <rect x="550" y="170" width="120" height="50"/>
+                        <text x="610" y="195">VWAP</text>
+                        <text x="610" y="210">ALGORITHM</text>
+                    </g>
+
+                    <!-- Smart Routing -->
+                    <g class="node process">
+                        <rect x="700" y="170" width="120" height="50"/>
+                        <text x="760" y="195">SMART</text>
+                        <text x="760" y="210">ROUTING</text>
+                    </g>
+
+                    <!-- Order Validation -->
+                    <g class="node decision">
+                        <rect x="450" y="290" width="150" height="50"/>
+                        <text x="525" y="315">ORDER</text>
+                        <text x="525" y="330">VALIDATION</text>
+                    </g>
+
+                    <!-- Submit Order -->
+                    <g class="node process">
+                        <rect x="650" y="290" width="120" height="50"/>
+                        <text x="710" y="315">SUBMIT</text>
+                        <text x="710" y="330">ORDER</text>
+                    </g>
+
+                    <!-- Order Status -->
+                    <g class="node data">
+                        <rect x="800" y="290" width="120" height="50"/>
+                        <text x="860" y="315">ORDER</text>
+                        <text x="860" y="330">STATUS</text>
+                    </g>
+
+                    <!-- Update Portfolio -->
+                    <g class="node terminal">
+                        <rect x="450" y="410" width="150" height="50"/>
+                        <text x="525" y="435">UPDATE</text>
+                        <text x="525" y="450">PORTFOLIO</text>
+                    </g>
+
+                    <!-- Execution Features -->
+                    <g class="node data">
+                        <rect x="50" y="480" width="200" height="100"/>
+                        <text x="150" y="505">Execution Features</text>
+                        <text x="150" y="520">Low slippage algorithms</text>
+                        <text x="150" y="535">Market impact minimization</text>
+                        <text x="150" y="550">Real-time order tracking</text>
+                        <text x="150" y="565">Partial fill handling</text>
+                    </g>
+
+                    <!-- Order Types -->
+                    <g class="node data">
+                        <rect x="300" y="480" width="200" height="100"/>
+                        <text x="400" y="505">Order Types</text>
+                        <text x="400" y="520">Market (immediate execution)</text>
+                        <text x="400" y="535">TWAP (time-based slicing)</text>
+                        <text x="400" y="550">VWAP (volume-based)</text>
+                        <text x="400" y="565">Adaptive algorithms</text>
+                    </g>
+
+                    <!-- Risk Checks -->
+                    <g class="node data">
+                        <rect x="550" y="480" width="200" height="100"/>
+                        <text x="650" y="505">Pre-Trade Checks</text>
+                        <text x="650" y="520">Available capital</text>
+                        <text x="650" y="535">Position limits</text>
+                        <text x="650" y="550">Risk exposure</text>
+                        <text x="650" y="565">Market hours</text>
+                    </g>
+
+                    <!-- Rejected Orders -->
+                    <g class="node terminal">
+                        <rect x="250" y="410" width="120" height="50"/>
+                        <text x="310" y="435">ORDER</text>
+                        <text x="310" y="450">REJECTED</text>
+                    </g>
+
+                    <!-- Connections -->
+                    <path class="edge" d="M 200 75 L 240 75"/>
+                    <path class="edge" d="M 400 75 L 440 75"/>
+
+                    <path class="edge" d="M 525 100 L 525 130 L 310 130 L 310 160"/>
+                    <path class="edge" d="M 460 160 L 460 100"/>
+                    <path class="edge" d="M 610 160 L 610 100"/>
+                    <path class="edge" d="M 760 160 L 760 100"/>
+
+                    <path class="edge" d="M 460 220 L 460 250 L 525 250 L 525 280"/>
+                    <path class="edge" d="M 600 315 L 640 315"/>
+                    <path class="edge" d="M 770 315 L 790 315"/>
+
+                    <path class="edge" d="M 525 340 L 525 400"/>
+                    <path class="edge" d="M 450 315 L 370 315 L 370 400"/>
+
+                    <!-- No execution path -->
+                    <path class="edge" d="M 325 30 L 325 10 L 150 10 L 150 480" stroke="gray" stroke-dasharray="5,5"/>
+
+                    <text x="420" y="70" class="edge-label">YES</text>
+                    <text x="170" y="25" class="edge-label">NO</text>
+                    <text x="560" y="375" class="edge-label">FILLED</text>
+                    <text x="380" y="375" class="edge-label">REJECTED</text>
+                </svg>
+            </div>
+        </div>
+
+        <!-- Scoring System Tab -->
+        <div id="scoring" class="tab-content">
+            <div class="flowchart">
+                <h2>Dual Scoring System Architecture</h2>
+                <svg width="1200" height="650" viewBox="0 0 1200 650">
+                    <defs>
+                        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+                            <polygon points="0 0, 10 3.5, 0 7" fill="#000000"/>
+                        </marker>
+                    </defs>
+
+                    <!-- Stock Input -->
+                    <g class="node terminal">
+                        <rect x="50" y="50" width="120" height="50"/>
+                        <text x="110" y="80">STOCK DATA</text>
+                    </g>
+
+                    <!-- Scoring Choice -->
+                    <g class="node decision">
+                        <rect x="220" y="30" width="120" height="90"/>
+                        <text x="280" y="65">SCORING</text>
+                        <text x="280" y="80">METHOD</text>
+                        <text x="280" y="95">SELECTION</text>
+                    </g>
+
+                    <!-- Traditional Path -->
+                    <g class="node process">
+                        <rect x="50" y="170" width="120" height="50"/>
+                        <text x="110" y="195">TRADITIONAL</text>
+                        <text x="110" y="210">SCORING</text>
+                    </g>
+
+                    <!-- Technical Score -->
+                    <g class="node data">
+                        <rect x="20" y="270" width="80" height="80"/>
+                        <text x="60" y="295">TECHNICAL</text>
+                        <text x="60" y="310">(35%)</text>
+                        <text x="60" y="325">RSI, MACD</text>
+                        <text x="60" y="340">BOLLINGER</text>
+                    </g>
+
+                    <!-- Long-term Score -->
+                    <g class="node data">
+                        <rect x="120" y="270" width="80" height="80"/>
+                        <text x="160" y="295">LONG-TERM</text>
+                        <text x="160" y="310">(15%)</text>
+                        <text x="160" y="325">MA200</text>
+                        <text x="160" y="340">TRENDS</text>
+                    </g>
+
+                    <!-- Volatility Score -->
+                    <g class="node data">
+                        <rect x="220" y="270" width="80" height="80"/>
+                        <text x="260" y="295">VOLATILITY</text>
+                        <text x="260" y="310">(20%)</text>
+                        <text x="260" y="325">ATR</text>
+                        <text x="260" y="340">RANGE</text>
+                    </g>
+
+                    <!-- News Score -->
+                    <g class="node data">
+                        <rect x="320" y="270" width="80" height="80"/>
+                        <text x="360" y="295">NEWS</text>
+                        <text x="360" y="310">(10%)</text>
+                        <text x="360" y="325">SENTIMENT</text>
+                        <text x="360" y="340">NLP</text>
+                    </g>
+
+                    <!-- Gap Score -->
+                    <g class="node data">
+                        <rect x="420" y="270" width="80" height="80"/>
+                        <text x="460" y="295">GAP</text>
+                        <text x="460" y="310">(10%)</text>
+                        <text x="460" y="325">PRE-MARKET</text>
+                        <text x="460" y="340">FREQUENCY</text>
+                    </g>
+
+                    <!-- Volume Score -->
+                    <g class="node data">
+                        <rect x="520" y="270" width="80" height="80"/>
+                        <text x="560" y="295">VOLUME</text>
+                        <text x="560" y="310">(10%)</text>
+                        <text x="560" y="325">RELATIVE</text>
+                        <text x="560" y="340">AVERAGE</text>
+                    </g>
+
+                    <!-- ML Path -->
+                    <g class="node process">
+                        <rect x="400" y="170" width="120" height="50"/>
+                        <text x="460" y="195">ML</text>
+                        <text x="460" y="210">SCORING</text>
+                    </g>
+
+                    <!-- Feature Engineering -->
+                    <g class="node process">
+                        <rect x="700" y="80" width="120" height="50"/>
+                        <text x="760" y="105">FEATURE</text>
+                        <text x="760" y="120">ENGINEERING</text>
+                    </g>
+
+                    <!-- GBDT Model -->
+                    <g class="node process">
+                        <rect x="700" y="170" width="120" height="50"/>
+                        <text x="760" y="195">GBDT</text>
+                        <text x="760" y="210">PREDICTION</text>
+                    </g>
+
+                    <!-- ML Features -->
+                    <g class="node data">
+                        <rect x="870" y="80" width="150" height="140"/>
+                        <text x="945" y="105">30+ Features</text>
+                        <text x="945" y="125">All technical indicators</text>
+                        <text x="945" y="140">Price momentum</text>
+                        <text x="945" y="155">Volume patterns</text>
+                        <text x="945" y="170">Volatility measures</text>
+                        <text x="945" y="185">Market microstructure</text>
+                        <text x="945" y="200">Cross-correlations</text>
+                        <text x="945" y="215">Historical returns</text>
+                    </g>
+
+                    <!-- Combine Scores -->
+                    <g class="node process">
+                        <rect x="400" y="410" width="120" height="50"/>
+                        <text x="460" y="435">COMBINE</text>
+                        <text x="460" y="450">SCORES</text>
+                    </g>
+
+                    <!-- Final Score -->
+                    <g class="node terminal">
+                        <rect x="600" y="410" width="120" height="50"/>
+                        <text x="660" y="435">FINAL SCORE</text>
+                        <text x="660" y="450">(0-100)</text>
+                    </g>
+
+                    <!-- Strategy Assignment -->
+                    <g class="node terminal">
+                        <rect x="800" y="410" width="150" height="50"/>
+                        <text x="875" y="435">STRATEGY</text>
+                        <text x="875" y="450">ASSIGNMENT</text>
+                    </g>
+
+                    <!-- Score Ranges -->
+                    <g class="node data">
+                        <rect x="980" y="350" width="180" height="160"/>
+                        <text x="1070" y="375">Score Ranges</text>
+                        <text x="1070" y="395">Strong Buy: 80-100</text>
+                        <text x="1070" y="410">Buy: 60-79</text>
+                        <text x="1070" y="425">Neutral: 40-59</text>
+                        <text x="1070" y="440">Sell: 20-39</text>
+                        <text x="1070" y="455">Strong Sell: 0-19</text>
+                        <text x="1070" y="480">Watchlist threshold: 60+</text>
+                        <text x="1070" y="495">Trading threshold: 65+</text>
+                    </g>
+
+                    <!-- Connections -->
+                    <path class="edge" d="M 170 75 L 210 75"/>
+
+                    <!-- Traditional path -->
+                    <path class="edge" d="M 280 30 L 280 10 L 110 10 L 110 160"/>
+                    <path class="edge" d="M 110 220 L 110 250 L 60 250 L 60 260"/>
+                    <path class="edge" d="M 160 260 L 160 220"/>
+                    <path class="edge" d="M 260 260 L 260 220"/>
+                    <path class="edge" d="M 360 260 L 360 220"/>
+                    <path class="edge" d="M 460 260 L 460 220"/>
+                    <path class="edge" d="M 560 260 L 560 220"/>
+
+                    <!-- ML path -->
+                    <path class="edge" d="M 340 75 L 390 75 L 390 160"/>
+                    <path class="edge" d="M 520 185 L 690 185"/>
+                    <path class="edge" d="M 760 130 L 760 160"/>
+                    <path class="edge" d="M 820 105 L 860 105"/>
+
+                    <!-- Combine -->
+                    <path class="edge" d="M 300 350 L 300 380 L 460 380 L 460 400"/>
+                    <path class="edge" d="M 760 220 L 760 380 L 460 380"/>
+
+                    <path class="edge" d="M 520 435 L 590 435"/>
+                    <path class="edge" d="M 720 435 L 790 435"/>
+                    <path class="edge" d="M 950 435 L 970 435"/>
+
+                    <!-- Labels -->
+                    <text x="150" y="25" class="edge-label">TRADITIONAL</text>
+                    <text x="350" y="70" class="edge-label">ML</text>
+                </svg>
+            </div>
+        </div>
+
+        <!-- Backtesting Tab -->
+        <div id="backtesting" class="tab-content">
+            <div class="flowchart">
+                <h2>Industrial-Grade Backtesting Framework</h2>
+                <svg width="1100" height="700" viewBox="0 0 1100 700">
+                    <defs>
+                        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+                            <polygon points="0 0, 10 3.5, 0 7" fill="#000000"/>
+                        </marker>
+                    </defs>
+
+                    <!-- Start Backtest -->
+                    <g class="node terminal">
+                        <rect x="50" y="50" width="120" height="50"/>
+                        <text x="110" y="75">START</text>
+                        <text x="110" y="90">BACKTEST</text>
+                    </g>
+
+                    <!-- Historical Data -->
+                    <g class="node data">
+                        <rect x="220" y="50" width="120" height="50"/>
+                        <text x="280" y="75">HISTORICAL</text>
+                        <text x="280" y="90">DATA</text>
+                    </g>
+
+                    <!-- Strategy Function -->
+                    <g class="node process">
+                        <rect x="390" y="50" width="120" height="50"/>
+                        <text x="450" y="75">STRATEGY</text>
+                        <text x="450" y="90">FUNCTION</text>
+                    </g>
+
+                    <!-- Day Loop -->
+                    <g class="node process">
+                        <rect x="560" y="50" width="120" height="50"/>
+                        <text x="620" y="75">DAY-BY-DAY</text>
+                        <text x="620" y="90">LOOP</text>
+                    </g>
+
+                    <!-- Point-in-Time -->
+                    <g class="node data">
+                        <rect x="220" y="150" width="120" height="50"/>
+                        <text x="280" y="175">POINT-IN-TIME</text>
+                        <text x="280" y="190">DATA</text>
+                    </g>
+
+                    <!-- Generate Signals -->
+                    <g class="node process">
+                        <rect x="390" y="150" width="120" height="50"/>
+                        <text x="450" y="175">GENERATE</text>
+                        <text x="450" y="190">SIGNALS</text>
+                    </g>
+
+                    <!-- Order Creation -->
+                    <g class="node process">
+                        <rect x="560" y="150" width="120" height="50"/>
+                        <text x="620" y="175">CREATE</text>
+                        <text x="620" y="190">ORDERS</text>
+                    </g>
+
+                    <!-- Transaction Costs -->
+                    <g class="node process">
+                        <rect x="730" y="150" width="120" height="50"/>
+                        <text x="790" y="175">APPLY TX</text>
+                        <text x="790" y="190">COSTS</text>
+                    </g>
+
+                    <!-- Portfolio Update -->
+                    <g class="node process">
+                        <rect x="900" y="150" width="120" height="50"/>
+                        <text x="960" y="175">UPDATE</text>
+                        <text x="960" y="190">PORTFOLIO</text>
+                    </g>
+
+                    <!-- Risk Checks -->
+                    <g class="node decision">
+                        <rect x="730" y="250" width="120" height="50"/>
+                        <text x="790" y="275">RISK LIMITS</text>
+                        <text x="790" y="290">VALIDATION</text>
+                    </g>
+
+                    <!-- Continue/Stop -->
+                    <g class="node decision">
+                        <rect x="390" y="250" width="120" height="50"/>
+                        <text x="450" y="275">MORE DAYS</text>
+                        <text x="450" y="290">AVAILABLE</text>
+                    </g>
+
+                    <!-- Performance Metrics -->
+                    <g class="node process">
+                        <rect x="560" y="350" width="120" height="50"/>
+                        <text x="620" y="375">CALCULATE</text>
+                        <text x="620" y="390">METRICS</text>
+                    </g>
+
+                    <!-- Generate Report -->
+                    <g class="node terminal">
+                        <rect x="730" y="350" width="120" height="50"/>
+                        <text x="790" y="375">GENERATE</text>
+                        <text x="790" y="390">REPORT</text>
+                    </g>
+
+                    <!-- Backtest Features -->
+                    <g class="node data">
+                        <rect x="50" y="450" width="200" height="140"/>
+                        <text x="150" y="475">Backtest Features</text>
+                        <text x="150" y="495">Survivorship bias free</text>
+                        <text x="150" y="510">Point-in-time integrity</text>
+                        <text x="150" y="515">Realistic execution</text>
+                        <text x="150" y="540">Transaction cost modeling</text>
+                        <text x="150" y="555">Walk-forward testing</text>
+                        <text x="150" y="570">Monte Carlo simulation</text>
+                    </g>
+
+                    <!-- Transaction Costs -->
+                    <g class="node data">
+                        <rect x="300" y="450" width="200" height="140"/>
+                        <text x="400" y="475">Transaction Costs</text>
+                        <text x="400" y="495">Bid-ask spread</text>
+                        <text x="400" y="510">Market impact</text>
+                        <text x="400" y="525">Commission fees</text>
+                        <text x="400" y="540">Slippage modeling</text>
+                        <text x="400" y="555">Liquidity constraints</text>
+                        <text x="400" y="570">Order size penalties</text>
+                    </g>
+
+                    <!-- Performance Metrics -->
+                    <g class="node data">
+                        <rect x="550" y="450" width="200" height="140"/>
+                        <text x="650" y="475">Performance Metrics</text>
+                        <text x="650" y="495">Total return</text>
+                        <text x="650" y="510">Sharpe ratio</text>
+                        <text x="650" y="525">Maximum drawdown</text>
+                        <text x="650" y="540">Win rate</text>
+                        <text x="650" y="555">Calmar ratio</text>
+                        <text x="650" y="570">Information ratio</text>
+                    </g>
+
+                    <!-- Strategy Types -->
+                    <g class="node data">
+                        <rect x="800" y="450" width="200" height="140"/>
+                        <text x="900" y="475">Strategy Types</text>
+                        <text x="900" y="495">ML-based signals</text>
+                        <text x="900" y="510">Technical indicators</text>
+                        <text x="900" y="525">Mean reversion</text>
+                        <text x="900" y="540">Momentum strategies</text>
+                        <text x="900" y="555">Custom functions</text>
+                        <text x="900" y="570">Multi-factor models</text>
+                    </g>
+
+                    <!-- Emergency Stop -->
+                    <g class="node terminal">
+                        <rect x="900" y="250" width="120" height="50"/>
+                        <text x="960" y="275">EMERGENCY</text>
+                        <text x="960" y="290">STOP</text>
+                    </g>
+
+                    <!-- Connections -->
+                    <path class="edge" d="M 170 75 L 210 75"/>
+                    <path class="edge" d="M 340 75 L 380 75"/>
+                    <path class="edge" d="M 510 75 L 550 75"/>
+
+                    <path class="edge" d="M 620 100 L 620 130 L 280 130 L 280 140"/>
+                    <path class="edge" d="M 340 175 L 380 175"/>
+                    <path class="edge" d="M 510 175 L 550 175"/>
+                    <path class="edge" d="M 680 175 L 720 175"/>
+                    <path class="edge" d="M 850 175 L 890 175"/>
+
+                    <path class="edge" d="M 960 200 L 960 230 L 790 230 L 790 240"/>
+                    <path class="edge" d="M 730 275 L 510 275"/>
+                    <path class="edge" d="M 450 240 L 450 200"/>
+                    <path class="edge" d="M 510 275 L 620 275 L 620 340"/>
+                    <path class="edge" d="M 680 375 L 720 375"/>
+
+                    <!-- Emergency stop -->
+                    <path class="edge" d="M 850 275 L 890 275"/>
+
+                    <!-- Back to loop -->
+                    <path class="edge" d="M 390 275 L 350 275 L 350 320 L 620 320 L 620 100" stroke-dasharray="5,5"/>
+
+                    <text x="750" y="235" class="edge-label">OK</text>
+                    <text x="530" y="295" class="edge-label">YES</text>
+                    <text x="570" y="315" class="edge-label">NO</text>
+                    <text x="870" y="270" class="edge-label">BREACH</text>
+                    <text x="370" y="335" class="edge-label">LOOP BACK</text>
+                </svg>
+            </div>
+        </div>
+
+        <!-- Infographic Tab -->
+        <div id="infographic" class="tab-content">
+            <div class="infographic">
+                <h2>TradeSmart Analytics Complete System Overview</h2>
+
+                <div class="info-grid">
+                    <div class="info-card">
+                        <h3>Core Features</h3>
+                        <ul>
+                            <li><span class="feature-marker"></span>Comprehensive stock analysis</li>
+                            <li><span class="feature-marker"></span>Machine learning scoring</li>
+                            <li><span class="feature-marker"></span>Real-time technical indicators</li>
+                            <li><span class="feature-marker"></span>News sentiment analysis</li>
+                            <li><span class="feature-marker"></span>Industrial-grade backtesting</li>
+                            <li><span class="feature-marker"></span>Portfolio management</li>
+                            <li><span class="feature-marker"></span>Smart trade execution</li>
+                        </ul>
+                    </div>
+
+                    <div class="info-card">
+                        <h3>Scoring Systems</h3>
+                        <ul>
+                            <li><span class="feature-marker"></span><strong>Traditional Heuristic</strong></li>
+                            <li><span class="feature-marker"></span>Technical Score (35%)</li>
+                            <li><span class="feature-marker"></span>Long-term Score (15%)</li>
+                            <li><span class="feature-marker"></span>Volatility Score (20%)</li>
+                            <li><span class="feature-marker"></span>News Sentiment (10%)</li>
+                            <li><span class="feature-marker"></span>Gap Potential (10%)</li>
+                            <li><span class="feature-marker"></span>Volume Score (10%)</li>
+                        </ul>
+                    </div>
+
+                    <div class="info-card">
+                        <h3>Machine Learning</h3>
+                        <ul>
+                            <li><span class="feature-marker"></span>Gradient Boosted Decision Trees</li>
+                            <li><span class="feature-marker"></span>30+ technical features</li>
+                            <li><span class="feature-marker"></span>Non-linear relationship discovery</li>
+                            <li><span class="feature-marker"></span>L1 regularization & Huber loss</li>
+                            <li><span class="feature-marker"></span>Feature importance analysis</li>
+                            <li><span class="feature-marker"></span>Time series cross-validation</li>
+                            <li><span class="feature-marker"></span>Automatic model retraining</li>
+                        </ul>
+                    </div>
+
+                    <div class="info-card">
+                        <h3>Technical Indicators</h3>
+                        <ul>
+                            <li><span class="feature-marker"></span><strong>Short-term:</strong> RSI, MACD, Stochastic</li>
+                            <li><span class="feature-marker"></span><strong>Medium-term:</strong> Bollinger, ATR</li>
+                            <li><span class="feature-marker"></span><strong>Long-term:</strong> MA200, Golden Cross</li>
+                            <li><span class="feature-marker"></span><strong>Volume:</strong> OBV, Volume Ratio</li>
+                            <li><span class="feature-marker"></span>Support & resistance levels</li>
+                            <li><span class="feature-marker"></span>Pattern recognition</li>
+                            <li><span class="feature-marker"></span>Gap analysis</li>
+                        </ul>
+                    </div>
+
+                    <div class="info-card">
+                        <h3>Portfolio Management</h3>
+                        <ul>
+                            <li><span class="feature-marker"></span>Score-based position sizing</li>
+                            <li><span class="feature-marker"></span>Risk controls & limits</li>
+                            <li><span class="feature-marker"></span>Sector exposure management</li>
+                            <li><span class="feature-marker"></span>Beta-neutral targeting</li>
+                            <li><span class="feature-marker"></span>Drawdown protection</li>
+                            <li><span class="feature-marker"></span>Performance tracking</li>
+                            <li><span class="feature-marker"></span>Automatic rebalancing</li>
+                        </ul>
+                    </div>
+
+                    <div class="info-card">
+                        <h3>Trade Execution</h3>
+                        <ul>
+                            <li><span class="feature-marker"></span>TWAP (Time-Weighted Average)</li>
+                            <li><span class="feature-marker"></span>VWAP (Volume-Weighted Average)</li>
+                            <li><span class="feature-marker"></span>Smart order routing</li>
+                            <li><span class="feature-marker"></span>Market impact minimization</li>
+                            <li><span class="feature-marker"></span>Real-time order tracking</li>
+                            <li><span class="feature-marker"></span>Partial fill handling</li>
+                            <li><span class="feature-marker"></span>Dynamic participation rates</li>
+                        </ul>
+                    </div>
+
+                    <div class="info-card">
+                        <h3>Backtesting Framework</h3>
+                        <ul>
+                            <li><span class="feature-marker"></span>Point-in-time data integrity</li>
+                            <li><span class="feature-marker"></span>Transaction cost modeling</li>
+                            <li><span class="feature-marker"></span>Survivorship bias free</li>
+                            <li><span class="feature-marker"></span>Walk-forward testing</li>
+                            <li><span class="feature-marker"></span>Monte Carlo simulation</li>
+                            <li><span class="feature-marker"></span>Performance metrics</li>
+                            <li><span class="feature-marker"></span>Equity curve analysis</li>
+                        </ul>
+                    </div>
+
+                    <div class="info-card">
+                        <h3>Strategy Classifications</h3>
+                        <ul>
+                            <li><span class="feature-marker"></span><strong>Strong Buy:</strong> 80-100 points</li>
+                            <li><span class="feature-marker"></span><strong>Buy:</strong> 60-79 points</li>
+                            <li><span class="feature-marker"></span><strong>Neutral:</strong> 40-59 points</li>
+                            <li><span class="feature-marker"></span><strong>Sell:</strong> 20-39 points</li>
+                            <li><span class="feature-marker"></span><strong>Strong Sell:</strong> 0-19 points</li>
+                            <li><span class="feature-marker"></span>Watchlist threshold: 60+</li>
+                            <li><span class="feature-marker"></span>Trading threshold: 65+</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="summary-section">
+                    <h3>System Workflow Summary</h3>
+                    <div class="workflow-chain">
+                        <strong>Data Ingestion</strong>
+                        <span class="workflow-arrow">→</span>
+                        <strong>Technical Analysis</strong>
+                        <span class="workflow-arrow">→</span>
+                        <strong>ML Scoring</strong>
+                        <span class="workflow-arrow">→</span>
+                        <strong>Portfolio Management</strong>
+                        <span class="workflow-arrow">→</span>
+                        <strong>Risk Assessment</strong>
+                        <span class="workflow-arrow">→</span>
+                        <strong>Trade Execution</strong>
+                        <span class="workflow-arrow">→</span>
+                        <strong>Performance Tracking</strong>
+                        <span class="workflow-arrow">→</span>
+                        <strong>Continuous Learning</strong>
+                    </div>
+                    <p class="methodology-note">
+                        Combining traditional technical analysis with cutting-edge machine learning for superior trading performance
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showTab(tabName) {
+            // Hide all tab contents
+            const tabContents = document.querySelectorAll('.tab-content');
+            tabContents.forEach(content => {
+                content.classList.remove('active');
+            });
+
+            // Remove active class from all buttons
+            const tabButtons = document.querySelectorAll('.tab-button');
+            tabButtons.forEach(button => {
+                button.classList.remove('active');
+            });
+
+            // Show selected tab content
+            document.getElementById(tabName).classList.add('active');
+
+            // Add active class to clicked button
+            event.currentTarget.classList.add('active');
+        }
+    </script>
+{% endblock %}

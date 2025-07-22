@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
     {% block extra_css %}{% endblock %}
 </head>
-<body>
+<body id="app-body">
     <nav class="navbar navbar-expand-lg navbar-dark">
         <div class="container">
             <a class="navbar-brand" href="/">
@@ -26,6 +26,11 @@
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('documentation') }}"><i class="fas fa-book me-1"></i> Documentation</a>
                     </li>
+                    <li class="nav-item">
+                        <div class="dark-mode-toggle" id="dark-mode-toggle">
+                            <i class="fas fa-moon"></i> Dark Mode
+                        </div>
+                    </li>
                 </ul>
             </div>
         </div>
@@ -39,10 +44,10 @@
         <div class="container">
             <div class="row">
                 <div class="col-md-6">
-                    <p>&copy; 2025 TradeSmart Analytics</p>
+                    <p>&copy; 2025 Kenneth Law</p>
                 </div>
                 <div class="col-md-6 text-md-end">
-                    <p>Advanced Day Trading Analysis</p>
+                    <p>Advanced Short-Term Trading/Valuation Analysis</p>
                 </div>
             </div>
         </div>
@@ -52,5 +57,35 @@
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     {% block extra_js %}{% endblock %}
+
+    <script>
+        // Dark mode toggle functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const darkModeToggle = document.getElementById('dark-mode-toggle');
+            const body = document.getElementById('app-body');
+
+            // Check for saved dark mode preference
+            const darkMode = localStorage.getItem('darkMode') === 'enabled';
+
+            // Apply dark mode if saved preference exists
+            if (darkMode) {
+                body.classList.add('dark-mode');
+                darkModeToggle.innerHTML = '<i class="fas fa-sun"></i> Light Mode';
+            }
+
+            // Toggle dark mode on click
+            darkModeToggle.addEventListener('click', function() {
+                if (body.classList.contains('dark-mode')) {
+                    body.classList.remove('dark-mode');
+                    localStorage.setItem('darkMode', 'disabled');
+                    darkModeToggle.innerHTML = '<i class="fas fa-moon"></i> Dark Mode';
+                } else {
+                    body.classList.add('dark-mode');
+                    localStorage.setItem('darkMode', 'enabled');
+                    darkModeToggle.innerHTML = '<i class="fas fa-sun"></i> Light Mode';
+                }
+            });
+        });
+    </script>
 </body>
 </html>

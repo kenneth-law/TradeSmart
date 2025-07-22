@@ -101,7 +101,7 @@ class TransactionCostModel:
             float: Estimated market impact as percentage of price
         """
         # Calculate trade size as percentage of average daily volume
-        trade_volume_pct = (trade_size * price) / (volume * price) * 100
+        trade_volume_pct = (trade_size / volume) * 100
 
         # No impact for very small trades (less than 0.1% of daily volume)
         if trade_volume_pct < 0.1:
@@ -132,9 +132,9 @@ class TransactionCostModel:
         Returns:
             tuple: (total_cost_dollars, total_cost_percentage)
         """
-        # If custom transaction cost is provided, use it directly
+        # If custom transaction cost is provided, use it as a per-share cost
         if self.custom_transaction_cost is not None:
-            total_cost_dollars = self.custom_transaction_cost
+            total_cost_dollars = self.custom_transaction_cost * shares
         else:
             # Estimate spread
             spread_pct = self.estimate_spread(price, volume, volatility)
@@ -282,17 +282,34 @@ class BacktestResult:
             daily_return_std = np.std(self.daily_returns)
             self.sharpe_ratio = (daily_return_mean / daily_return_std) * np.sqrt(252) if daily_return_std > 0 else 0
 
-        # Win rate and profit factor
-        winning_trades = [t for t in self.trades if 
-                          (t['action'] == 'SELL' and t['net_value'] > 0) or 
-                          (t['action'] == 'BUY' and t['net_value'] > 0)]
+        # Win rate based on complete round-trip trades
+        self.win_rate = self.calculate_win_rate()
 
-        total_trades = len(self.trades)
-        self.win_rate = len(winning_trades) / total_trades if total_trades > 0 else 0
+        # Transaction cost percentage - Fix: use average portfolio value over the period
+        # Use average portfolio value for percentage calculation
+        total_portfolio_value = np.mean([e['equity'] for e in self.equity_curve]) if self.equity_curve else self.final_capital
+        self.transaction_cost_percentage = (self.total_transaction_costs / total_portfolio_value * 100) if total_portfolio_value > 0 else 0
 
-        # Transaction cost percentage
-        total_trade_value = sum(t['value'] for t in self.trades)
-        self.transaction_cost_percentage = (self.total_transaction_costs / total_trade_value * 100) if total_trade_value > 0 else 0
+    def calculate_win_rate(self):
+        """Calculate win rate based on complete round-trip trades"""
+        positions = {}
+        completed_trades = []
+
+        for trade in self.trades:
+            ticker = trade['ticker']
+            if ticker not in positions:
+                positions[ticker] = []
+
+            if trade['action'] == 'BUY':
+                positions[ticker].append(trade)
+            elif trade['action'] == 'SELL' and positions[ticker]:
+                # Match with oldest buy
+                buy_trade = positions[ticker].pop(0)
+                # Calculate profit/loss for this round-trip trade
+                pnl = (trade['price'] - buy_trade['price']) * min(trade['shares'], buy_trade['shares']) - (trade['cost'] + buy_trade['cost'])
+                completed_trades.append(pnl > 0)
+
+        return sum(completed_trades) / len(completed_trades) if completed_trades else 0
 
     def generate_report(self):
         """
@@ -346,7 +363,7 @@ class Backtester:
 
     def run_backtest(self, strategy, tickers, start_date, end_date, 
                      use_point_in_time_universe=True, include_delisted=True, ml_scorer=None,
-                     custom_transaction_cost=None):
+                     custom_transaction_cost=None, buy_threshold=60, sell_threshold=40):
         """
         Run a backtest for the given strategy and parameters.
 
@@ -358,7 +375,9 @@ class Backtester:
             use_point_in_time_universe (bool): Whether to use point-in-time universe
             include_delisted (bool): Whether to include delisted tickers
             ml_scorer (MLScorer): Optional pre-initialized ML scorer for ML strategies
-            custom_transaction_cost (float): Optional fixed transaction cost value
+            custom_transaction_cost (float): Optional per-share transaction cost value
+            buy_threshold (int): Score threshold for buy signals in ML strategy (default: 60)
+            sell_threshold (int): Score threshold for sell signals in ML strategy (default: 40)
 
         Returns:
             BacktestResult: Object containing backtest results
@@ -388,7 +407,6 @@ class Backtester:
         start_dt = datetime.strptime(start_date, '%Y-%m-%d')
         end_dt = datetime.strptime(end_date, '%Y-%m-%d')
         date_range = [start_dt + timedelta(days=x) for x in range((end_dt - start_dt).days + 1)]
-        trading_days = [d for d in date_range if d.weekday() < 5]  # Exclude weekends
 
         # Get historical data for all tickers
         ticker_data = {}
@@ -399,6 +417,17 @@ class Backtester:
                     ticker_data[ticker] = hist
             except Exception as e:
                 log_message(f"Error loading data for {ticker}: {e}")
+
+        # Improved market hours and holidays handling
+        # Only include days where we actually have market data
+        trading_days = []
+        for d in date_range:
+            # Skip weekends first (optimization)
+            if d.weekday() >= 5:
+                continue
+            # Check if any ticker has data for this day
+            if any(d.date() in data.index.date for data in ticker_data.values()):
+                trading_days.append(d)
 
         # Run the backtest day by day
         for day in tqdm(trading_days, desc="Running backtest"):
@@ -448,7 +477,12 @@ class Backtester:
                         stock_data = score_stock_ml(stock_data, ml_scorer)
 
                     # Get signal from strategy
-                    signal = strategy(stock_data)
+                    if strategy.__name__ == 'ml_strategy':
+                        # Pass thresholds to ML strategy
+                        signal = strategy(stock_data, buy_threshold, sell_threshold)
+                    else:
+                        signal = strategy(stock_data)
+
                     if signal:
                         signals[ticker] = signal
                 except Exception as e:
@@ -460,7 +494,23 @@ class Backtester:
                     if ticker not in ticker_data or day.date() not in ticker_data[ticker].index.date:
                         continue
 
-                    price = ticker_data[ticker].loc[ticker_data[ticker].index.date == day.date(), 'Close'].iloc[0]
+                    # Fix look-ahead bias: Use next day's open price for execution
+                    tomorrow = day + timedelta(days=1)
+                    # Try to find the next trading day
+                    next_trading_day_found = False
+                    for i in range(1, 5):  # Look up to 5 days ahead (to handle weekends and holidays)
+                        next_day = day + timedelta(days=i)
+                        if ticker in ticker_data and next_day.date() in ticker_data[ticker].index.date:
+                            tomorrow = next_day
+                            next_trading_day_found = True
+                            break
+
+                    # If we can't find next trading day, skip this signal
+                    if not next_trading_day_found:
+                        continue
+
+                    # Use next day's open price for execution
+                    price = ticker_data[ticker].loc[ticker_data[ticker].index.date == tomorrow.date(), 'Open'].iloc[0]
                     volume = ticker_data[ticker].loc[ticker_data[ticker].index.date == day.date(), 'Volume'].iloc[0]
 
                     # Get volatility (ATR as percentage)
@@ -469,11 +519,20 @@ class Backtester:
                         volatility = stock_data['atr_pct']
 
                     if signal['action'] == 'BUY':
-                        # Calculate position size
-                        cash_to_use = portfolio['cash'] * signal.get('size', 0.1)  # Default 10% of cash
+                        # Calculate position size based on available cash, not total equity
+                        available_cash = portfolio['cash']
+                        desired_position_pct = signal.get('size', 0.1)  # 10% of portfolio
+
+                        # Calculate what 10% of portfolio would be
+                        target_position_value = portfolio['equity'] * desired_position_pct
+
+                        # But limit to available cash and position size limits
+                        max_position_value = portfolio['equity'] * 0.05  # 5% position limit
+                        cash_to_use = min(available_cash * 0.8, target_position_value, max_position_value)
+
                         shares = int(cash_to_use / price)
 
-                        if shares > 0 and cash_to_use <= portfolio['cash']:
+                        if shares > 0:  # Don't need the cash check anymore
                             # Calculate transaction cost
                             cost, cost_pct = self.transaction_cost_model.calculate_transaction_cost(
                                 price, shares, volume, volatility, is_buy=True
@@ -536,8 +595,14 @@ class Backtester:
         return result
 
 # Simple strategy functions
-def ml_strategy(stock_data):
-    """ML-based strategy using the day_trading_score with improved risk management"""
+def ml_strategy(stock_data, buy_threshold=60, sell_threshold=40):
+    """ML-based strategy using the day_trading_score with improved risk management
+
+    Parameters:
+        stock_data (dict): Stock data including technical indicators and ML scores
+        buy_threshold (int): Score threshold for buy signals (default: 60)
+        sell_threshold (int): Score threshold for sell signals (default: 40)
+    """
     score = stock_data.get('day_trading_score', 0)
 
     # Get volatility and volume metrics for risk management
@@ -557,8 +622,8 @@ def ml_strategy(stock_data):
     # Limit maximum position size
     position_size = min(position_size, 0.15)
 
-    # More conservative entry criteria (higher threshold)
-    if score >= 75:
+    # Use configurable thresholds for entry criteria
+    if score >= buy_threshold:
         # Check for confirmation signals
         rsi = stock_data.get('rsi14', 50)
         bb_position = stock_data.get('bb_position', 0.5)
@@ -567,8 +632,8 @@ def ml_strategy(stock_data):
         if rsi < 70 and bb_position < 0.8:
             return {'action': 'BUY', 'size': position_size}
 
-    # More conservative exit criteria (hold longer)
-    elif score <= 25:
+    # Use configurable thresholds for exit criteria
+    elif score <= sell_threshold:
         # Only sell if we have confirmation
         rsi = stock_data.get('rsi14', 50)
         bb_position = stock_data.get('bb_position', 0.5)
@@ -577,7 +642,7 @@ def ml_strategy(stock_data):
             return {'action': 'SELL', 'size': 1.0}
 
     # Add partial profit taking at moderate scores
-    elif score <= 40 and score > 25:
+    elif score <= sell_threshold + 15 and score > sell_threshold:
         return {'action': 'SELL', 'size': 0.5}  # Sell half the position
 
     return None

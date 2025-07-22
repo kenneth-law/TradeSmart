@@ -285,6 +285,7 @@ def stock_detail(ticker):
 
 @app.route('/api/stock_price_history/<ticker>')
 def api_price_history(ticker):
+
     """API endpoint to get price history for charts"""
     chart_data = prepare_price_chart_data(ticker)
     if not chart_data:

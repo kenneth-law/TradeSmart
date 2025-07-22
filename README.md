@@ -1,6 +1,6 @@
 # TradeSmart Analytics
 
-TradeSmart Analytics is an advanced stock analysis tool designed to identify day trading opportunities through comprehensive technical analysis, volatility measures, and news sentiment analysis. The application provides a user-friendly web interface for analysing stocks, particularly focused on the Australian Securities Exchange (ASX).
+TradeSmart Analytics is an advanced stock analysis tool designed to identify day trading opportunities through comprehensive technical analysis, volatility measures, news sentiment analysis, and machine learning. The platform uses Gradient Boosted Decision Trees (GBDT) to find non-linear relationships in market data, provides industrial-grade backtesting capabilities, and includes portfolio management tools to optimize trading performance. The application provides a user-friendly web interface for analysing stocks, particularly focused on the Australian Securities Exchange (ASX).
 
 
 
@@ -77,7 +77,7 @@ The application offers two scoring systems to evaluate stocks:
 The ML-based scoring system uses Gradient Boosted Decision Trees (GBDT) to:
 - Discover non-linear relationships in market data
 - Automatically adjust to changing market conditions
-- Reduce overfitting through feature orthogonalization and regularization
+- Prevent overfitting through model complexity reduction and proper validation
 - Provide more stable signals with lower turnover
 - Generate explainable predictions with feature importance
 
@@ -88,12 +88,18 @@ The ML-based scoring system uses Gradient Boosted Decision Trees (GBDT) to:
   - Robust scaling to handle outliers
   - Feature selection using mutual information
   - Dimensionality reduction with PCA to reduce multicollinearity
+  - Proper scikit-learn Pipeline to ensure preprocessing is only fit on training data
 - **Training Process**:
-  - Time series cross-validation to prevent lookahead bias
-  - Hyperparameter tuning for optimal performance
+  - Proper time-series cross-validation with expanding windows and gaps
+  - Reduced model complexity to prevent overfitting:
+    - Fewer estimators (300 vs 500)
+    - Reduced tree depth (3 vs 5)
+    - Increased min_samples for splits and leaves
+    - Reduced subsample ratio (0.7 vs 0.8)
   - L1 regularization and Huber loss for robustness
 - **Per-Ticker Models**: Supports individual models for each ticker for more accurate predictions
 - **Automatic Retraining**: Models can be scheduled for periodic retraining to adapt to changing market conditions
+- **Data Leakage Prevention**: Strict time separation between training and testing periods with verification
 
 ### Strategy Classification
 Stocks are classified into strategies (Strong Buy, Buy, Neutral/Watch, Sell, Strong Sell) based on their overall score, with strategy details that consider both short-term and long-term performance metrics.
@@ -128,9 +134,6 @@ Stocks are classified into strategies (Strong Buy, Buy, Neutral/Watch, Sell, Str
   - Technical indicator strategies for benchmarking
   - Custom strategy support through function interface
 
-A 39.75% increase in returns was achieved by using backtesting with an ML strategy rather than technical indicators using Appen's (which had very high volatility) over the past 180 days.
-<img width="1113" height="935" alt="image" src="https://github.com/user-attachments/assets/64265a0c-4c46-43b9-b2c2-53355df4a157" />
-<img width="1113" height="935" alt="image" src="https://github.com/user-attachments/assets/48392cde-3104-4877-b8d8-5f17ed406ba6" />
 
 
 ### Portfolio Management
@@ -270,7 +273,7 @@ You can also deploy directly from GitHub by connecting your repository to Railwa
 ## Notes
 
 - The application is optimised for analysing 5-200 stocks at a time
-- For ASX stocks, use the format: APX.AX, WBC.AX, etc.
+- For ASX stocks, use the format: WBC.AX, CBA.AX, etc.
 - Re-run analysis before market open for fresh data
 - Check news sentiment for potential catalysts
 

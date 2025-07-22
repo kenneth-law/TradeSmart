@@ -18,12 +18,22 @@
     --dark-card-bg: #1e1e1e;
     --dark-text-color: #e0e0e0;
     --dark-light-text: #a0a0a0;
+
+    /* Font weights */
+    --font-light: 300;
+    --font-normal: 400;
+    --font-medium: 500;
+    --font-semibold: 600;
+    --font-bold: 700;
+    --font-extrabold: 800;
+    --font-black: 900;
 }
 
 body {
     background-color: var(--bg-color);
     color: var(--text-color);
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-family: 'Darker Grotesque', sans-serif;
+    font-weight: var(--font-normal);
     min-height: 100vh;
     display: flex;
     flex-direction: column;
@@ -125,7 +135,7 @@ body {
 .strategy-badge {
     padding: 0.5rem 1rem;
     border-radius: 5px;
-    font-weight: 600;
+    font-weight: var(--font-semibold);
     display: inline-block;
 }
 
@@ -144,7 +154,7 @@ body {
 
 .metric-value {
     font-size: 2rem;
-    font-weight: 700;
+    font-weight: var(--font-bold);
     margin: 0.5rem 0;
 }
 
@@ -241,17 +251,17 @@ body {
 /* Score indicators */
 .score-high {
     color: var(--success);
-    font-weight: bold;
+    font-weight: var(--font-bold);
 }
 
 .score-medium {
     color: var(--warning);
-    font-weight: bold;
+    font-weight: var(--font-bold);
 }
 
 .score-low {
     color: var(--danger);
-    font-weight: bold;
+    font-weight: var(--font-bold);
 }
 
 /* Animations */
@@ -345,4 +355,58 @@ body.dark-mode .data-table tbody tr:nth-child(odd) {
 
 body.dark-mode .data-table tbody tr:hover {
     background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Typography styles for Darker Grotesque font */
+h1, h2, h3, h4, h5, h6 {
+    font-family: 'Darker Grotesque', sans-serif;
+    font-weight: var(--font-bold);
+}
+
+h1 {
+    font-weight: var(--font-extrabold);
+}
+
+.navbar-brand {
+    font-weight: var(--font-bold);
+}
+
+.nav-link {
+    font-weight: var(--font-medium);
+}
+
+.btn {
+    font-weight: var(--font-semibold);
+}
+
+.card-header {
+    font-weight: var(--font-semibold);
+}
+
+.card-title {
+    font-weight: var(--font-bold);
+}
+
+.metric-value {
+    font-weight: var(--font-extrabold);
+}
+
+.metric-title {
+    font-weight: var(--font-medium);
+}
+
+.strategy-badge {
+    font-weight: var(--font-semibold);
+}
+
+.footer {
+    font-weight: var(--font-normal);
+}
+
+.home-hero h1 {
+    font-weight: var(--font-black);
+}
+
+.home-hero p {
+    font-weight: var(--font-medium);
 }

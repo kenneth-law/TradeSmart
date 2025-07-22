@@ -679,13 +679,14 @@ def initialize_asx_ticker_models(asx_tickers=None, schedule_updates=True):
 
     return results
 
-def score_stock_ml(stock_data, ml_scorer=None):
+def score_stock_ml(stock_data, ml_scorer=None, all_predictions=None):
     """
     Score a stock using the ML model instead of heuristic weights.
 
     Parameters:
         stock_data (dict): Stock data dictionary from get_stock_data function
         ml_scorer (MLScorer): Optional pre-initialized ML scorer
+        all_predictions (list): Optional list of all predictions for relative ranking
 
     Returns:
         dict: Updated stock data with ML-based scores
@@ -711,32 +712,43 @@ def score_stock_ml(stock_data, ml_scorer=None):
         ml_score = ml_scorer.predict(stock_data)
 
         if ml_score is not None:
-            # ml_score is now in the original scale (percentage return)
-            # Scale the percentage return to a 0-100 score
-            # Assuming returns can range from -20% to +20% for typical stocks
-            scaled_score = min(100, max(0, (ml_score + 20) * 2.5))
+            # Store the raw predicted return percentage
+            stock_data['ml_score_raw'] = ml_score
+            stock_data['predicted_return_pct'] = ml_score
+
+            # If we have all predictions, use relative ranking
+            if all_predictions is not None and len(all_predictions) > 1:
+                # Sort all predictions
+                sorted_predictions = sorted(all_predictions)
+                # Find the percentile rank of this prediction
+                rank = sorted_predictions.index(ml_score) / (len(sorted_predictions) - 1) * 100
+                # Ensure we have a good spread of scores (20-80 range minimum)
+                scaled_score = 20 + (rank * 0.6)  # Maps 0-100 percentile to 20-80 score range
+            else:
+                # Fallback to absolute scaling if we don't have all predictions
+                # Scale the percentage return to a 0-100 score
+                # Assuming returns can range from -20% to +20% for typical stocks
+                scaled_score = min(100, max(0, (ml_score + 20) * 2.5))
 
             # Update stock data with ML scores
-            stock_data['ml_score_raw'] = ml_score
             stock_data['day_trading_score'] = scaled_score
-            stock_data['predicted_return_pct'] = ml_score  # Store the raw predicted return percentage
 
-            # Determine trading strategy based on ML score
-            if ml_score >= 5:  # 5% or more return
+            # Determine trading strategy based on scaled score
+            if scaled_score >= 70:
                 stock_data['day_trading_strategy'] = "Strong Buy"
-                stock_data['strategy_details'] = f"ML model predicts {ml_score:.2f}% return"
-            elif ml_score >= 2:  # 2-5% return
+                stock_data['strategy_details'] = f"ML model predicts {ml_score:.2f}% return (Score: {scaled_score:.1f})"
+            elif scaled_score >= 60:
                 stock_data['day_trading_strategy'] = "Buy"
-                stock_data['strategy_details'] = f"ML model predicts {ml_score:.2f}% return"
-            elif ml_score >= -2:  # -2% to 2% return
+                stock_data['strategy_details'] = f"ML model predicts {ml_score:.2f}% return (Score: {scaled_score:.1f})"
+            elif scaled_score >= 40:
                 stock_data['day_trading_strategy'] = "Neutral/Watch"
-                stock_data['strategy_details'] = f"ML model predicts {ml_score:.2f}% return"
-            elif ml_score >= -5:  # -5% to -2% return
+                stock_data['strategy_details'] = f"ML model predicts {ml_score:.2f}% return (Score: {scaled_score:.1f})"
+            elif scaled_score >= 30:
                 stock_data['day_trading_strategy'] = "Sell"
-                stock_data['strategy_details'] = f"ML model predicts {ml_score:.2f}% return"
-            else:  # less than -5% return
+                stock_data['strategy_details'] = f"ML model predicts {ml_score:.2f}% return (Score: {scaled_score:.1f})"
+            else:
                 stock_data['day_trading_strategy'] = "Strong Sell"
-                stock_data['strategy_details'] = f"ML model predicts {ml_score:.2f}% return"
+                stock_data['strategy_details'] = f"ML model predicts {ml_score:.2f}% return (Score: {scaled_score:.1f})"
 
             # Get feature importance for explainability
             feature_importance = ml_scorer.get_feature_importance()

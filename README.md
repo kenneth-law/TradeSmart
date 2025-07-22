@@ -5,7 +5,7 @@ TradeSmart Analytics is an advanced stock analysis tool designed to identify day
 
 
 [System Architecture](https://tradevision.up.railway.app/documentation/system_architecture)
-<img width="1113" height="863" alt="image" src="https://github.com/user-attachments/assets/e712bc85-26ab-440d-8da8-5ccf1cd5113e" />
+<img width="100%" alt="image" src="https://github.com/user-attachments/assets/e712bc85-26ab-440d-8da8-5ccf1cd5113e" />
 
 
 ## DISCLAIMER:
@@ -112,7 +112,7 @@ Stocks are classified into strategies (Strong Buy, Buy, Neutral/Watch, Sell, Str
 - **Walk-Forward Testing**: Tests strategy robustness across different time periods
 - **Monte Carlo Simulation**: Assesses strategy performance under various market conditions
 
-<img width="1113" height="846" alt="image" src="https://github.com/user-attachments/assets/02f6458e-25ad-48d5-ac7f-e946528e05ff" />
+<img width="100%" alt="image" src="https://github.com/user-attachments/assets/02f6458e-25ad-48d5-ac7f-e946528e05ff" />
 
 
 #### Backtesting System Architecture
@@ -142,7 +142,7 @@ Stocks are classified into strategies (Strong Buy, Buy, Neutral/Watch, Sell, Str
 - **Market Neutrality**: Maintains market-neutral or beta-targeted exposures
 - **Drawdown Protection**: Activates kill switches when drawdowns exceed thresholds
 
-<img width="1113" height="935" alt="image" src="https://github.com/user-attachments/assets/4bed9640-ea3f-4d99-ad20-cdc02931b1bb" />
+<img width="100%" alt="image" src="https://github.com/user-attachments/assets/4bed9640-ea3f-4d99-ad20-cdc02931b1bb" />
 
 
 ### Execution Algorithms

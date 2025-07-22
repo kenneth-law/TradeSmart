@@ -241,6 +241,24 @@ body {
     }
 }
 
+/* Input styling */
+input, select, textarea, .form-control {
+    font-family: 'Darker Grotesque', sans-serif;
+    font-weight: var(--font-medium);
+    color: var(--text-color);
+    background-color: var(--card-bg);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 5px;
+    padding: 0.5rem 0.75rem;
+    transition: border-color 0.3s, background-color 0.3s, color 0.3s;
+}
+
+input:focus, select:focus, textarea:focus, .form-control:focus {
+    border-color: var(--secondary-color);
+    box-shadow: 0 0 0 0.2rem rgba(44, 62, 80, 0.25);
+    outline: none;
+}
+
 /* Ticker input styling */
 .ticker-input {
     font-family: monospace;
@@ -355,6 +373,31 @@ body.dark-mode .data-table tbody tr:nth-child(odd) {
 
 body.dark-mode .data-table tbody tr:hover {
     background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Dark mode input styles */
+body.dark-mode input,
+body.dark-mode select,
+body.dark-mode textarea,
+body.dark-mode .form-control {
+    background-color: var(--dark-card-bg);
+    color: var(--dark-text-color);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+body.dark-mode input:focus,
+body.dark-mode select:focus,
+body.dark-mode textarea:focus,
+body.dark-mode .form-control:focus {
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 0.2rem rgba(231, 76, 60, 0.25);
+}
+
+body.dark-mode input::placeholder,
+body.dark-mode select::placeholder,
+body.dark-mode textarea::placeholder,
+body.dark-mode .form-control::placeholder {
+    color: var(--dark-light-text);
 }
 
 /* Typography styles for Darker Grotesque font */

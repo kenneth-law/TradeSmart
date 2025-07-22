@@ -785,4 +785,7 @@ if __name__ == '__main__':
     print(f"Starting ASX Financial Data Analysis server at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("Using modified yfinance with proper rate-limiting protection")
 
-    app.run(debug=True)
+    import os
+
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host="0.0.0.0", port=port, debug=True)

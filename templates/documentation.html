@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Documentation - TradeSmart Analytics{% endblock %}
+
+{% block extra_css %}
+<!-- Add Markdown CSS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@5.1.0/github-markdown.min.css">
+{% endblock %}
+
+{% block content %}
+    <div class="row mt-4">
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Documentation</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush">
+                        <a href="{{ url_for('documentation', doc_type='readme') }}" class="list-group-item list-group-item-action {% if doc_type == 'readme' %}active{% endif %}">
+                            <i class="fas fa-file-alt me-2"></i>README
+                        </a>
+                        <a href="{{ url_for('documentation', doc_type='logic_flow') }}" class="list-group-item list-group-item-action {% if doc_type == 'logic_flow' %}active{% endif %}">
+                            <i class="fas fa-project-diagram me-2"></i>Logic Flow
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-9">
+            <div class="card">
+                <div class="card-header">
+                    <h4>{{ doc_title }}</h4>
+                </div>
+                <div class="card-body markdown-body">
+                    {{ doc_content|safe }}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endblock %}

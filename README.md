@@ -1,5 +1,4 @@
 # TradeSmart Analytics
-<img width="1113" height="902" alt="image" src="https://github.com/user-attachments/assets/afcc5e95-2b79-4c60-bb78-e478a1536344" />
 
 TradeSmart Analytics is an advanced stock analysis tool designed to identify day trading opportunities through comprehensive technical analysis, volatility measures, and news sentiment analysis. The application provides a user-friendly web interface for analysing stocks, particularly focused on the Australian Securities Exchange (ASX).
 

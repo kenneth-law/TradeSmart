@@ -436,6 +436,16 @@ def run_backtest():
     end_date = request.form.get('end_date', '')
     days = int(request.form.get('days', '180'))
 
+    # Get custom transaction cost if provided
+    custom_transaction_cost = request.form.get('custom_transaction_cost', '')
+    if custom_transaction_cost:
+        try:
+            custom_transaction_cost = float(custom_transaction_cost)
+        except ValueError:
+            custom_transaction_cost = None
+    else:
+        custom_transaction_cost = None
+
     # Create a unique session ID
     session_id = datetime.now().strftime('%Y%m%d%H%M%S')
     session_folder = os.path.join(app.static_folder, 'sessions', session_id)
@@ -451,7 +461,8 @@ def run_backtest():
             strategy=strategy,
             start_date=start_date if start_date else None,
             end_date=end_date if end_date else None,
-            days=days
+            days=days,
+            custom_transaction_cost=custom_transaction_cost
         )
 
         # Create charts

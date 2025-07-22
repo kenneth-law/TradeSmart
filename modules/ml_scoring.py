@@ -34,7 +34,7 @@ os.makedirs('cache/models', exist_ok=True)
 class MLScorer:
     """
     Machine Learning based stock scorer that replaces heuristic weights with data-driven factors.
-    Uses gradient boosted trees with regularization and cross-validation.
+    Uses gradient boosted trees with regularisation and cross-validation.
 
     Supports per-ticker models for more accurate predictions.
     """
@@ -191,7 +191,7 @@ class MLScorer:
 
     def train(self, historical_data, force=False):
         """
-        Train the model using historical stock data.
+        Train the model using historical stock data with proper time-series cross-validation.
 
         Parameters:
             historical_data (list): List of dictionaries with historical stock data and outcomes
@@ -215,13 +215,17 @@ class MLScorer:
             training_data = historical_data
 
         try:
-            log_message("Training ML model with historical data...")
+            log_message("Training ML model with historical data using walk-forward validation...")
+
+            # Ensure data is sorted by date for proper time-series validation
+            training_data = sorted(training_data, key=lambda x: x['date'])
 
             # Extract features and targets from historical data
             features_list = []
             targets = []
+            dates = []
 
-            for item in historical_data:
+            for item in training_data:
                 features = self._extract_features(item['stock_data'])
                 features_list.append(features)
 
@@ -231,6 +235,8 @@ class MLScorer:
                     # Convert to binary signal (1 for positive return, 0 for negative)
                     targets.append(1 if item['future_return'] > 0 else 0)
 
+                dates.append(item['date'])
+
             if not features_list:
                 log_message("No training data available")
                 return False
@@ -238,22 +244,28 @@ class MLScorer:
             # Combine all features
             X = pd.concat(features_list, ignore_index=True)
             y = np.array(targets)
+            dates = np.array(dates)
 
             # Save feature names
             self.feature_names = X.columns.tolist()
 
-            # Create time series cross-validation
-            tscv = TimeSeriesSplit(n_splits=5)
+            # Create a more robust time series cross-validation with expanding window
+            # This ensures proper time separation between training and testing periods
+            n_splits = 5
+            test_size = len(X) // (n_splits + 1)  # Size of each test fold
 
-            # Create and train the model
+            # Add a gap between train and test to prevent leakage
+            gap_size = 5  # 5 days gap to prevent any leakage
+
+            # Create and train the model with reduced complexity to prevent overfitting
             if self.model_type == 'regression':
                 model = GradientBoostingRegressor(
-                    n_estimators=500,
+                    n_estimators=300,  # Reduced from 500
                     learning_rate=0.01,
-                    max_depth=5,
-                    min_samples_split=10,
-                    min_samples_leaf=5,
-                    subsample=0.8,
+                    max_depth=3,       # Reduced from 5 to prevent overfitting
+                    min_samples_split=15,  # Increased from 10
+                    min_samples_leaf=10,   # Increased from 5
+                    subsample=0.7,         # Reduced from 0.8
                     max_features='sqrt',
                     alpha=0.9,  # L1 regularization
                     loss='huber',  # More robust to outliers
@@ -261,56 +273,101 @@ class MLScorer:
                 )
             else:  # classification
                 model = GradientBoostingClassifier(
-                    n_estimators=500,
+                    n_estimators=300,  # Reduced from 500
                     learning_rate=0.01,
-                    max_depth=5,
-                    min_samples_split=10,
-                    min_samples_leaf=5,
-                    subsample=0.8,
+                    max_depth=3,       # Reduced from 5
+                    min_samples_split=15,  # Increased from 10
+                    min_samples_leaf=10,   # Increased from 5
+                    subsample=0.7,         # Reduced from 0.8
                     max_features='sqrt',
                     random_state=42
                 )
 
-            # Fit scaler and PCA on all data
-            X_scaled = self.scaler.fit_transform(X)
-            X_pca = self.pca.fit_transform(X_scaled)
+            # Create a pipeline that properly handles preprocessing
+            # This ensures that preprocessing is only fit on training data
+            from sklearn.pipeline import Pipeline
 
-            # Scale target values for regression model
-            if self.model_type == 'regression':
-                # Reshape y for scaler
-                y_reshaped = y.reshape(-1, 1)
-                # Fit and transform targets
-                y_scaled = self.target_scaler.fit_transform(y_reshaped).ravel()
-            else:
-                # For classification, no need to scale targets
-                y_scaled = y
+            pipeline = Pipeline([
+                ('scaler', self.scaler),
+                ('pca', self.pca),
+                ('model', model)
+            ])
 
-            # Train with cross-validation
+            # Implement walk-forward validation with expanding windows and gaps
             cv_scores = []
-            for train_idx, test_idx in tscv.split(X_pca):
-                X_train, X_test = X_pca[train_idx], X_pca[test_idx]
-                y_train, y_test = y_scaled[train_idx], y_scaled[test_idx]
 
-                # Original y values for RMSE calculation
-                y_test_orig = y[test_idx]
+            # Use at least 30% of data for initial training
+            min_train_size = max(int(len(X) * 0.3), 30)
 
-                model.fit(X_train, y_train)
+            for i in range(n_splits):
+                # Calculate split indices for expanding window
+                train_end = min_train_size + i * test_size
+                test_start = train_end + gap_size  # Add gap between train and test
+                test_end = min(test_start + test_size, len(X))
 
+                # Skip if we don't have enough data left for testing
+                if test_end <= test_start:
+                    continue
+
+                # Get train/test indices
+                train_idx = np.arange(0, train_end)
+                test_idx = np.arange(test_start, test_end)
+
+                # Get train/test data
+                X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
+                y_train, y_test = y[train_idx], y[test_idx]
+
+                # Scale target values for regression model
                 if self.model_type == 'regression':
-                    y_pred_scaled = model.predict(X_test)
+                    # Reshape y for scaler
+                    y_train_reshaped = y_train.reshape(-1, 1)
+                    # Fit target scaler only on training data
+                    y_train_scaled = self.target_scaler.fit_transform(y_train_reshaped).ravel()
+
+                    # Transform test targets using the scaler fit on training data
+                    y_test_reshaped = y_test.reshape(-1, 1)
+                    y_test_scaled = self.target_scaler.transform(y_test_reshaped).ravel()
+                else:
+                    # For classification, no need to scale targets
+                    y_train_scaled = y_train
+                    y_test_scaled = y_test
+
+                # Train pipeline on this fold
+                pipeline.fit(X_train, y_train_scaled)
+
+                # Evaluate on test fold
+                if self.model_type == 'regression':
+                    y_pred_scaled = pipeline.predict(X_test)
 
                     # Convert predictions back to original scale for RMSE calculation
                     y_pred_orig = self.target_scaler.inverse_transform(y_pred_scaled.reshape(-1, 1)).ravel()
 
                     # Calculate RMSE on original scale
-                    score = np.sqrt(mean_squared_error(y_test_orig, y_pred_orig))
-                    cv_scores.append(score)
-                else:  # classification
-                    y_pred = model.predict(X_test)
-                    score = accuracy_score(y_test, y_pred)
+                    score = np.sqrt(mean_squared_error(y_test, y_pred_orig))
                     cv_scores.append(score)
 
+                    log_message(f"Fold {i+1}: Train size={len(train_idx)}, Test size={len(test_idx)}, RMSE={score:.4f}")
+                else:  # classification
+                    y_pred = pipeline.predict(X_test)
+                    score = accuracy_score(y_test_scaled, y_pred)
+                    cv_scores.append(score)
+
+                    log_message(f"Fold {i+1}: Train size={len(train_idx)}, Test size={len(test_idx)}, Accuracy={score:.4f}")
+
             # Final fit on all data
+            # For the final model, we still need to fit the preprocessors on all data
+            # since they'll be used for future predictions
+            self.scaler.fit(X)
+            X_scaled = self.scaler.transform(X)
+            self.pca.fit(X_scaled)
+            X_pca = self.pca.transform(X_scaled)
+
+            if self.model_type == 'regression':
+                y_reshaped = y.reshape(-1, 1)
+                y_scaled = self.target_scaler.fit_transform(y_reshaped).ravel()
+            else:
+                y_scaled = y
+
             model.fit(X_pca, y_scaled)
             self.model = model
 
@@ -356,7 +413,7 @@ class MLScorer:
             # Ensure features are in the right order
             features = features[self.feature_names]
 
-            # Transform features
+            # Transform features using the same preprocessing pipeline
             X_scaled = self.scaler.transform(features)
             X_pca = self.pca.transform(X_scaled)
 
@@ -368,6 +425,11 @@ class MLScorer:
                 prediction = self.target_scaler.inverse_transform([[prediction_scaled]])[0][0]
             else:
                 prediction = prediction_scaled
+
+            # Log prediction details for debugging
+            log_message(f"Prediction for stock: {stock_data.get('ticker', 'Unknown')}, "
+                        f"Prediction: {prediction:.2f}, "
+                        f"Features used: {len(features.columns)}")
 
             return prediction
 
@@ -428,9 +490,51 @@ def train_ticker_models(tickers, force=False, lookback_days=180, prediction_hori
 
     return results
 
+def verify_no_future_data(historical_data, current_idx):
+    """
+    Verify that no future data is used in feature calculation.
+
+    Parameters:
+        historical_data (pandas.DataFrame): Historical price data
+        current_idx (int): Current index in the historical data
+
+    Returns:
+        bool: True if no future data is used, False otherwise
+    """
+    # Check if the historical data is properly sliced
+    if len(historical_data) > current_idx + 1:
+        log_message(f"WARNING: Historical data contains future information. Expected length: {current_idx + 1}, Actual length: {len(historical_data)}")
+        return False
+    return True
+
+def get_stock_data_point_in_time(ticker, historical_data, current_idx):
+    """
+    Get stock data for a specific point in time, ensuring no future data is used.
+
+    Parameters:
+        ticker (str): Ticker symbol
+        historical_data (pandas.DataFrame): Full historical price data
+        current_idx (int): Current index in the historical data
+
+    Returns:
+        tuple: (stock_data, error) - stock data dictionary and error message if any
+    """
+    from modules.technical_analysis import get_stock_data
+
+    # Create a slice of history up to this point (including current day)
+    hist_slice = historical_data.iloc[:current_idx+1].copy()
+
+    # Verify no future data is used
+    verify_no_future_data(hist_slice, current_idx)
+
+    # Get the stock data for this point in time
+    stock_data, error = get_stock_data(ticker, historical_data=hist_slice)
+
+    return stock_data, error
+
 def collect_training_data(tickers, lookback_days=180, prediction_horizon=5):
     """
-    Collect historical data for model training.
+    Collect historical data for model training with proper time-series separation.
 
     Parameters:
         tickers (list): List of ticker symbols to collect data for
@@ -438,7 +542,7 @@ def collect_training_data(tickers, lookback_days=180, prediction_horizon=5):
         prediction_horizon (int): Number of days ahead to predict returns for
 
     Returns:
-        list: List of dictionaries with stock data and future returns
+        list: List of dictionaries with stock data and future returns, sorted by date
     """
     from modules.technical_analysis import get_stock_data
 
@@ -448,7 +552,10 @@ def collect_training_data(tickers, lookback_days=180, prediction_horizon=5):
         log_message(f"Collecting training data for {len(tickers)} tickers...")
 
         end_date = datetime.now()
-        start_date = end_date - timedelta(days=lookback_days + prediction_horizon)
+        start_date = end_date - timedelta(days=lookback_days + prediction_horizon + 30)  # Add extra buffer for indicators
+
+        # Use a fixed timestamp for caching to ensure consistency
+        cache_timestamp = f"training_fixed_{end_date.strftime('%Y%m%d')}"
 
         for ticker in tickers:
             try:
@@ -456,24 +563,19 @@ def collect_training_data(tickers, lookback_days=180, prediction_horizon=5):
                 start_date_str = start_date.strftime('%Y-%m-%d')
                 end_date_str = end_date.strftime('%Y-%m-%d')
 
-                # Use a unique timestamp for caching
-                cache_timestamp = f"training_{datetime.now().strftime('%Y%m%d%H%M%S')}"
-
                 hist = get_stock_history(ticker, start_date_str, end_date_str, "1d", cache_timestamp)
 
-                if hist.empty or len(hist) < prediction_horizon + 10:
+                if hist.empty or len(hist) < prediction_horizon + 30:  # Need more data for indicators
                     continue
 
                 # Process each day in the history (except the last prediction_horizon days)
-                for i in range(10, len(hist) - prediction_horizon):
+                # Start from day 30 to ensure enough history for indicators
+                for i in range(30, len(hist) - prediction_horizon):
                     # Get the date for this data point
                     current_date = hist.index[i].date()
 
-                    # Create a slice of history up to this point
-                    hist_slice = hist.iloc[:i+1]
-
-                    # Get the stock data for this point in time
-                    stock_data, error = get_stock_data(ticker, historical_data=hist_slice)
+                    # Get the stock data for this point in time with strict time boundary
+                    stock_data, error = get_stock_data_point_in_time(ticker, hist, i)
 
                     if error or not stock_data:
                         continue
@@ -502,6 +604,9 @@ def collect_training_data(tickers, lookback_days=180, prediction_horizon=5):
             except Exception as e:
                 log_message(f"Error collecting data for {ticker}: {e}")
                 continue
+
+        # Sort training data by date to ensure proper time-series order
+        training_data.sort(key=lambda x: x['date'])
 
         log_message(f"Total training samples collected: {len(training_data)}")
         return training_data

@@ -37,3 +37,4 @@ my_venv/
 local_settings.py
 db.sqlite3
 /day_trading_opportunities.csv
+/tests/

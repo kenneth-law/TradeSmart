@@ -7,6 +7,8 @@ import json
 from datetime import datetime, timedelta
 import os
 from curl_cffi import requests
+import markdown
+import re
 
 import time
 import threading
@@ -486,6 +488,33 @@ def portfolio():
     except Exception as e:
         # No existing portfolio, show empty interface
         return render_template('portfolio.html', error=f"No portfolio data available: {str(e)}")
+
+@app.route('/documentation')
+@app.route('/documentation/<doc_type>')
+def documentation(doc_type='readme'):
+    """Display documentation pages with rich text formatting"""
+    if doc_type == 'readme':
+        file_path = 'README.md'
+        doc_title = 'README - TradeSmart Analytics'
+    elif doc_type == 'logic_flow':
+        file_path = os.path.join('docs', 'Logic_Flow.md')
+        doc_title = 'Integrated Trading System Logic Flow'
+    else:
+        return render_template('error.html', error="Documentation not found")
+
+    try:
+        with open(file_path, 'r', encoding='utf-8') as file:
+            content = file.read()
+
+        # Convert markdown to HTML
+        html_content = markdown.markdown(content, extensions=['tables', 'fenced_code'])
+
+        return render_template('documentation.html', 
+                              doc_type=doc_type,
+                              doc_title=doc_title,
+                              doc_content=html_content)
+    except Exception as e:
+        return render_template('error.html', error=f"Error loading documentation: {str(e)}")
 
 @app.route('/healthcheck')
 def healthcheck():

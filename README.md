@@ -20,20 +20,20 @@ resulting from its use. Always consult with a qualified financial professional b
 By using this software, you agree:
 1. To use it at your own risk
 2. Not to hold the author(s) liable for any damages
-3. To comply with the terms of the [LICENSE]([LICENSE](https://www.apache.org/licenses/LICENSE-2.0.txt))
+3. To comply with the terms of the [LICENSE](https://www.apache.org/licenses/LICENSE-2.0.txt)
 4. That this is not financial advice
 
 This project is not affiliated with the ASX or any financial institution.
 
 ## License
 
-This project is licensed under the Apache License 2.0 - see the [LICENSE]([LICENSE](https://www.apache.org/licenses/LICENSE-2.0.txt)) file for details.
+This project is licensed under the Apache License 2.0 - see the ([LICENSE](https://www.apache.org/licenses/LICENSE-2.0.txt) file for details.
 
 ## Features
 
 - **Comprehensive Stock Analysis**: Analyzes stocks using multiple technical indicators, volatility measures, and news sentiment
 - **Real-time Progress Updates**: Provides real-time feedback during analysis with a terminal-like display
-- **Interactive Visualizations**: Generates multiple charts and visualizations to help understand the data
+- **Interactive Visualizations**: Generates multiple charts and visualisations to help understand the data
 - **Machine Learning-Based Scoring**: Uses gradient boosted trees to discover non-linear relationships in market data
 - **Industrial-Grade Backtesting**: Provides realistic backtesting with transaction cost modeling and point-in-time integrity
 - **Portfolio Construction**: Implements risk management and position sizing based on expected edge and volatility

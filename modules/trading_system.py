@@ -105,9 +105,11 @@ class TradingSystem:
         """
         log_message(f"Analyzing {len(tickers)} stocks with {'ML' if use_ml else 'traditional'} scoring")
 
-        ranked_stocks = []
+        stock_data_list = []
         failed_tickers = []
+        ml_predictions = []
 
+        # First pass: collect all stock data and raw ML predictions
         for ticker in tickers:
             try:
                 # Get stock data
@@ -118,12 +120,18 @@ class TradingSystem:
                     failed_tickers.append(ticker)
                     continue
 
-                # Apply ML scoring if requested and model is trained
+                # If using ML, get raw prediction but don't apply scoring yet
                 if use_ml and self.is_model_trained:
-                    stock_data = score_stock_ml(stock_data, self.ml_scorer)
+                    # Get prediction from model
+                    ml_score = self.ml_scorer.predict(stock_data)
+                    if ml_score is not None:
+                        ml_predictions.append(ml_score)
+                        # Store raw prediction in stock data
+                        stock_data['ml_score_raw'] = ml_score
+                        stock_data['predicted_return_pct'] = ml_score
 
-                # Add to ranked stocks
-                ranked_stocks.append(stock_data)
+                # Add to stock data list
+                stock_data_list.append(stock_data)
 
                 # Update market data for execution
                 self.execution_manager.update_market_data(
@@ -145,9 +153,32 @@ class TradingSystem:
                 log_message(f"Error processing {ticker}: {str(e)}")
                 failed_tickers.append(ticker)
 
+        # Second pass: apply ML scoring with relative ranking
+        ranked_stocks = []
+        if use_ml and self.is_model_trained and ml_predictions:
+            log_message(f"Applying relative ranking to {len(stock_data_list)} stocks")
+
+            for stock_data in stock_data_list:
+                try:
+                    # Apply ML scoring with all predictions for relative ranking
+                    scored_data = score_stock_ml(stock_data, self.ml_scorer, ml_predictions)
+                    ranked_stocks.append(scored_data)
+                except Exception as e:
+                    log_message(f"Error scoring {stock_data.get('ticker', 'Unknown')}: {str(e)}")
+        else:
+            # If not using ML or no predictions, just use the stock data as is
+            ranked_stocks = stock_data_list
+
         # Sort by score
         if ranked_stocks:
             ranked_stocks = sorted(ranked_stocks, key=lambda x: x.get('day_trading_score', 0), reverse=True)
+
+            # Log score distribution for debugging
+            if len(ranked_stocks) >= 5:
+                top_scores = [f"{s.get('ticker', 'Unknown')}: {s.get('day_trading_score', 0):.1f}" for s in ranked_stocks[:5]]
+                bottom_scores = [f"{s.get('ticker', 'Unknown')}: {s.get('day_trading_score', 0):.1f}" for s in ranked_stocks[-5:]]
+                log_message(f"Top 5 scores: {', '.join(top_scores)}")
+                log_message(f"Bottom 5 scores: {', '.join(bottom_scores)}")
 
         return ranked_stocks, failed_tickers
 

@@ -32,7 +32,7 @@
 body {
     background-color: var(--bg-color);
     color: var(--text-color);
-    font-family: 'Inter', sans-serif;
+    font-family: 'Source Sans Pro', sans-serif;
     font-weight: var(--font-normal);
     min-height: 100vh;
     display: flex;
@@ -243,7 +243,7 @@ body {
 
 /* Input styling */
 input, select, textarea, .form-control {
-    font-family: 'Inter', sans-serif;
+    font-family: 'Source Sans Pro', sans-serif;
     font-weight: var(--font-medium);
     color: var(--text-color);
     background-color: var(--card-bg);
@@ -400,9 +400,9 @@ body.dark-mode .form-control::placeholder {
     color: var(--dark-light-text);
 }
 
-/* Typography styles for Inter font */
+/* Typography styles for Source Sans Pro font */
 h1, h2, h3, h4, h5, h6 {
-    font-family: 'Inter', sans-serif;
+    font-family: 'Source Sans Pro', sans-serif;
     font-weight: var(--font-bold);
 }
 

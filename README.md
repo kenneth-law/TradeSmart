@@ -1,6 +1,13 @@
 # TradeSmart Analytics
+<img width="1113" height="902" alt="image" src="https://github.com/user-attachments/assets/afcc5e95-2b79-4c60-bb78-e478a1536344" />
 
-TradeSmart Analytics is an advanced stock analysis tool designed to identify day trading opportunities through comprehensive technical analysis, volatility measures, and news sentiment analysis. The application provides a user-friendly web interface for analyzing stocks, particularly focused on the Australian Securities Exchange (ASX).
+TradeSmart Analytics is an advanced stock analysis tool designed to identify day trading opportunities through comprehensive technical analysis, volatility measures, and news sentiment analysis. The application provides a user-friendly web interface for analysing stocks, particularly focused on the Australian Securities Exchange (ASX).
+
+
+
+[System Architecture](https://tradevision.up.railway.app/documentation/system_architecture)
+<img width="1113" height="863" alt="image" src="https://github.com/user-attachments/assets/e712bc85-26ab-440d-8da8-5ccf1cd5113e" />
+
 
 ## DISCLAIMER:
 This software is provided for educational and informational purposes only.
@@ -14,14 +21,14 @@ resulting from its use. Always consult with a qualified financial professional b
 By using this software, you agree:
 1. To use it at your own risk
 2. Not to hold the author(s) liable for any damages
-3. To comply with the terms of the [LICENSE](LICENSE)
+3. To comply with the terms of the [LICENSE]([LICENSE](https://www.apache.org/licenses/LICENSE-2.0.txt))
 4. That this is not financial advice
 
 This project is not affiliated with the ASX or any financial institution.
 
 ## License
 
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the Apache License 2.0 - see the [LICENSE]([LICENSE](https://www.apache.org/licenses/LICENSE-2.0.txt)) file for details.
 
 ## Features
 
@@ -100,6 +107,9 @@ Stocks are classified into strategies (Strong Buy, Buy, Neutral/Watch, Sell, Str
 - **Walk-Forward Testing**: Tests strategy robustness across different time periods
 - **Monte Carlo Simulation**: Assesses strategy performance under various market conditions
 
+<img width="1113" height="846" alt="image" src="https://github.com/user-attachments/assets/02f6458e-25ad-48d5-ac7f-e946528e05ff" />
+
+
 #### Backtesting System Architecture
 - **Backtester Class**: Core engine that simulates trading over historical data
   - Day-by-day simulation with realistic order execution
@@ -119,11 +129,19 @@ Stocks are classified into strategies (Strong Buy, Buy, Neutral/Watch, Sell, Str
   - Technical indicator strategies for benchmarking
   - Custom strategy support through function interface
 
+A 39.75% increase in returns was achieved by using backtesting with an ML strategy rather than technical indicators using Appen's (which had very high volatility) over the past 180 days.
+<img width="1113" height="935" alt="image" src="https://github.com/user-attachments/assets/64265a0c-4c46-43b9-b2c2-53355df4a157" />
+<img width="1113" height="935" alt="image" src="https://github.com/user-attachments/assets/48392cde-3104-4877-b8d8-5f17ed406ba6" />
+
+
 ### Portfolio Management
 - **Position Sizing**: Calculates optimal position sizes based on expected edge and volatility
 - **Risk Controls**: Implements sector and single-name concentration limits
 - **Market Neutrality**: Maintains market-neutral or beta-targeted exposures
 - **Drawdown Protection**: Activates kill switches when drawdowns exceed thresholds
+
+<img width="1113" height="935" alt="image" src="https://github.com/user-attachments/assets/4bed9640-ea3f-4d99-ad20-cdc02931b1bb" />
+
 
 ### Execution Algorithms
 - **TWAP (Time-Weighted Average Price)**: Divides orders into equal-sized slices over time

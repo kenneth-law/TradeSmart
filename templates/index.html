@@ -28,7 +28,7 @@
     <div class="col-lg-8">
         <div class="card">
             <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-search me-2"></i>Stock Analysis</h5>
+                <h5 class="mb-0"><i class="fas fa-search me-2"></i>Stock Analysis (Legacy Technical System)</h5>
             </div>
             <div class="card-body">
                 <form action="/analyze" method="POST" id="analyzeForm">
@@ -40,11 +40,11 @@
                             </button>
                             <small class="text-muted">Click to populate with ASX 200 tickers</small>
                         </div>
-                        <textarea 
-                            class="form-control ticker-input" 
-                            id="tickers" 
-                            name="tickers" 
-                            rows="3" 
+                        <textarea
+                            class="form-control ticker-input"
+                            id="tickers"
+                            name="tickers"
+                            rows="3"
                             placeholder="Enter comma-separated ticker symbols (e.g., AAPL, MSFT, GOOGL)"
                             required
                         ></textarea>
@@ -61,7 +61,7 @@
                 <div id="loadingIndicator" class="text-center mt-4 d-none">
                     <!-- Progress bar -->
                     <div class="progress mb-3" style="height: 20px;">
-                        <div id="analysisProgress" class="progress-bar progress-bar-striped progress-bar-animated" 
+                        <div id="analysisProgress" class="progress-bar progress-bar-striped progress-bar-animated"
                              role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
                     </div>
 
@@ -79,6 +79,26 @@
                         <div class="spinner"></div>
                     </div>
                     <p class="mt-3">Analyzing stocks... This may take a few moments.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-cogs me-2"></i>Advanced Features</h5>
+            </div>
+            <div class="card-body">
+                <p>Access our advanced trading features:</p>
+                <div class="d-grid gap-2">
+                    <a href="/integrated_system" class="btn btn-primary">
+                        <i class="fas fa-robot me-2"></i>Integrated Trading System
+                    </a>
+                    <a href="/backtest" class="btn btn-outline-primary">
+                        <i class="fas fa-history me-2"></i>Backtesting Framework
+                    </a>
+                    <a href="/portfolio" class="btn btn-outline-primary">
+                        <i class="fas fa-briefcase me-2"></i>Portfolio Management
+                    </a>
                 </div>
             </div>
         </div>
@@ -121,25 +141,6 @@
             </div>
         </div>
 
-        <div class="card mt-4">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-cogs me-2"></i>Advanced Features</h5>
-            </div>
-            <div class="card-body">
-                <p>Access our advanced trading features:</p>
-                <div class="d-grid gap-2">
-                    <a href="/integrated_system" class="btn btn-primary">
-                        <i class="fas fa-robot me-2"></i>Integrated Trading System
-                    </a>
-                    <a href="/backtest" class="btn btn-outline-primary">
-                        <i class="fas fa-history me-2"></i>Backtesting Framework
-                    </a>
-                    <a href="/portfolio" class="btn btn-outline-primary">
-                        <i class="fas fa-briefcase me-2"></i>Portfolio Management
-                    </a>
-                </div>
-            </div>
-        </div>
     </div>
 </div>
 {% endblock %}

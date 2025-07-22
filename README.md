@@ -128,7 +128,7 @@ Stocks are classified into strategies (Strong Buy, Buy, Neutral/Watch, Sell, Str
   - Technical indicator strategies for benchmarking
   - Custom strategy support through function interface
 
-A 39.75% increase in returns was achieved by using backtesting with an ML strategy rather than technical indicators using Appen's (which had very high volatility) over the past 180 days.
+A 39.75% increase in returns was achieved by using backtesting with an ML strategy rather than technical indicators using Appen's (very high volatility) over the past 180 days. The issue of overfitting has been identified and will be rectified. 
 <img width="1113" height="935" alt="image" src="https://github.com/user-attachments/assets/64265a0c-4c46-43b9-b2c2-53355df4a157" />
 <img width="1113" height="935" alt="image" src="https://github.com/user-attachments/assets/48392cde-3104-4877-b8d8-5f17ed406ba6" />
 

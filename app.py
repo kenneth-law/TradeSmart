@@ -499,6 +499,9 @@ def documentation(doc_type='readme'):
     elif doc_type == 'logic_flow':
         file_path = os.path.join('docs', 'Logic_Flow.md')
         doc_title = 'Integrated Trading System Logic Flow'
+    elif doc_type == 'system_architecture':
+        # For system architecture, we render a dedicated template
+        return render_template('system_architecture.html')
     else:
         return render_template('error.html', error="Documentation not found")
 

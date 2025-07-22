@@ -5,7 +5,7 @@
 {% block content %}
 <div class="container mt-4">
     <h1 class="mb-4">Backtesting Framework</h1>
-    
+
     <div class="card mb-4">
         <div class="card-header bg-primary text-white">
             <h5 class="mb-0">About the Backtesting Framework</h5>
@@ -21,11 +21,11 @@
             <p>This framework allows you to evaluate trading strategies with realistic assumptions about market conditions and execution costs.</p>
         </div>
     </div>
-    
+
     {% if error %}
     <div class="alert alert-danger">{{ error }}</div>
     {% endif %}
-    
+
     <div class="card">
         <div class="card-header bg-primary text-white">
             <h5 class="mb-0">Run Backtest</h5>
@@ -37,7 +37,7 @@
                     <input type="text" class="form-control" id="tickers" name="tickers" placeholder="AAPL, MSFT, GOOGL, AMZN, META" required>
                     <small class="form-text text-muted">For ASX stocks, use the format: APX.AX, WBC.AX, etc.</small>
                 </div>
-                
+
                 <div class="row mb-3">
                     <div class="col-md-6">
                         <div class="form-group">
@@ -57,7 +57,7 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="row mb-3">
                     <div class="col-md-6">
                         <div class="form-group">
@@ -74,7 +74,17 @@
                         </div>
                     </div>
                 </div>
-                
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="custom_transaction_cost"><strong>Custom Transaction Cost ($):</strong></label>
+                            <input type="number" step="0.01" min="0" class="form-control" id="custom_transaction_cost" name="custom_transaction_cost" placeholder="Leave blank for default calculation">
+                            <small class="form-text text-muted">Enter a fixed dollar amount per transaction or leave blank to use the default model.</small>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="d-flex justify-content-between">
                     <button type="submit" class="btn btn-primary">Run Backtest</button>
                     <div>
@@ -85,7 +95,7 @@
             </form>
         </div>
     </div>
-    
+
     <div class="mt-4">
         <a href="/" class="btn btn-outline-primary">&larr; Back to Home</a>
     </div>

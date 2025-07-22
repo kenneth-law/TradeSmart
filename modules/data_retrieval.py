@@ -190,4 +190,3 @@ def patch_yfdata_cookie_basic():
     def _patched(self, timeout=30):
         return get_yf_session()
 
-    yf.base._YahooFinance._get_session = _patched

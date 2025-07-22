@@ -156,6 +156,8 @@ Stocks are classified into strategies (Strong Buy, Buy, Neutral/Watch, Sell, Str
 
 ## Usage
 
+### Local Development
+
 1. Start the Flask application:
    ```
    python app.py
@@ -163,7 +165,7 @@ Stocks are classified into strategies (Strong Buy, Buy, Neutral/Watch, Sell, Str
 
 2. Open your web browser and navigate to:
    ```
-   http://localhost:5000
+   http://localhost:8080
    ```
 
 3. Enter ticker symbols for analysis (comma-separated) or use the "Load ASX 200" button to populate with Australian stocks.
@@ -176,9 +178,51 @@ Stocks are classified into strategies (Strong Buy, Buy, Neutral/Watch, Sell, Str
    - Technical indicator charts
    - Detailed metrics table
 
+## Deployment
+
+### Deploying to Railway
+
+The application is configured to be deployed to Railway, a platform for deploying web applications.
+
+1. Create a Railway account at [railway.app](https://railway.app/)
+
+2. Install the Railway CLI:
+   ```
+   npm i -g @railway/cli
+   ```
+
+3. Login to Railway:
+   ```
+   railway login
+   ```
+
+4. Initialize a new Railway project:
+   ```
+   railway init
+   ```
+
+5. Deploy the application:
+   ```
+   railway up
+   ```
+
+6. Open the deployed application:
+   ```
+   railway open
+   ```
+
+The application uses the following files for deployment:
+- `wsgi.py`: Entry point for the WSGI server
+- `Procfile`: Tells Railway how to run the application
+- `requirements.txt`: Lists all dependencies, including Gunicorn
+
+You can also deploy directly from GitHub by connecting your repository to Railway.
+
 ## Project Structure
 
 - **app.py**: Main Flask application with routes and chart generation
+- **wsgi.py**: Entry point for WSGI servers in production
+- **Procfile**: Configuration file for Railway deployment
 - **stock_analysis.py**: Core stock analysis functionality
 - **yfinance_cookie_patch.py**: Patch for the yfinance library to handle cookies properly
 - **templates/**: HTML templates for the web interface
@@ -196,6 +240,7 @@ Stocks are classified into strategies (Strong Buy, Buy, Neutral/Watch, Sell, Str
 ## Dependencies
 
 - Flask: Web framework
+- Gunicorn: WSGI HTTP server for production deployment
 - Pandas & NumPy: Data manipulation
 - yfinance: Yahoo Finance API for stock data
 - Plotly: Interactive charts and visualisations

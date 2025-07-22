@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for
+from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory
 import pandas as pd
 import plotly
 import plotly.graph_objects as go
@@ -534,6 +534,11 @@ def documentation(doc_type='readme'):
 def healthcheck():
     """Simple endpoint to check if the API is functioning"""
     return jsonify({"status": "ok", "timestamp": datetime.now().isoformat()})
+
+@app.route('/templates/<path:filename>')
+def templates(filename):
+    """Serve files from the templates directory"""
+    return send_from_directory('templates', filename)
 
 def create_analysis_charts(df, session_folder):
     charts = {}

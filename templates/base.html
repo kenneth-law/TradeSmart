@@ -13,7 +13,7 @@
     <nav class="navbar navbar-expand-lg navbar-dark">
         <div class="container">
             <a class="navbar-brand" href="/">
-                <img src="{{ url_for('static', filename='images/TradeSmartLogowhite.png') }}" alt="TradeSmart Analytics" height="30">
+                <img src="{{ url_for('templates', filename='images/TradeSmartLogowhite.png') }}" alt="TradeSmart Analytics" height="30">
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
@@ -27,9 +27,9 @@
                         <a class="nav-link" href="{{ url_for('documentation') }}"><i class="fas fa-book me-1"></i> Documentation</a>
                     </li>
                     <li class="nav-item">
-                        <div class="dark-mode-toggle" id="dark-mode-toggle">
-                            <i class="fas fa-moon"></i> Dark Mode
-                        </div>
+                        <a class="nav-link dark-mode-toggle" id="dark-mode-toggle">
+                            <i class="fas fa-moon me-1"></i> Dark Mode
+                        </a>
                     </li>
                 </ul>
             </div>
@@ -70,7 +70,7 @@
             // Apply dark mode if saved preference exists
             if (darkMode) {
                 body.classList.add('dark-mode');
-                darkModeToggle.innerHTML = '<i class="fas fa-sun"></i> Light Mode';
+                darkModeToggle.innerHTML = '<i class="fas fa-sun me-1"></i> Light Mode';
             }
 
             // Toggle dark mode on click
@@ -78,11 +78,11 @@
                 if (body.classList.contains('dark-mode')) {
                     body.classList.remove('dark-mode');
                     localStorage.setItem('darkMode', 'disabled');
-                    darkModeToggle.innerHTML = '<i class="fas fa-moon"></i> Dark Mode';
+                    darkModeToggle.innerHTML = '<i class="fas fa-moon me-1"></i> Dark Mode';
                 } else {
                     body.classList.add('dark-mode');
                     localStorage.setItem('darkMode', 'enabled');
-                    darkModeToggle.innerHTML = '<i class="fas fa-sun"></i> Light Mode';
+                    darkModeToggle.innerHTML = '<i class="fas fa-sun me-1"></i> Light Mode';
                 }
             });
         });

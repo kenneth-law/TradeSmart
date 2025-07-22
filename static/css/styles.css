@@ -10,7 +10,7 @@
     --warning: #f39c12;
     --danger: #e74c3c;
     --neutral: #95a5a6;
-    
+
     /* Dark mode variables */
     --dark-primary-color: #0f1a2a;
     --dark-secondary-color: #1a2a3a;
@@ -221,11 +221,11 @@ body {
     .home-hero {
         padding: 2rem 1rem;
     }
-    
+
     .metric-value {
         font-size: 1.5rem;
     }
-    
+
     .chart-container {
         height: 350px;
     }
@@ -289,11 +289,7 @@ body {
 /* Dark mode toggle */
 .dark-mode-toggle {
     cursor: pointer;
-    padding: 5px 10px;
     border-radius: 20px;
-    display: flex;
-    align-items: center;
-    margin-left: 15px;
     color: white;
 }
 

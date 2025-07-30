@@ -18,12 +18,22 @@
     --dark-card-bg: #1e1e1e;
     --dark-text-color: #e0e0e0;
     --dark-light-text: #a0a0a0;
+
+    /* Font weights */
+    --font-light: 300;
+    --font-normal: 400;
+    --font-medium: 500;
+    --font-semibold: 600;
+    --font-bold: 700;
+    --font-extrabold: 800;
+    --font-black: 900;
 }
 
 body {
     background-color: var(--bg-color);
     color: var(--text-color);
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-family: 'Source Sans Pro', sans-serif;
+    font-weight: var(--font-normal);
     min-height: 100vh;
     display: flex;
     flex-direction: column;
@@ -125,7 +135,7 @@ body {
 .strategy-badge {
     padding: 0.5rem 1rem;
     border-radius: 5px;
-    font-weight: 600;
+    font-weight: var(--font-semibold);
     display: inline-block;
 }
 
@@ -144,7 +154,7 @@ body {
 
 .metric-value {
     font-size: 2rem;
-    font-weight: 700;
+    font-weight: var(--font-bold);
     margin: 0.5rem 0;
 }
 
@@ -231,6 +241,24 @@ body {
     }
 }
 
+/* Input styling */
+input, select, textarea, .form-control {
+    font-family: 'Source Sans Pro', sans-serif;
+    font-weight: var(--font-medium);
+    color: var(--text-color);
+    background-color: var(--card-bg);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 5px;
+    padding: 0.5rem 0.75rem;
+    transition: border-color 0.3s, background-color 0.3s, color 0.3s;
+}
+
+input:focus, select:focus, textarea:focus, .form-control:focus {
+    border-color: var(--secondary-color);
+    box-shadow: 0 0 0 0.2rem rgba(44, 62, 80, 0.25);
+    outline: none;
+}
+
 /* Ticker input styling */
 .ticker-input {
     font-family: monospace;
@@ -241,17 +269,17 @@ body {
 /* Score indicators */
 .score-high {
     color: var(--success);
-    font-weight: bold;
+    font-weight: var(--font-bold);
 }
 
 .score-medium {
     color: var(--warning);
-    font-weight: bold;
+    font-weight: var(--font-bold);
 }
 
 .score-low {
     color: var(--danger);
-    font-weight: bold;
+    font-weight: var(--font-bold);
 }
 
 /* Animations */
@@ -345,4 +373,83 @@ body.dark-mode .data-table tbody tr:nth-child(odd) {
 
 body.dark-mode .data-table tbody tr:hover {
     background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Dark mode input styles */
+body.dark-mode input,
+body.dark-mode select,
+body.dark-mode textarea,
+body.dark-mode .form-control {
+    background-color: var(--dark-card-bg);
+    color: var(--dark-text-color);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+body.dark-mode input:focus,
+body.dark-mode select:focus,
+body.dark-mode textarea:focus,
+body.dark-mode .form-control:focus {
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 0.2rem rgba(231, 76, 60, 0.25);
+}
+
+body.dark-mode input::placeholder,
+body.dark-mode select::placeholder,
+body.dark-mode textarea::placeholder,
+body.dark-mode .form-control::placeholder {
+    color: var(--dark-light-text);
+}
+
+/* Typography styles for Source Sans Pro font */
+h1, h2, h3, h4, h5, h6 {
+    font-family: 'Source Sans Pro', sans-serif;
+    font-weight: var(--font-bold);
+}
+
+h1 {
+    font-weight: var(--font-extrabold);
+}
+
+.navbar-brand {
+    font-weight: var(--font-bold);
+}
+
+.nav-link {
+    font-weight: var(--font-medium);
+}
+
+.btn {
+    font-weight: var(--font-semibold);
+}
+
+.card-header {
+    font-weight: var(--font-semibold);
+}
+
+.card-title {
+    font-weight: var(--font-bold);
+}
+
+.metric-value {
+    font-weight: var(--font-extrabold);
+}
+
+.metric-title {
+    font-weight: var(--font-medium);
+}
+
+.strategy-badge {
+    font-weight: var(--font-semibold);
+}
+
+.footer {
+    font-weight: var(--font-normal);
+}
+
+.home-hero h1 {
+    font-weight: var(--font-black);
+}
+
+.home-hero p {
+    font-weight: var(--font-medium);
 }

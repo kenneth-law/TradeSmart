@@ -114,6 +114,10 @@ Stocks are classified into strategies (Strong Buy, Buy, Neutral/Watch, Sell, Str
 
 <img width="100%" alt="image" src="https://github.com/user-attachments/assets/02f6458e-25ad-48d5-ac7f-e946528e05ff" />
 
+<img width="1294" height="922" alt="image" src="https://github.com/user-attachments/assets/cde73faa-c7c7-4ee5-ae34-db6f9d6fa302" />
+
+<img width="851" height="911" alt="image" src="https://github.com/user-attachments/assets/bc337b6c-6202-47e5-ab41-b47e134284e4" />
+
 
 #### Backtesting System Architecture
 - **Backtester Class**: Core engine that simulates trading over historical data

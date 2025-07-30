@@ -20,7 +20,7 @@ def get_stock_data(ticker_symbol, historical_data=None):
     and gap-downs along with volatility measures.
 
     Parameters:
-        ticker_symbol (str): The symbol representing the stock (e.g., 'AAPL', 'GOOGL').
+        ticker_symbol (str): The symbol representing the stock (e.g., 'BHP.AX', 'ASX.AX').
         historical_data (pandas.DataFrame, optional): Pre-loaded historical data to use instead of fetching new data.
                                                      Used primarily for backtesting and ML training.
 

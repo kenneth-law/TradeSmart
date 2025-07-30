@@ -124,16 +124,16 @@ def get_intraday_data(ticker_symbol, interval="1h", days=5, force_refresh=False)
             - str: An error message if data retrieval failed, otherwise None
 
     Example:
-        # Get 5-minute data for AAPL for the last 3 days
-        data, error = get_intraday_data("AAPL", interval="5m", days=3)
+        # Get 5-minute data for BHP.AX for the last 3 days
+        data, error = get_intraday_data("BHP.AX", interval="5m", days=3)
         if error:
             print(f"Error: {error}")
         else:
             print(f"Retrieved {len(data)} data points")
             print(data.head())
 
-        # Get 1-minute data for MSFT for the last 2 days
-        data, error = get_intraday_data("MSFT", interval="1m", days=2)
+        # Get 1-minute data for ASX.AX for the last 2 days
+        data, error = get_intraday_data("ASX.AX", interval="1m", days=2)
         if error:
             print(f"Error: {error}")
         else:

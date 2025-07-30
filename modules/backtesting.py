@@ -41,23 +41,33 @@ class TransactionCostModel:
         Initialize the transaction cost model with a flat rate commission or custom value.
 
         Parameters:
-            custom_transaction_cost (float): Optional fixed transaction cost value
+            custom_transaction_cost (float, str): Optional transaction cost value. Can be:
+                - A float representing a fixed cost per transaction
+                - A string in format "X%" representing a percentage of transaction value
+                - None to use the default model with spread, impact, and flat commission
         """
-        """
-         def __init__(self, base_commission=0.0035, min_commission=0.5):
-            '''
-            Initialize the transaction cost model.
-
-            Parameters:
-                base_commission (float): Base commission rate in percentage
-                min_commission (float): Minimum commission per trade in dollars
-            '''
-            self.base_commission = base_commission
-            self.min_commission = min_commission   
-        """
-
-        self.custom_transaction_cost = custom_transaction_cost
-        self.flat_commission = 10.0  # Default flat rate of $10 per transaction if no custom value
+        self.cost_mode = "default"
+        self.percentage_cost = 0.01  # Default 1% if percentage mode is used
+        self.fixed_cost = 10.0  # Default fixed cost if fixed mode is used
+        self.flat_commission = 10.0  # Default flat rate of $10 per transaction for default mode
+        
+        if custom_transaction_cost is not None:
+            if isinstance(custom_transaction_cost, str) and "%" in custom_transaction_cost:
+                # Percentage-based cost
+                self.cost_mode = "percentage"
+                try:
+                    self.percentage_cost = float(custom_transaction_cost.strip("%")) / 100
+                except ValueError:
+                    # If conversion fails, use default 1%
+                    self.percentage_cost = 0.01
+            else:
+                # Fixed cost per transaction
+                self.cost_mode = "fixed"
+                try:
+                    self.fixed_cost = float(custom_transaction_cost)
+                except (ValueError, TypeError):
+                    # If conversion fails, use default $10
+                    self.fixed_cost = 10.0
 
     def estimate_spread(self, price, volume, volatility):
         """
@@ -132,10 +142,16 @@ class TransactionCostModel:
         Returns:
             tuple: (total_cost_dollars, total_cost_percentage)
         """
-        # If custom transaction cost is provided, use it as a per-share cost
-        if self.custom_transaction_cost is not None:
-            total_cost_dollars = self.custom_transaction_cost * shares
+        transaction_value = price * shares
+        
+        if self.cost_mode == "fixed":
+            # Fixed cost per transaction (not per share)
+            total_cost_dollars = self.fixed_cost
+        elif self.cost_mode == "percentage":
+            # Percentage of transaction value
+            total_cost_dollars = transaction_value * self.percentage_cost
         else:
+            # Default mode: Use realistic model with spread, impact, and commission
             # Estimate spread
             spread_pct = self.estimate_spread(price, volume, volatility)
             spread_cost = price * spread_pct / 2  # Half spread for each side
@@ -144,9 +160,6 @@ class TransactionCostModel:
             impact_pct = self.estimate_market_impact(price, volume, shares)
             impact_cost = price * impact_pct
 
-            # Calculate commission
-            # commission = max(self.min_commission, price * shares * self.base_commission / 100)
-
             # Use flat rate commission
             commission = self.flat_commission
 
@@ -154,8 +167,8 @@ class TransactionCostModel:
             total_cost_dollars = (spread_cost + impact_cost) * shares + commission
 
         # Avoid division by zero
-        if price * shares > 0:
-            total_cost_percentage = (total_cost_dollars / (price * shares)) * 100
+        if transaction_value > 0:
+            total_cost_percentage = (total_cost_dollars / transaction_value) * 100
         else:
             total_cost_percentage = 0.0
 
@@ -356,7 +369,10 @@ class Backtester:
 
         Parameters:
             initial_capital (float): Initial capital in dollars
-            custom_transaction_cost (float): Optional fixed transaction cost value
+            custom_transaction_cost (float, str): Optional transaction cost value. Can be:
+                - A float representing a fixed cost per transaction
+                - A string in format "X%" representing a percentage of transaction value (e.g., "1%")
+                - None to use the default model with spread, impact, and flat commission
         """
         self.initial_capital = initial_capital
         self.transaction_cost_model = TransactionCostModel(custom_transaction_cost)
@@ -375,7 +391,10 @@ class Backtester:
             use_point_in_time_universe (bool): Whether to use point-in-time universe
             include_delisted (bool): Whether to include delisted tickers
             ml_scorer (MLScorer): Optional pre-initialized ML scorer for ML strategies
-            custom_transaction_cost (float): Optional per-share transaction cost value
+            custom_transaction_cost (float, str): Optional transaction cost value. Can be:
+                - A float representing a fixed cost per transaction
+                - A string in format "X%" representing a percentage of transaction value (e.g., "1%")
+                - None to use the default model with spread, impact, and flat commission
             buy_threshold (int): Score threshold for buy signals in ML strategy (default: 60)
             sell_threshold (int): Score threshold for sell signals in ML strategy (default: 40)
 

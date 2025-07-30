@@ -666,7 +666,7 @@ def initialize_asx_ticker_models(asx_tickers=None, schedule_updates=True):
         # 1. Load a list of ASX tickers from a file or database
         # 2. Or use an API to fetch the current list of ASX tickers
         log_message("No ASX tickers provided. Using a placeholder list.")
-        asx_tickers = ["ASX:" + ticker for ticker in ["BHP", "CBA", "WBC", "NAB", "ANZ"]]
+        asx_tickers = [ticker + ".AX" for ticker in ["BHP", "CBA", "WBC", "NAB", "ANZ"]]
         log_message(f"Using {len(asx_tickers)} placeholder tickers. In production, provide the full list of ~200 ASX tickers.")
 
     # Train initial models

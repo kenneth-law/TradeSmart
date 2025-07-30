@@ -39,7 +39,7 @@ def traditional_analysis():
     print("=========================")
 
     # Example usage
-    ticker_list = ["AAPL", "MSFT", "GOOGL", "AMZN", "META"]
+    ticker_list = ["BHP.AX", "ASX.AX", "CSL.AX", "CBA.AX", "WES.AX"]
 
     print(f"\nAnalyzing {len(ticker_list)} stocks...")
     ranked_stocks, failed_tickers = analyze_stocks(ticker_list)
@@ -91,7 +91,7 @@ def integrated_trading_system():
     system = TradingSystem(initial_capital=100000.0, market_neutral=True)
 
     # Define a list of stocks to analyze
-    ticker_list = ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA", "NVDA", "JPM", "V", "WMT"]
+    ticker_list = ["BHP.AX", "ASX.AX", "CSL.AX", "CBA.AX", "WES.AX", "NAB.AX", "ANZ.AX", "WBC.AX", "WOW.AX", "JBH.AX"]
 
     print(f"\nRunning complete workflow for {len(ticker_list)} stocks...")
 

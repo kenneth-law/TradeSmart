@@ -308,14 +308,14 @@ def api_industry_peers(ticker):
 
         # Define peer tickers based on sector
         if sector == "Technology":
-            peer_tickers = ["AAPL", "MSFT", "GOOGL", "META", "NVDA"]
+            peer_tickers = ["BHP.AX", "ASX.AX", "CSL.AX", "WOW.AX", "NAB.AX"]
         elif sector == "Consumer Cyclical":
-            peer_tickers = ["AMZN", "TSLA", "HD", "MCD", "NKE"]
+            peer_tickers = ["WES.AX", "WOW.AX", "JBH.AX", "HVN.AX", "DMP.AX"]
         elif sector == "Financial Services":
-            peer_tickers = ["JPM", "BAC", "WFC", "C", "GS"]
+            peer_tickers = ["CBA.AX", "NAB.AX", "ANZ.AX", "WBC.AX", "MQG.AX"]
         else:
             # Default peers
-            peer_tickers = ["AAPL", "MSFT", "GOOGL", "AMZN", "META"]
+            peer_tickers = ["BHP.AX", "ASX.AX", "CSL.AX", "CBA.AX", "WES.AX"]
 
         # Add the current ticker if not already in the list
         if ticker not in peer_tickers:

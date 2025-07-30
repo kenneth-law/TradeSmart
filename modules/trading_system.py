@@ -75,7 +75,7 @@ class TradingSystem:
         """
         if tickers is None:
             # Default to a list of major stocks if none provided
-            tickers = ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA", "NVDA", "JPM", "V", "WMT"]
+            tickers = ["BHP.AX", "ASX.AX", "CSL.AX", "CBA.AX", "WES.AX", "NAB.AX", "ANZ.AX", "WBC.AX", "WOW.AX", "JBH.AX"]
 
         log_message(f"Training ML model with {len(tickers)} tickers")
 
@@ -607,7 +607,7 @@ def run_demo():
     system = TradingSystem(initial_capital=100000.0)
 
     # Define a list of stocks to analyze
-    tickers = ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA", "NVDA", "JPM", "V", "WMT"]
+    tickers = ["BHP.AX", "ASX.AX", "CSL.AX", "CBA.AX", "WES.AX", "NAB.AX", "ANZ.AX", "WBC.AX", "WOW.AX", "JBH.AX"]
 
     # Run the complete workflow
     results = system.run_complete_workflow(tickers, use_ml=True, execute_trades=False)

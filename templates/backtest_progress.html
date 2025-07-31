@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}Backtest Progress{% endblock %}
+
+{% block extra_css %}
+<style>
+    .terminal {
+        background-color: #000;
+        color: #00ff00;
+        font-family: monospace;
+        padding: 15px;
+        border-radius: 5px;
+        height: 300px;
+        overflow-y: auto;
+        margin-bottom: 20px;
+        white-space: pre-wrap;
+    }
+    .progress {
+        height: 25px;
+    }
+
+    /* Dark mode compatibility */
+    .dark-mode .terminal {
+        border: 1px solid #444;
+    }
+    .dark-mode #status-message {
+        color: #ddd;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-4">Backtest in Progress</h1>
+
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Backtest Status</h5>
+        </div>
+        <div class="card-body">
+            <div class="terminal" id="output"></div>
+
+            <div class="progress mb-3">
+                <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                     role="progressbar" 
+                     id="progress-bar"
+                     style="width: 0%;" 
+                     aria-valuenow="0" 
+                     aria-valuemin="0" 
+                     aria-valuemax="100">0%</div>
+            </div>
+
+            <p id="status-message">Initializing backtest...</p>
+        </div>
+    </div>
+
+    <div class="mt-4">
+        <a href="/backtest" class="btn btn-outline-primary">&larr; Back to Backtesting</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const output = document.getElementById('output');
+        const progressBar = document.getElementById('progress-bar');
+        const statusMessage = document.getElementById('status-message');
+
+        // Get the backtest ID from the URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const backtest_id = urlParams.get('backtest_id');
+
+        if (!backtest_id) {
+            output.textContent = "Error: No backtest ID provided";
+            return;
+        }
+
+        // Connect to the SSE endpoint
+        const eventSource = new EventSource(`/backtest_progress_stream?backtest_id=${backtest_id}`);
+
+        eventSource.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+
+            // Update terminal output
+            if (data.message) {
+                output.textContent += data.message + '\n';
+                output.scrollTop = output.scrollHeight; // Auto-scroll to bottom
+            }
+
+            // Update progress bar
+            if (data.progress !== undefined) {
+                const progress = data.progress;
+                progressBar.style.width = `${progress}%`;
+                progressBar.textContent = `${progress}%`;
+                progressBar.setAttribute('aria-valuenow', progress);
+            }
+
+            // Update status message
+            if (data.status) {
+                statusMessage.textContent = data.status;
+            }
+
+            // If backtest is complete, redirect to results page
+            if (data.status === 'complete') {
+                eventSource.close();
+                window.location.href = data.redirect_url;
+            }
+        };
+
+        eventSource.onerror = function() {
+            output.textContent += "Error: Connection to server lost. Reconnecting...\n";
+            output.scrollTop = output.scrollHeight;
+        };
+    });
+</script>
+{% endblock %}

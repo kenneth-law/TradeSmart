@@ -39,6 +39,10 @@ analysis_progress = {}
 analysis_logs = {}
 analysis_queues = {}
 
+# For progress tracking
+backtest_queues = {}
+integrated_queues = {}
+
 # Configure session at app startup to avoid repeated session creation
 yf_session = get_yf_session()
 
@@ -365,6 +369,152 @@ def integrated_system():
     """Show the integrated trading system interface"""
     return render_template('integrated_system.html')
 
+@app.route('/integrated_progress')
+def integrated_progress():
+    """Show the integrated system progress page"""
+    system_id = request.args.get('system_id')
+    if not system_id or system_id not in integrated_queues:
+        return redirect(url_for('integrated_system'))
+
+    return render_template('integrated_progress.html')
+
+@app.route('/integrated_progress_stream')
+def integrated_progress_stream():
+    """Server-Sent Events (SSE) endpoint for streaming integrated system progress"""
+    system_id = request.args.get('system_id')
+
+    if not system_id or system_id not in integrated_queues:
+        return jsonify({"error": "Invalid system ID"}), 400
+
+    message_queue = integrated_queues[system_id]
+
+    # SSE response function
+    def generate():
+        try:
+            while True:
+                message = message_queue.get()
+                if message is None:  # None is our signal to stop
+                    break
+                yield f"data: {json.dumps(message)}\n\n"
+
+                # If processing is complete, stop the stream
+                if message.get('status') == 'complete':
+                    break
+        except GeneratorExit:
+            # Client disconnected
+            pass
+
+    return Response(generate(), mimetype="text/event-stream")
+
+def run_integrated_system_with_updates(tickers, use_ml, execute_trades, system_id, message_queue, session_id):
+    """Run the integrated system with progress updates sent to the client"""
+    try:
+        # Define a custom message handler for this integrated system run
+        def custom_message_handler(message):
+            # Log to console as well as queue
+            print(f"DEBUG: {message}")
+            message_queue.put({
+                "message": str(message)
+            })
+
+        # Set the custom message handler
+        set_message_handler(custom_message_handler)
+
+        # Send initial message
+        message_queue.put({
+            "progress": 0,
+            "message": f"Starting integrated system for {', '.join(tickers)}...",
+            "status": "initializing"
+        })
+
+        # Create session folder
+        session_folder = os.path.join(app.static_folder, 'sessions', session_id)
+        os.makedirs(session_folder, exist_ok=True)
+
+        # Initialize the trading system
+        message_queue.put({
+            "progress": 10,
+            "message": "Initializing trading system...",
+            "status": "initializing"
+        })
+        system = TradingSystem(initial_capital=100000.0, market_neutral=True)
+
+        # Run the complete workflow
+        message_queue.put({
+            "progress": 20,
+            "message": "Running integrated system workflow...",
+            "status": "processing"
+        })
+        results = system.run_complete_workflow(tickers, use_ml=use_ml, execute_trades=execute_trades)
+
+        # Save results to session folder
+        message_queue.put({
+            "progress": 80,
+            "message": "Saving results...",
+            "status": "saving"
+        })
+        with open(os.path.join(session_folder, 'workflow_results.json'), 'w') as f:
+            json.dump(results, f, indent=2)
+
+        # Create charts
+        message_queue.put({
+            "progress": 90,
+            "message": "Generating charts...",
+            "status": "generating_charts"
+        })
+        charts = create_trading_system_charts(system, session_folder)
+
+        # Prepare data for template
+        template_data = {
+            'system': system,
+            'results': results,
+            'charts': charts,
+            'watchlist': system.watchlist,  # All analyzed stocks
+            'portfolio_summary': system.portfolio_manager.get_portfolio_summary(),
+            'session_id': session_id,
+            'tickers': tickers,
+            'use_ml': use_ml,
+            'execute_trades': execute_trades
+        }
+
+        # Store the template data for later use
+        app.config[f'integrated_result_{system_id}'] = template_data
+
+        # Send completion message with redirect URL
+        message_queue.put({
+            "progress": 100,
+            "message": "Integrated system processing complete!",
+            "status": "complete",
+            "redirect_url": f"/integrated_results?system_id={system_id}"
+        })
+
+    except Exception as e:
+        error_message = f"Error running integrated system: {str(e)}"
+        print(f"ERROR: {error_message}")
+        message_queue.put({
+            "progress": 100,
+            "message": error_message,
+            "status": "error",
+            "redirect_url": "/integrated_system"
+        })
+
+@app.route('/integrated_results')
+def integrated_results():
+    """Show the integrated system results page"""
+    system_id = request.args.get('system_id')
+
+    if not system_id or f'integrated_result_{system_id}' not in app.config:
+        return redirect(url_for('integrated_system'))
+
+    # Get the template data
+    template_data = app.config[f'integrated_result_{system_id}']
+
+    # Clean up the queue
+    if system_id in integrated_queues:
+        del integrated_queues[system_id]
+
+    return render_template('integrated_results.html', **template_data)
+
 @app.route('/run_integrated_system', methods=['POST'])
 def run_integrated_system():
     """Run the integrated trading system with the provided tickers"""
@@ -379,47 +529,157 @@ def run_integrated_system():
     use_ml = request.form.get('use_ml', 'true') == 'true'
     execute_trades = request.form.get('execute_trades', 'false') == 'true'
 
-    # Create a unique session ID
+    # Create a unique ID for this integrated system session
+    system_id = f"system_{int(time.time())}"
     session_id = datetime.now().strftime('%Y%m%d%H%M%S')
-    session_folder = os.path.join(app.static_folder, 'sessions', session_id)
-    os.makedirs(session_folder, exist_ok=True)
 
-    try:
-        # Initialize the trading system
-        system = TradingSystem(initial_capital=100000.0, market_neutral=True)
+    # Create a queue for this integrated system session
+    message_queue = Queue()
+    integrated_queues[system_id] = message_queue
 
-        # Run the complete workflow
-        results = system.run_complete_workflow(tickers, use_ml=use_ml, execute_trades=execute_trades)
+    # Start the integrated system in a background thread
+    system_thread = Thread(
+        target=run_integrated_system_with_updates, 
+        args=(tickers, use_ml, execute_trades, system_id, message_queue, session_id)
+    )
+    system_thread.daemon = True
+    system_thread.start()
 
-        # Save results to session folder
-        with open(os.path.join(session_folder, 'workflow_results.json'), 'w') as f:
-            json.dump(results, f, indent=2)
-
-        # Create charts
-        charts = create_trading_system_charts(system, session_folder)
-
-        # Prepare data for template
-        template_data = {
-            'system': system,
-            'results': results,
-            'charts': charts,
-            'watchlist': system.watchlist[:10],  # Top 10 stocks
-            'portfolio_summary': system.portfolio_manager.get_portfolio_summary(),
-            'session_id': session_id,
-            'tickers': tickers,
-            'use_ml': use_ml,
-            'execute_trades': execute_trades
-        }
-
-        return render_template('integrated_results.html', **template_data)
-
-    except Exception as e:
-        return render_template('integrated_system.html', error=f"Error running integrated system: {str(e)}")
+    # Redirect to the progress page
+    return redirect(url_for('integrated_progress', system_id=system_id))
 
 @app.route('/backtest')
 def backtest():
     """Show the backtesting interface"""
     return render_template('backtest.html')
+
+@app.route('/backtest_progress')
+def backtest_progress():
+    """Show the backtest progress page"""
+    backtest_id = request.args.get('backtest_id')
+    if not backtest_id or backtest_id not in backtest_queues:
+        return redirect(url_for('backtest'))
+
+    return render_template('backtest_progress.html')
+
+@app.route('/backtest_progress_stream')
+def backtest_progress_stream():
+    """Server-Sent Events (SSE) endpoint for streaming backtest progress"""
+    backtest_id = request.args.get('backtest_id')
+
+    if not backtest_id or backtest_id not in backtest_queues:
+        return jsonify({"error": "Invalid backtest ID"}), 400
+
+    message_queue = backtest_queues[backtest_id]
+
+    # SSE response function
+    def generate():
+        try:
+            while True:
+                message = message_queue.get()
+                if message is None:  # None is our signal to stop
+                    break
+                yield f"data: {json.dumps(message)}\n\n"
+
+                # If backtest is complete, stop the stream
+                if message.get('status') == 'complete':
+                    break
+        except GeneratorExit:
+            # Client disconnected
+            pass
+
+    return Response(generate(), mimetype="text/event-stream")
+
+def run_backtest_with_updates(tickers, strategy, start_date, end_date, days, custom_transaction_cost, backtest_id, message_queue, session_id):
+    """Run a backtest with progress updates sent to the client"""
+    try:
+        # Define a custom message handler for this backtest
+        def custom_message_handler(message):
+            # Log to console as well as queue
+            print(f"DEBUG: {message}")
+            message_queue.put({
+                "message": str(message)
+            })
+
+        # Set the custom message handler
+        set_message_handler(custom_message_handler)
+
+        # Send initial message
+        message_queue.put({
+            "progress": 0,
+            "message": f"Starting backtest for {', '.join(tickers)}...",
+            "status": "initializing"
+        })
+
+        # Initialize the backtester
+        system = TradingSystem(initial_capital=100000.0)
+
+        message_queue.put({
+            "progress": 10,
+            "message": "Initializing trading system...",
+            "status": "initializing"
+        })
+
+        # Run the backtest
+        result = system.run_backtest(
+            tickers=tickers,
+            strategy=strategy,
+            start_date=start_date if start_date else None,
+            end_date=end_date if end_date else None,
+            days=days,
+            custom_transaction_cost=custom_transaction_cost
+        )
+
+        message_queue.put({
+            "progress": 80,
+            "message": "Backtest completed. Generating charts...",
+            "status": "generating_charts"
+        })
+
+        # Create session folder if it doesn't exist
+        session_folder = os.path.join(app.static_folder, 'sessions', session_id)
+        os.makedirs(session_folder, exist_ok=True)
+
+        # Create charts
+        charts = create_backtest_charts(result, session_folder)
+
+        message_queue.put({
+            "progress": 95,
+            "message": "Charts generated. Preparing results...",
+            "status": "preparing_results"
+        })
+
+        # Prepare data for template
+        template_data = {
+            'result': result,
+            'charts': charts,
+            'session_id': session_id,
+            'tickers': tickers,
+            'strategy': strategy,
+            'start_date': start_date or (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d'),
+            'end_date': end_date or datetime.now().strftime('%Y-%m-%d')
+        }
+
+        # Store the template data for later use
+        app.config[f'backtest_result_{backtest_id}'] = template_data
+
+        # Send completion message with redirect URL
+        message_queue.put({
+            "progress": 100,
+            "message": "Backtest complete!",
+            "status": "complete",
+            "redirect_url": f"/backtest_results?backtest_id={backtest_id}"
+        })
+
+    except Exception as e:
+        error_message = f"Error running backtest: {str(e)}"
+        print(f"ERROR: {error_message}")
+        message_queue.put({
+            "progress": 100,
+            "message": error_message,
+            "status": "error",
+            "redirect_url": "/backtest"
+        })
 
 @app.route('/run_backtest', methods=['POST'])
 def run_backtest():
@@ -447,43 +707,41 @@ def run_backtest():
     else:
         custom_transaction_cost = None
 
-    # Create a unique session ID
+    # Create a unique ID for this backtest session
+    backtest_id = f"backtest_{int(time.time())}"
     session_id = datetime.now().strftime('%Y%m%d%H%M%S')
-    session_folder = os.path.join(app.static_folder, 'sessions', session_id)
-    os.makedirs(session_folder, exist_ok=True)
 
-    try:
-        # Initialize the backtester
-        system = TradingSystem(initial_capital=100000.0)
+    # Create a queue for this backtest session
+    message_queue = Queue()
+    backtest_queues[backtest_id] = message_queue
 
-        # Run the backtest
-        result = system.run_backtest(
-            tickers=tickers,
-            strategy=strategy,
-            start_date=start_date if start_date else None,
-            end_date=end_date if end_date else None,
-            days=days,
-            custom_transaction_cost=custom_transaction_cost
-        )
+    # Start the backtest in a background thread
+    backtest_thread = Thread(
+        target=run_backtest_with_updates, 
+        args=(tickers, strategy, start_date, end_date, days, custom_transaction_cost, backtest_id, message_queue, session_id)
+    )
+    backtest_thread.daemon = True
+    backtest_thread.start()
 
-        # Create charts
-        charts = create_backtest_charts(result, session_folder)
+    # Redirect to the progress page
+    return redirect(url_for('backtest_progress', backtest_id=backtest_id))
 
-        # Prepare data for template
-        template_data = {
-            'result': result,
-            'charts': charts,
-            'session_id': session_id,
-            'tickers': tickers,
-            'strategy': strategy,
-            'start_date': start_date or (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d'),
-            'end_date': end_date or datetime.now().strftime('%Y-%m-%d')
-        }
+@app.route('/backtest_results')
+def backtest_results():
+    """Show the backtest results page"""
+    backtest_id = request.args.get('backtest_id')
 
-        return render_template('backtest_results.html', **template_data)
+    if not backtest_id or f'backtest_result_{backtest_id}' not in app.config:
+        return redirect(url_for('backtest'))
 
-    except Exception as e:
-        return render_template('backtest.html', error=f"Error running backtest: {str(e)}")
+    # Get the template data
+    template_data = app.config[f'backtest_result_{backtest_id}']
+
+    # Clean up the queue
+    if backtest_id in backtest_queues:
+        del backtest_queues[backtest_id]
+
+    return render_template('backtest_results.html', **template_data)
 
 @app.route('/portfolio')
 def portfolio():

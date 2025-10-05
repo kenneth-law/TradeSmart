@@ -154,7 +154,7 @@ Stocks are classified into strategies (Strong Buy, Buy, Neutral/Watch, Sell, Str
 - **Market Neutrality**: Maintains market-neutral or beta-targeted exposures
 - **Drawdown Protection**: Activates kill switches when drawdowns exceed thresholds
 
-<img width="100%" alt="image" src="https://github.com/user-attachments/assets/4bed9640-ea3f-4d99-ad20-cdc02931b1bb" />
+<img width="1683" height="1275" alt="1fd510b3-1ced-40c7-aa5c-aefd0e83085d" src="https://github.com/user-attachments/assets/0c89d300-f6a0-4e9d-95fb-fd7d801cfc6d" />
 
 
 ### Execution Algorithms

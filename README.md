@@ -2,6 +2,9 @@
 
 TradeSmart Analytics is an advanced stock analysis tool designed to identify day trading opportunities through comprehensive technical analysis, volatility measures, news sentiment analysis, and machine learning. The platform uses Gradient Boosted Decision Trees (GBDT) to find non-linear relationships in market data, provides industrial-grade backtesting capabilities, and includes portfolio management tools to optimize trading performance. The application provides a user-friendly web interface for analysing stocks, particularly focused on the Australian Securities Exchange (ASX).
 
+<img width="1673" height="1258" alt="fa5847cf-e529-4c6b-9b2d-2c3b58599e18" src="https://github.com/user-attachments/assets/92c18a8a-b388-4c5e-bc79-a54437da0459" />
+
+
 
 
 [System Architecture](https://tradevision.up.railway.app/documentation/system_architecture)
@@ -43,6 +46,9 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE]([LICEN
 - **News Sentiment Analysis**: Incorporates news sentiment into the analysis
 - **Data Export**: Allows downloading analysis results as CSV
 
+<img width="1691" height="1278" alt="594a8ad1-9467-4435-91ea-3e6e7675dd33" src="https://github.com/user-attachments/assets/9327e220-9bc2-4069-bdca-057653794e4a" />
+
+
 ## Technical Indicators Used
 
 ### Short-Term Indicators
@@ -81,6 +87,9 @@ The ML-based scoring system uses Gradient Boosted Decision Trees (GBDT) to:
 - Provide more stable signals with lower turnover
 - Generate explainable predictions with feature importance
 
+<img width="1692" height="1274" alt="680ed0da-48ff-4753-9c8c-e0f2ccb6ece1" src="https://github.com/user-attachments/assets/ff9bd394-6ff6-47ea-b826-2667d7554b59" />
+
+
 #### GBDT Implementation Details
 - **Model Types**: Supports both regression (score prediction) and classification (buy/sell signals)
 - **Feature Engineering**: Extracts 30+ technical indicators as features
@@ -111,6 +120,10 @@ Stocks are classified into strategies (Strong Buy, Buy, Neutral/Watch, Sell, Str
 - **Transaction Cost Modeling**: Models spread, market impact, and fees based on liquidity
 - **Walk-Forward Testing**: Tests strategy robustness across different time periods
 - **Monte Carlo Simulation**: Assesses strategy performance under various market conditions
+
+<img width="1271" height="1227" alt="b139c3bb-ad40-4197-b3e1-fa826779d178" src="https://github.com/user-attachments/assets/8a62f510-04d8-40af-8f0a-cbbc0803440c" />
+
+<img width="1233" height="1270" alt="770b615a-47c9-4fa0-b42f-2317a105ba95" src="https://github.com/user-attachments/assets/2f30f77b-8057-45ba-9dc6-38e499f7706d" />
 
 <img width="100%" alt="image" src="https://github.com/user-attachments/assets/02f6458e-25ad-48d5-ac7f-e946528e05ff" />
 

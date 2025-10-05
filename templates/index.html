@@ -31,15 +31,20 @@
                 <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>Live Market Data</h5>
                 <div class="d-flex align-items-center">
                     <span class="me-2">Status:</span>
-                    {% if market_data.api_status.status %}
-                        <span class="d-flex align-items-center text-success">
-                            <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: var(--success); margin-right: 5px;"></span>
-                            Live
-                        </span>
-                    {% else %}
+                    {% if not market_data.api_status.status %}
                         <span class="d-flex align-items-center text-danger">
                             <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: var(--danger); margin-right: 5px;"></span>
-                            Offline
+                            Not Connected
+                        </span>
+                    {% elif market_data.asx_trading_status.is_trading %}
+                        <span class="d-flex align-items-center text-success">
+                            <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: var(--success); margin-right: 5px;"></span>
+                            Live | Trading
+                        </span>
+                    {% else %}
+                        <span class="d-flex align-items-center text-warning">
+                            <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: var(--warning); margin-right: 5px;"></span>
+                            Live | ASX Closed
                         </span>
                     {% endif %}
                 </div>
@@ -221,8 +226,16 @@
         // Initialize the chart with the data from the server
         initializeASX200Chart();
         
-        // Set up periodic refresh (every 5 minutes)
-        setInterval(refreshASX200Chart, 5 * 60 * 1000);
+        // Add click event to the ASX 200 card to refresh data
+        const asx200ChartDiv = document.getElementById('asx200KChart');
+        if (asx200ChartDiv) {
+            const asx200Card = asx200ChartDiv.closest('.card');
+            if (asx200Card) {
+                asx200Card.style.cursor = 'pointer';
+                asx200Card.title = 'Click to refresh data';
+                asx200Card.addEventListener('click', refreshASX200Chart);
+            }
+        }
     });
     
     // Initialize the chart with the data from the server

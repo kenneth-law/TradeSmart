@@ -69,14 +69,11 @@ def get_live_market_data():
     try:
         # Define major indices to track
         indices = {
+            "^AXJO": "ASX 200",
+
             "^GSPC": "S&P 500",
             "^DJI": "Dow Jones",
             "^IXIC": "NASDAQ",
-            "^FTSE": "FTSE 100",
-            "^N225": "Nikkei 225",
-            "^AXJO": "ASX 200",
-            "^AORD": "ASX 500",
-            "^AP": "ASX Futures"
         }
         
         # Get data for each index

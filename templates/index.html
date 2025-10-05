@@ -26,6 +26,56 @@
 
 <div class="row">
     <div class="col-lg-8">
+                <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>Live Market Data</h5>
+                <div class="d-flex align-items-center">
+                    <span class="me-2">Status:</span>
+                    {% if market_data.api_status.status %}
+                        <span class="d-flex align-items-center text-success">
+                            <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: var(--success); margin-right: 5px;"></span>
+                            Live
+                        </span>
+                    {% else %}
+                        <span class="d-flex align-items-center text-danger">
+                            <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: var(--danger); margin-right: 5px;"></span>
+                            Offline
+                        </span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card-body">
+                {% if market_data.indices %}
+                    <div class="row">
+                        {% for index in market_data.indices %}
+                            <div class="col-6 mb-3">
+                                <div class="metric-card">
+                                    <div class="metric-title">{{ index.name }}</div>
+                                    <div class="metric-value">{{ "%.2f"|format(index.current_price) }}</div>
+                                    <div class="small {% if index.day_change_pct > 0 %}text-success{% elif index.day_change_pct < 0 %}text-danger{% endif %}">
+                                        {{ "%.2f"|format(index.day_change_pct) }}%
+                                        {% if index.day_change_pct > 0 %}
+                                            <i class="fas fa-caret-up"></i>
+                                        {% elif index.day_change_pct < 0 %}
+                                            <i class="fas fa-caret-down"></i>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    <div class="text-end mt-2">
+                        <small class="text-muted">Last updated: {{ market_data.timestamp }}</small>
+                    </div>
+                {% else %}
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Unable to retrieve market data. Please try again later.
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
         <div class="card">
             <div class="card-header">
                 <h5 class="mb-0"><i class="fas fa-search me-2"></i>Stock Analysis (Legacy Technical System)</h5>
@@ -82,6 +132,26 @@
                 </div>
             </div>
         </div>
+
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-cogs me-2"></i>Advanced Features</h5>
+            </div>
+            <div class="card-body">
+                <p>Access our advanced trading features:</p>
+                <div class="d-grid gap-2">
+                    <a href="/integrated_system" class="btn btn-primary">
+                        <i class="fas fa-robot me-2"></i>Integrated Trading System
+                    </a>
+                    <a href="/backtest" class="btn btn-outline-primary">
+                        <i class="fas fa-history me-2"></i>Backtesting Framework
+                    </a>
+                    <a href="/portfolio" class="btn btn-outline-primary">
+                        <i class="fas fa-briefcase me-2"></i>Portfolio Management
+                    </a>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div class="col-lg-4">
@@ -107,6 +177,8 @@
                 </div>
             </div>
         </div>
+
+
 
         <div class="card mt-4">
             <div class="card-header">

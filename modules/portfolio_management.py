@@ -91,6 +91,10 @@ class PortfolioManager:
 
         # Base position size on edge and volatility (higher edge = larger position, higher vol = smaller position)
         # Kelly criterion-inspired sizing
+        # Avoid division by zero by ensuring volatility is not zero
+        if volatility <= 0.0001:
+            volatility = 0.0001  # Set a minimum volatility value
+            
         kelly_fraction = edge_factor / (volatility / 100)
 
         # Apply a safety factor (e.g., half-Kelly)
@@ -104,6 +108,11 @@ class PortfolioManager:
 
         # Check sector exposure limits
         current_sector_exposure = self.sector_exposures.get(sector, 0)
+        
+        # Avoid division by zero by checking if current_capital is zero
+        if self.current_capital <= 0:
+            return 0, 0, "Insufficient capital"
+            
         if (current_sector_exposure + dollar_amount) / self.current_capital > self.max_sector_exposure:
             # Scale back to respect sector limit
             available_sector_room = (self.max_sector_exposure * self.current_capital) - current_sector_exposure
@@ -118,6 +127,10 @@ class PortfolioManager:
         if dollar_amount > max_dollars_by_volume:
             dollar_amount = max_dollars_by_volume
 
+        # Check if price is zero or very small to avoid division by zero
+        if price <= 0.0001:
+            return 0, 0, "Price too low or zero"
+            
         # Calculate shares
         shares = int(dollar_amount / price)
 
@@ -127,6 +140,10 @@ class PortfolioManager:
 
         # Adjust for market neutrality if needed
         if self.market_neutral and expected_edge > 0:  # Long position
+            # Check if current_capital is zero to avoid division by zero
+            if self.current_capital <= 0:
+                return 0, 0, "Insufficient capital for beta calculation"
+                
             # Check if adding this position would push portfolio beta too far from target
             new_beta_contribution = beta * (dollar_amount / self.current_capital)
             new_portfolio_beta = self.portfolio_beta + new_beta_contribution
@@ -135,6 +152,11 @@ class PortfolioManager:
                 # Need to reduce position size or find a hedge
                 beta_adjustment_factor = max(0, 1 - (abs(new_portfolio_beta - self.beta_target) - 0.2) / 0.2)
                 dollar_amount *= beta_adjustment_factor
+                
+                # Check price again after adjustment to avoid division by zero
+                if price <= 0.0001:
+                    return 0, 0, "Price too low for beta-adjusted position"
+                    
                 shares = int(dollar_amount / price)
 
                 if shares <= 0:
@@ -511,6 +533,10 @@ class PortfolioManager:
                         continue  # Skip this stock if sector limit reached
                     target_dollars = min(target_dollars, available_sector_room)
 
+                # Skip stocks with zero or very small price to avoid division by zero
+                if price <= 0.0001:
+                    continue
+                    
                 # Calculate shares
                 shares = int(target_dollars / price)
 

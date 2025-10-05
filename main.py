@@ -95,8 +95,8 @@ def integrated_trading_system():
 
     print(f"\nRunning complete workflow for {len(ticker_list)} stocks...")
 
-    # Run the complete workflow
-    results = system.run_complete_workflow(ticker_list, use_ml=True, execute_trades=False)
+    # Run the complete workflow with error handling
+    results = system.run_complete_workflow_with_error_handling(ticker_list, use_ml=True, execute_trades=False)
 
     # Print results
     print("\nTrading System Results:")

@@ -528,9 +528,18 @@ class TradingSystem:
 
         # Step 2: Analyze stocks
         log_message("Analyzing stocks...")
-        ranked_stocks, failed_tickers = self.analyze_stocks(tickers, use_ml=use_ml)
-        results['ranked_stocks_count'] = len(ranked_stocks)
-        results['failed_tickers_count'] = len(failed_tickers)
+        try:
+            ranked_stocks, failed_tickers = self.analyze_stocks(tickers, use_ml=use_ml)
+            results['ranked_stocks_count'] = len(ranked_stocks)
+            results['failed_tickers_count'] = len(failed_tickers)
+        except ZeroDivisionError as e:
+            log_message(f"Warning: Error during stock analysis: {str(e)}")
+            # Create empty results to allow the system to continue
+            ranked_stocks = []
+            failed_tickers = tickers
+            results['ranked_stocks_count'] = 0
+            results['failed_tickers_count'] = len(failed_tickers)
+            results['error_during_analysis'] = str(e)
 
         # Step 3: Generate watchlist
         log_message("Generating watchlist...")
@@ -545,9 +554,17 @@ class TradingSystem:
 
         # Step 5: Generate trade recommendations
         log_message("Generating trade recommendations...")
-        recommendations = self.generate_trade_recommendations(ranked_stocks)
-        results['buy_recommendations'] = len(recommendations['buy'])
-        results['sell_recommendations'] = len(recommendations['sell'])
+        try:
+            recommendations = self.generate_trade_recommendations(ranked_stocks)
+            results['buy_recommendations'] = len(recommendations['buy'])
+            results['sell_recommendations'] = len(recommendations['sell'])
+        except ZeroDivisionError as e:
+            log_message(f"Warning: Error during trade recommendations: {str(e)}")
+            # Create empty recommendations to allow the system to continue
+            recommendations = {'buy': [], 'sell': [], 'hold': [], 'rebalance': []}
+            results['buy_recommendations'] = 0
+            results['sell_recommendations'] = 0
+            results['error_during_recommendations'] = str(e)
 
         # Step 6: Execute trades if requested
         if execute_trades:
@@ -599,6 +616,37 @@ class TradingSystem:
         log_message(f"Workflow completed in {(datetime.now() - datetime.strptime(results['start_time'], '%Y-%m-%d %H:%M:%S')).total_seconds():.2f} seconds")
 
         return results
+        
+    def run_complete_workflow_with_error_handling(self, tickers, use_ml=True, execute_trades=False):
+        """
+        Wrapper for run_complete_workflow that catches and handles division by zero errors.
+        
+        Parameters:
+            tickers (list): List of ticker symbols to analyze
+            use_ml (bool): Whether to use ML-based scoring
+            execute_trades (bool): Whether to execute recommended trades
+            
+        Returns:
+            dict: Workflow results
+        """
+        try:
+            return self.run_complete_workflow(tickers, use_ml, execute_trades)
+        except ZeroDivisionError as e:
+            log_message(f"Error running integrated system: {str(e)}")
+            # Return basic results to allow the system to continue
+            return {
+                'start_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'end_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'error': f"Error running integrated system: {str(e)}",
+                'tickers_analyzed': len(tickers),
+                'ml_scoring_used': use_ml,
+                'trades_executed': False,
+                'ranked_stocks_count': 0,
+                'failed_tickers_count': len(tickers),
+                'watchlist_count': 0,
+                'buy_recommendations': 0,
+                'sell_recommendations': 0
+            }
 
 # Example usage
 def run_demo():
@@ -609,8 +657,8 @@ def run_demo():
     # Define a list of stocks to analyze
     tickers = ["BHP.AX", "ASX.AX", "CSL.AX", "CBA.AX", "WES.AX", "NAB.AX", "ANZ.AX", "WBC.AX", "WOW.AX", "JBH.AX"]
 
-    # Run the complete workflow
-    results = system.run_complete_workflow(tickers, use_ml=True, execute_trades=False)
+    # Run the complete workflow with error handling
+    results = system.run_complete_workflow_with_error_handling(tickers, use_ml=True, execute_trades=False)
 
     # Print results
     print("\nTrading System Demo Results:")

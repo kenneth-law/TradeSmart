@@ -467,7 +467,7 @@ def run_integrated_system_with_updates(tickers, use_ml, execute_trades, system_i
             "message": "Running integrated system workflow...",
             "status": "processing"
         })
-        results = system.run_complete_workflow(tickers, use_ml=use_ml, execute_trades=execute_trades)
+        results = system.run_complete_workflow_with_error_handling(tickers, use_ml=use_ml, execute_trades=execute_trades)
 
         # Save results to session folder
         message_queue.put({

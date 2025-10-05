@@ -64,6 +64,12 @@
                             </div>
                         {% endfor %}
                     </div>
+                    <!-- ASX 200 K Chart -->
+                    <div class="mt-4">
+                        <h6 class="mb-3">ASX 200 Intraday Chart</h6>
+                        <div id="asx200KChart" style="height: 300px;"></div>
+                    </div>
+                    
                     <div class="text-end mt-2">
                         <small class="text-muted">Last updated: {{ market_data.timestamp }}</small>
                     </div>
@@ -75,6 +81,8 @@
                 {% endif %}
             </div>
         </div>
+    
+
 
         <div class="card">
             <div class="card-header">
@@ -132,10 +140,16 @@
                 </div>
             </div>
         </div>
+    
+    </div>
 
-        <div class="card mt-4">
+
+
+    <div class="col-lg-4">
+
+        <div class="card">
             <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-cogs me-2"></i>Advanced Features</h5>
+                <h5 class="mb-0"><i class="fas fa-cogs me-2"></i>Advanced ML Stock Analysis</h5>
             </div>
             <div class="card-body">
                 <p>Access our advanced trading features:</p>
@@ -152,9 +166,7 @@
                 </div>
             </div>
         </div>
-    </div>
 
-    <div class="col-lg-4">
         <div class="card">
             <div class="card-header">
                 <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>About</h5>
@@ -180,6 +192,8 @@
 
 
 
+
+
         <div class="card mt-4">
             <div class="card-header">
                 <h5 class="mb-0"><i class="fas fa-lightbulb me-2"></i>Quick Tips</h5>
@@ -200,7 +214,131 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 <script>
+    // Render ASX 200 K Chart
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize the chart with the data from the server
+        initializeASX200Chart();
+        
+        // Set up periodic refresh (every 5 minutes)
+        setInterval(refreshASX200Chart, 5 * 60 * 1000);
+    });
+    
+    // Initialize the chart with the data from the server
+    function initializeASX200Chart() {
+        // Check if we have intraday data
+        {% if asx200_intraday and not asx200_intraday.error %}
+            // Parse the intraday data
+            const timestamps = {{ asx200_intraday.timestamps | tojson }};
+            const opens = {{ asx200_intraday.opens | tojson }};
+            const highs = {{ asx200_intraday.highs | tojson }};
+            const lows = {{ asx200_intraday.lows | tojson }};
+            const closes = {{ asx200_intraday.closes | tojson }};
+            const volumes = {{ asx200_intraday.volumes | tojson }};
+            
+            // Create and render the chart
+            createASX200Chart(timestamps, opens, highs, lows, closes);
+        {% else %}
+            // Display error message if no data
+            document.getElementById('asx200KChart').innerHTML = '<div class="alert alert-warning">Unable to load ASX 200 chart data.</div>';
+        {% endif %}
+    }
+    
+    // Create the ASX 200 K chart
+    function createASX200Chart(timestamps, opens, highs, lows, closes) {
+        // Format timestamps to remove year
+        const formattedTimestamps = timestamps.map(timestamp => {
+            // Extract just the month-day and time parts
+            const parts = timestamp.split(' ');
+            if (parts.length === 2) {
+                const dateParts = parts[0].split('-');
+                if (dateParts.length === 3) {
+                    // Format as MM-DD HH:MM
+                    return dateParts[1] + '-' + dateParts[2] + ' ' + parts[1].substring(0, 5);
+                }
+            }
+            return timestamp; // Return original if parsing fails
+        });
+        
+        // Create the candlestick chart
+        const trace = {
+            x: formattedTimestamps,
+            open: opens,
+            high: highs,
+            low: lows,
+            close: closes,
+            
+            // Customize colors based on whether price went up or down
+            increasing: {line: {color: '#26a69a'}},
+            decreasing: {line: {color: '#ef5350'}},
+            
+            type: 'candlestick',
+            xaxis: 'x',
+            yaxis: 'y',
+            name: 'ASX 200'
+        };
+        
+        const layout = {
+            title: '',
+            dragmode: 'zoom',
+            showlegend: false,
+            xaxis: {
+                rangeslider: {
+                    visible: false
+                },
+                title: 'Time',
+                type: 'category',
+                tickangle: -45
+            },
+            yaxis: {
+                autorange: true,
+                title: 'Price',
+                type: 'linear'
+            },
+            margin: {
+                l: 50,
+                r: 20,
+                t: 10,
+                b: 40
+            },
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0)'
+        };
+        
+        Plotly.newPlot('asx200KChart', [trace], layout);
+    }
+    
+    // Refresh the ASX 200 K chart with the latest data
+    function refreshASX200Chart() {
+        fetch('/api/asx200_intraday')
+            .then(response => response.json())
+            .then(data => {
+                if (data && !data.error) {
+                    // Update the chart with the new data
+                    createASX200Chart(data.timestamps, data.opens, data.highs, data.lows, data.closes);
+                    
+                    // Update the last updated timestamp
+                    const timestampElement = document.querySelector('.card-body .text-end .text-muted');
+                    if (timestampElement) {
+                        const now = new Date();
+                        const formattedDate = now.getFullYear() + '-' + 
+                                             String(now.getMonth() + 1).padStart(2, '0') + '-' + 
+                                             String(now.getDate()).padStart(2, '0') + ' ' + 
+                                             String(now.getHours()).padStart(2, '0') + ':' + 
+                                             String(now.getMinutes()).padStart(2, '0') + ':' + 
+                                             String(now.getSeconds()).padStart(2, '0');
+                        timestampElement.textContent = 'Last updated: ' + formattedDate;
+                    }
+                } else {
+                    console.error('Error refreshing ASX 200 chart:', data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching ASX 200 intraday data:', error);
+            });
+    }
+    
     // ASX 200 tickers
 const asx200Tickers = "CBA.AX, BHP.AX, CSL.AX, NAB.AX, WBC.AX, WES.AX, ANZ.AX, MQG.AX, GMG.AX, TLS.AX, FMG.AX, RIO.AX, TCL.AX, WDS.AX, ALL.AX, WOW.AX, QBE.AX, SIG.AX, REA.AX, WTC.AX, BXB.AX, PME.AX, COL.AX, XRO.AX, NST.AX, CPU.AX, RMD.AX, SUN.AX, SGH.AX, STO.AX, IAG.AX, VAS.AX, FPH.AX, ORG.AX, SCG.AX, COH.AX, JHX.AX, EVN.AX, PMGOLD.AX, QAN.AX, ASX.AX, SOL.AX, CAR.AX, S32.AX, SGP.AX, MPL.AX, SHL.AX, AIA.AX, TLC.AX, JBH.AX, VGS.AX, TNE.AX, APA.AX, IVV.AX, VCX.AX, REH.AX, IFT.AX, BSL.AX, TPG.AX, AMC.AX, ORI.AX, GPT.AX, AFI.AX, MGR.AX, NEM.AX, TLX.AX, NXT.AX, ALQ.AX, CHC.AX, MCY.AX, RHC.AX, SEK.AX, DXS.AX, ALX.AX, NWL.AX, QUB.AX, MGOC.AX, EDV.AX, EBO.AX, A200.AX, QUAL.AX, LYC.AX, IOZ.AX, AGL.AX, TWE.AX, MEZ.AX, WOR.AX, ARG.AX, BEN.AX, GQG.AX, YAL.AX, HVN.AX, HUB.AX, SDF.AX, ALD.AX, NDQ.AX, CWY.AX, A2M.AX, STW.AX, DACE.AX, VTS.AX, 360.AX, AZJ.AX, BOQ.AX, GOLD.AX, CGF.AX, DNL.AX, VGAD.AX, SFR.AX, VHY.AX, MIN.AX, XYZ.AX, ANN.AX, PRU.AX, APE.AX, PNI.AX, PLS.AX, WHC.AX, DGCE.AX, GMD.AX, IOO.AX, AAA.AX, BKW.AX, BRG.AX, AUB.AX, LNW.AX, DOW.AX, VEU.AX, VNT.AX, LLC.AX, SPK.AX, CMM.AX, ETHI.AX, MTS.AX, GOR.AX, BFL.AX, RWC.AX, RRL.AX, HYGG.AX, PMV.AX, AMP.AX, NHF.AX, GYG.AX, CNU.AX, NSR.AX, FBU.AX, LOV.AX, DFGH.AX, SUL.AX, IGO.AX, VEA.AX, NHC.AX, CDA.AX, VAP.AX, BPT.AX, IAF.AX, RMS.AX, FLT.AX, SGM.AX, VAU.AX, VDHG.AX, NIC.AX, CLW.AX, MVW.AX, EMR.AX, DHG.AX, RGN.AX, AAI.AX, TUA.AX, VBND.AX, HDN.AX, ARB.AX, WAF.AX, BWP.AX, ZIP.AX, VAF.AX, SPR.AX, SNZ.AX, IEL.AX, IHVV.AX, MFF.AX, NABPH.AX, ORA.AX, EVT.AX, WGX.AX, NEC.AX, SUBD.AX, HBRD.AX, TPW.AX, INA.AX, REG.AX, DMP.AX, CEN.AX, HMC.AX, CIA.AX, GNE.AX, IFL.AX, PDN.AX, CQR.AX, PXA.AX";
 

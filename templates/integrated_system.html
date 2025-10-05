@@ -34,8 +34,20 @@
             <form action="/run_integrated_system" method="post">
                 <div class="form-group mb-3">
                     <label for="tickers"><strong>Enter Ticker Symbols</strong> (comma-separated):</label>
+                    <div class="stock-sets-container mb-2">
+                        <div class="d-flex flex-wrap gap-2">
+                            <button type="button" class="btn btn-sm btn-outline-primary stock-set-btn" data-stocks="BHP.AX, CBA.AX, CSL.AX, NAB.AX, WBC.AX, WES.AX, ANZ.AX, MQG.AX, WOW.AX, TLS.AX">Bluechip</button>
+                            <button type="button" class="btn btn-sm btn-outline-primary stock-set-btn" data-stocks="XRO.AX, WTC.AX, APX.AX, TNE.AX, CPU.AX, ALU.AX, MP1.AX, NXT.AX, 360.AX, TYR.AX">Tech</button>
+                            <button type="button" class="btn btn-sm btn-outline-primary stock-set-btn" data-stocks="CSL.AX, COH.AX, RMD.AX, SHL.AX, FPH.AX, MSB.AX, PRO.AX, RHC.AX, NAN.AX, MVP.AX">Healthcare</button>
+                            <button type="button" class="btn btn-sm btn-outline-primary stock-set-btn" data-stocks="BHP.AX, RIO.AX, FMG.AX, NCM.AX, S32.AX, MIN.AX, OZL.AX, LYC.AX, IGO.AX, SFR.AX">Mining</button>
+                            <button type="button" class="btn btn-sm btn-outline-primary stock-set-btn" data-stocks="APT.AX, Z1P.AX, IEL.AX, APX.AX, ALU.AX, EML.AX, NXT.AX, MP1.AX, PPH.AX, PNV.AX">Small Cap</button>
+                            <button type="button" class="btn btn-sm btn-outline-primary stock-set-btn" data-stocks="DRO.AX, EOS.AX, OEC.AX, XTE.AX, KSS.AX, QHL.AX, ADA.AX, CDA.AX, ECG.AX, SOR.AX">Defense</button>
+                            <button type="button" class="btn btn-sm btn-outline-primary stock-set-btn" data-stocks="CBA.AX, NAB.AX, WBC.AX, ANZ.AX, MQG.AX, BEN.AX, BOQ.AX, SUN.AX, QBE.AX, IAG.AX">Financial</button>
+                            <button type="button" class="btn btn-sm btn-outline-primary stock-set-btn" data-stocks="WPL.AX, STO.AX, ORG.AX, WDS.AX, BPT.AX, OSH.AX, KAR.AX, NHC.AX, WHC.AX, NUF.AX">Energy</button>
+                        </div>
+                    </div>
                     <input type="text" class="form-control" id="tickers" name="tickers" placeholder="BHP.AX, ASX.AX, CSL.AX, CBA.AX, WES.AX" required>
-                    <small class="form-text text-muted">For ASX stocks, use the format: APX.AX, WBC.AX, etc.</small>
+                    <small class="form-text text-muted">For ASX stocks, use the format: APX.AX, WBC.AX, etc. Or click a category button above to load a preset list.</small>
                 </div>
                 
                 <div class="form-group mb-3">
@@ -73,4 +85,30 @@
         <a href="/" class="btn btn-outline-primary">&larr; Back to Home</a>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Add event listeners to stock set buttons
+    document.addEventListener('DOMContentLoaded', function() {
+        const stockSetButtons = document.querySelectorAll('.stock-set-btn');
+        const tickersInput = document.getElementById('tickers');
+        
+        stockSetButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                // Get the stocks from the data-stocks attribute
+                const stocks = this.getAttribute('data-stocks');
+                
+                // Set the value of the input field
+                tickersInput.value = stocks;
+                
+                // Add active class to the clicked button and remove from others
+                stockSetButtons.forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                this.classList.add('active');
+            });
+        });
+    });
+</script>
 {% endblock %}

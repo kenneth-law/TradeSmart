@@ -58,6 +58,14 @@ body {
     margin-top: auto;
 }
 
+.disclaimer-text {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 0.85rem;
+    line-height: 1.4;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding-top: 0.75rem;
+}
+
 .card {
     border: none;
     border-radius: 10px;
@@ -93,8 +101,8 @@ body {
 }
 
 .btn-primary {
-    background-color: var(--secondary-color);
-    border-color: var(--secondary-color);
+    background-color: var(--accent-color);
+    border-color: var(--danger);
 }
 
 .btn-primary:hover {
@@ -104,6 +112,25 @@ body {
 
 .btn-outline-light:hover {
     color: var(--primary-color);
+}
+
+/* Override Bootstrap's primary color classes to use our primary color */
+.bg-primary {
+    background-color: var(--primary-color) !important;
+}
+
+.btn-outline-primary {
+    color: var(--primary-color) !important;
+    border-color: var(--primary-color) !important;
+}
+
+.btn-outline-primary:hover {
+    background-color: var(--primary-color) !important;
+    color: white !important;
+}
+
+.text-primary {
+    color: var(--primary-color) !important;
 }
 
 /* Strategy colors */
@@ -155,7 +182,30 @@ body {
 .metric-value {
     font-size: 2rem;
     font-weight: var(--font-bold);
-    margin: 0.5rem 0;
+}
+
+/* Stock set buttons styling */
+.stock-sets-container {
+    margin-top: 0.5rem;
+}
+
+.stock-set-btn {
+    font-size: 0.85rem;
+    padding: 0.3rem 0.7rem;
+    margin-right: 0.3rem;
+    margin-bottom: 0.3rem;
+    transition: all 0.2s ease;
+}
+
+.stock-set-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.stock-set-btn.active {
+    background-color: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
 }
 
 .metric-title {

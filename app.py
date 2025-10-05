@@ -26,7 +26,7 @@ from modules.utils import set_message_handler, log_message
 from modules.data_retrieval import get_stock_info, get_stock_history, get_yf_session
 from modules.technical_analysis import get_stock_data
 from modules.visualization import prepare_price_chart_data, get_detailed_stock_metrics
-from modules.market_data import get_sector_performance, get_live_market_data
+from modules.market_data import get_sector_performance, get_live_market_data, get_intraday_data
 
 from requests.cookies import create_cookie
 import yfinance.data as _data
@@ -198,7 +198,11 @@ def run_analysis_with_updates(tickers, analysis_id, message_queue):
 def index():
     # Get live market data for the homepage
     market_data = get_live_market_data()
-    return render_template('index.html', market_data=market_data)
+    
+    # Get intraday data for ASX 200 K chart
+    asx200_intraday = get_intraday_data("^AXJO", interval="15m", days=2)
+    
+    return render_template('index.html', market_data=market_data, asx200_intraday=asx200_intraday)
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
@@ -303,6 +307,16 @@ def api_price_history(ticker):
         return jsonify(chart_data)
     except Exception as e:
         return jsonify({"error": f"Error retrieving price history: {str(e)}", "dates": None}), 200
+
+@app.route('/api/asx200_intraday')
+def api_asx200_intraday():
+    """API endpoint to get ASX 200 intraday data for the K chart"""
+    try:
+        # Get intraday data for ASX 200
+        asx200_intraday = get_intraday_data("^AXJO", interval="15m", days=2)
+        return jsonify(asx200_intraday)
+    except Exception as e:
+        return jsonify({"error": str(e)})
 
 @app.route('/api/industry_peers/<ticker>')
 def api_industry_peers(ticker):

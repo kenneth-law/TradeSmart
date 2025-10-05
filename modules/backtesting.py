@@ -27,18 +27,21 @@ from modules.ml_scoring import score_stock_ml
 # Create cache directory for backtest results if it doesn't exist
 os.makedirs('cache/backtest_results', exist_ok=True)
 
+
 class TransactionCostModel:
-
-
-
     """
     Models realistic transaction costs including spread, market impact, and fees.
-    Costs are adjusted based on stock liquidity, volatility, and time of day.
+    Costs are adjusted based on stock liquidity, volatility, and trade size.
+
+    Based on typical ASX/US market conditions:
+    - Spreads: 0.01-0.15% for liquid stocks
+    - Market impact: ~0.01-0.10% for normal-sized trades
+    - Commission: Flat $5-15 per trade (or percentage for large trades)
     """
 
     def __init__(self, custom_transaction_cost=None):
         """
-        Initialize the transaction cost model with a flat rate commission or custom value.
+        Initialize the transaction cost model.
 
         Parameters:
             custom_transaction_cost (float, str): Optional transaction cost value. Can be:
@@ -47,10 +50,10 @@ class TransactionCostModel:
                 - None to use the default model with spread, impact, and flat commission
         """
         self.cost_mode = "default"
-        self.percentage_cost = 0.01  # Default 1% if percentage mode is used
-        self.fixed_cost = 10.0  # Default fixed cost if fixed mode is used
-        self.flat_commission = 10.0  # Default flat rate of $10 per transaction for default mode
-        
+        self.percentage_cost = 0.001  # Default 0.1% if percentage mode is used
+        self.fixed_cost = 10.0  # Default fixed cost
+        self.flat_commission = 10.0  # Default flat commission for default mode
+
         if custom_transaction_cost is not None:
             if isinstance(custom_transaction_cost, str) and "%" in custom_transaction_cost:
                 # Percentage-based cost
@@ -58,20 +61,23 @@ class TransactionCostModel:
                 try:
                     self.percentage_cost = float(custom_transaction_cost.strip("%")) / 100
                 except ValueError:
-                    # If conversion fails, use default 1%
-                    self.percentage_cost = 0.01
+                    self.percentage_cost = 0.001  # 0.1% default
             else:
                 # Fixed cost per transaction
                 self.cost_mode = "fixed"
                 try:
                     self.fixed_cost = float(custom_transaction_cost)
                 except (ValueError, TypeError):
-                    # If conversion fails, use default $10
                     self.fixed_cost = 10.0
 
     def estimate_spread(self, price, volume, volatility):
         """
         Estimate bid-ask spread based on price, volume, and volatility.
+
+        Realistic spreads for ASX/US markets:
+        - Large cap, high volume: 0.01-0.03%
+        - Mid cap, medium volume: 0.03-0.08%
+        - Small cap, low volume: 0.08-0.20%
 
         Parameters:
             price (float): Current stock price
@@ -81,26 +87,46 @@ class TransactionCostModel:
         Returns:
             float: Estimated spread as percentage of price
         """
-        # Base spread as function of price (higher for lower-priced stocks)
-        base_spread = 0.03 if price < 5 else 0.01 if price < 20 else 0.005
+        # Base spread by price tier (much more realistic)
+        if price < 1:
+            base_spread = 0.002  # 0.2% for penny stocks
+        elif price < 5:
+            base_spread = 0.0015  # 0.15%
+        elif price < 20:
+            base_spread = 0.0008  # 0.08%
+        elif price < 50:
+            base_spread = 0.0004  # 0.04%
+        else:
+            base_spread = 0.0002  # 0.02% for large caps
 
-        # Adjust for volume (higher spread for lower volume)
-        volume_factor = 1.0
-        if volume < 100000:
+        # Adjust for volume (realistic liquidity adjustment)
+        if volume < 50000:
+            volume_factor = 2.0  # Very illiquid
+        elif volume < 200000:
             volume_factor = 1.5
         elif volume < 500000:
             volume_factor = 1.2
         elif volume < 1000000:
-            volume_factor = 1.1
+            volume_factor = 1.05
+        else:
+            volume_factor = 1.0  # Liquid stocks
 
-        # Adjust for volatility (higher spread for more volatile stocks)
-        volatility_factor = 1.0 + (volatility / 15.0)
+        # Adjust for volatility (mild adjustment)
+        volatility_factor = 1.0 + (volatility / 50.0)  # Much less sensitive
 
-        return base_spread * volume_factor * volatility_factor
+        spread = base_spread * volume_factor * volatility_factor
+
+        # Cap maximum spread at 0.5%
+        return min(spread, 0.005)
 
     def estimate_market_impact(self, price, volume, trade_size):
         """
         Estimate market impact based on trade size relative to average volume.
+
+        Realistic impact for normal retail/small institutional trades:
+        - < 1% of daily volume: minimal impact (0-0.02%)
+        - 1-5% of daily volume: small impact (0.02-0.10%)
+        - > 5% of daily volume: moderate impact (0.10-0.30%)
 
         Parameters:
             price (float): Current stock price
@@ -110,23 +136,35 @@ class TransactionCostModel:
         Returns:
             float: Estimated market impact as percentage of price
         """
+        if volume <= 0:
+            return 0.001  # Minimal default impact
+
         # Calculate trade size as percentage of average daily volume
         trade_volume_pct = (trade_size / volume) * 100
 
-        # No impact for very small trades (less than 0.1% of daily volume)
-        if trade_volume_pct < 0.1:
+        # No meaningful impact for very small trades
+        if trade_volume_pct < 0.5:
             return 0.0
 
-        # Reduced square root model for market impact
-        impact = 0.05 * np.sqrt(trade_volume_pct / 20.0) if trade_volume_pct > 0 else 0
+        # Much more realistic square root model
+        # Impact = base_rate * sqrt(trade_pct)
+        if trade_volume_pct < 1.0:
+            impact = 0.0001 * np.sqrt(trade_volume_pct)  # < 0.01%
+        elif trade_volume_pct < 5.0:
+            impact = 0.0002 * np.sqrt(trade_volume_pct)  # ~0.01-0.05%
+        else:
+            impact = 0.0005 * np.sqrt(trade_volume_pct)  # ~0.05-0.20%
 
-        # Higher price stocks typically have lower impact
-        if price > 50:
-            impact *= 0.8
-        elif price > 100:
+        # Liquidity adjustment: larger stocks have less impact
+        if price > 100:
             impact *= 0.6
+        elif price > 50:
+            impact *= 0.75
+        elif price > 20:
+            impact *= 0.9
 
-        return min(impact, 0.5)  # Cap at 0.5%
+        # Cap maximum impact at 0.3%
+        return min(impact, 0.003)
 
     def calculate_transaction_cost(self, price, shares, volume, volatility, is_buy=True):
         """
@@ -140,39 +178,43 @@ class TransactionCostModel:
             is_buy (bool): True if buying, False if selling
 
         Returns:
-            tuple: (total_cost_dollars, total_cost_percentage)
+            float: total_cost_dollars (we don't need per-trade percentage)
         """
         transaction_value = price * shares
-        
+
         if self.cost_mode == "fixed":
-            # Fixed cost per transaction (not per share)
+            # Simple fixed cost per transaction
             total_cost_dollars = self.fixed_cost
+
         elif self.cost_mode == "percentage":
-            # Percentage of transaction value
+            # Simple percentage of transaction value
             total_cost_dollars = transaction_value * self.percentage_cost
+
         else:
-            # Default mode: Use realistic model with spread, impact, and commission
-            # Estimate spread
+            # Default mode: Realistic model with spread, impact, and commission
+
+            # 1. Half-spread cost (you cross the spread when trading)
             spread_pct = self.estimate_spread(price, volume, volatility)
-            spread_cost = price * spread_pct / 2  # Half spread for each side
+            spread_cost_per_share = price * spread_pct / 2  # Pay half the spread
 
-            # Estimate market impact
+            # 2. Market impact (permanent price movement)
             impact_pct = self.estimate_market_impact(price, volume, shares)
-            impact_cost = price * impact_pct
+            impact_cost_per_share = price * impact_pct
 
-            # Use flat rate commission
-            commission = self.flat_commission
+            # 3. Brokerage commission
+            # Use percentage-based commission for large trades, flat for small trades
+            if transaction_value > 25000:
+                # 0.1% for large trades (with minimum)
+                commission = max(self.flat_commission, transaction_value * 0.001)
+            else:
+                # Flat fee for smaller trades
+                commission = self.flat_commission
 
             # Total cost
-            total_cost_dollars = (spread_cost + impact_cost) * shares + commission
+            total_cost_dollars = (spread_cost_per_share + impact_cost_per_share) * shares + commission
 
-        # Avoid division by zero
-        if transaction_value > 0:
-            total_cost_percentage = (total_cost_dollars / transaction_value) * 100
-        else:
-            total_cost_percentage = 0.0
+        return total_cost_dollars
 
-        return total_cost_dollars, total_cost_percentage
 
 class BacktestResult:
     """
@@ -213,6 +255,7 @@ class BacktestResult:
 
         # Transaction costs
         self.total_transaction_costs = 0.0
+        self.total_traded_value = 0.0  # Track total value traded
         self.transaction_cost_percentage = 0.0
 
     def add_trade(self, date, ticker, action, price, shares, cost):
@@ -227,6 +270,8 @@ class BacktestResult:
             shares (int): Number of shares
             cost (float): Transaction cost in dollars
         """
+        trade_value = price * shares
+
         self.trades.append({
             'date': date,
             'ticker': ticker,
@@ -234,11 +279,12 @@ class BacktestResult:
             'price': price,
             'shares': shares,
             'cost': cost,
-            'value': price * shares,
-            'net_value': price * shares - cost
+            'value': trade_value,
+            'net_value': trade_value - cost
         })
 
         self.total_transaction_costs += cost
+        self.total_traded_value += trade_value  # Accumulate total traded value
 
     def update_equity(self, date, equity):
         """
@@ -284,7 +330,7 @@ class BacktestResult:
             self.total_return = 0.0
 
         # Annualized return
-        days = (datetime.strptime(self.end_date, '%Y-%m-%d') - 
+        days = (datetime.strptime(self.end_date, '%Y-%m-%d') -
                 datetime.strptime(self.start_date, '%Y-%m-%d')).days
         years = days / 365.0
         self.annualized_return = ((1 + self.total_return) ** (1 / years)) - 1 if years > 0 else 0
@@ -298,10 +344,12 @@ class BacktestResult:
         # Win rate based on complete round-trip trades
         self.win_rate = self.calculate_win_rate()
 
-        # Transaction cost percentage - Fix: use average portfolio value over the period
-        # Use average portfolio value for percentage calculation
-        total_portfolio_value = np.mean([e['equity'] for e in self.equity_curve]) if self.equity_curve else self.final_capital
-        self.transaction_cost_percentage = (self.total_transaction_costs / total_portfolio_value * 100) if total_portfolio_value > 0 else 0
+        # Calculate transaction cost as percentage of total traded value
+        # This is more meaningful than percentage of portfolio
+        if self.total_traded_value > 0:
+            self.transaction_cost_percentage = (self.total_transaction_costs / self.total_traded_value) * 100
+        else:
+            self.transaction_cost_percentage = 0.0
 
     def calculate_win_rate(self):
         """Calculate win rate based on complete round-trip trades"""
@@ -319,7 +367,8 @@ class BacktestResult:
                 # Match with oldest buy
                 buy_trade = positions[ticker].pop(0)
                 # Calculate profit/loss for this round-trip trade
-                pnl = (trade['price'] - buy_trade['price']) * min(trade['shares'], buy_trade['shares']) - (trade['cost'] + buy_trade['cost'])
+                pnl = (trade['price'] - buy_trade['price']) * min(trade['shares'], buy_trade['shares']) - (
+                            trade['cost'] + buy_trade['cost'])
                 completed_trades.append(pnl > 0)
 
         return sum(completed_trades) / len(completed_trades) if completed_trades else 0
@@ -350,11 +399,27 @@ class BacktestResult:
         report += f"Transaction Costs:\n"
         report += f"{'=' * 50}\n"
         report += f"Total Transaction Costs: ${self.total_transaction_costs:,.2f}\n"
-        report += f"Transaction Cost Percentage: {self.transaction_cost_percentage:.2%}\n\n"
+        report += f"Total Value Traded: ${self.total_traded_value:,.2f}\n"
+        report += f"Cost as % of Traded Value: {self.transaction_cost_percentage:.2f}%\n"
+
+        # Also show cost impact on returns
+        cost_impact_on_capital = (self.total_transaction_costs / self.initial_capital) * 100
+        report += f"Cost as % of Initial Capital: {cost_impact_on_capital:.2f}%\n\n"
 
         report += f"Trade Summary:\n"
         report += f"{'=' * 50}\n"
         report += f"Total Trades: {len(self.trades)}\n"
+
+        if self.trades:
+            buy_trades = sum(1 for t in self.trades if t['action'] == 'BUY')
+            sell_trades = sum(1 for t in self.trades if t['action'] == 'SELL')
+            avg_trade_size = self.total_traded_value / len(self.trades)
+            avg_cost_per_trade = self.total_transaction_costs / len(self.trades)
+
+            report += f"Buy Trades: {buy_trades}\n"
+            report += f"Sell Trades: {sell_trades}\n"
+            report += f"Average Trade Size: ${avg_trade_size:,.2f}\n"
+            report += f"Average Cost per Trade: ${avg_cost_per_trade:.2f}\n"
 
         return report
 
@@ -551,9 +616,9 @@ class Backtester:
 
                         shares = int(cash_to_use / price)
 
-                        if shares > 0:  # Don't need the cash check anymore
-                            # Calculate transaction cost
-                            cost, cost_pct = self.transaction_cost_model.calculate_transaction_cost(
+                        if shares > 0:
+                            # Calculate transaction cost (now returns single value)
+                            cost = self.transaction_cost_model.calculate_transaction_cost(
                                 price, shares, volume, volatility, is_buy=True
                             )
 
@@ -587,8 +652,8 @@ class Backtester:
                         shares_to_sell = int(position['shares'] * signal.get('size', 1.0))  # Default sell all
 
                         if shares_to_sell > 0:
-                            # Calculate transaction cost
-                            cost, cost_pct = self.transaction_cost_model.calculate_transaction_cost(
+                            # Calculate transaction cost (now returns single value)
+                            cost = self.transaction_cost_model.calculate_transaction_cost(
                                 price, shares_to_sell, volume, volatility, is_buy=False
                             )
 

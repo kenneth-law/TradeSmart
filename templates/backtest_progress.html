@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% block title %}Running Backtest{% endblock %}
+
+{% block extra_css %}
+<style>
+    .terminal {
+        background-color: #000;
+        color: #00ff00;
+        font-family: 'Courier New', monospace;
+        padding: 15px;
+        border-radius: 5px;
+        height: 700px;
+        overflow-y: auto;
+        margin-bottom: 20px;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+    }
+    
+    .dark-mode .terminal {
+        background-color: #1a1a1a;
+        border: 1px solid #333;
+    }
+    
+    .progress {
+        height: 25px;
+    }
+    
+    .blink {
+        animation: blink-animation 1s steps(5, start) infinite;
+    }
+    
+    @keyframes blink-animation {
+        to {
+            visibility: hidden;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-4">Running Backtesting System</h1>
+    
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Backtest Progress</h5>
+        </div>
+        <div class="card-body">
+            <div class="progress mb-3">
+                <div id="progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+            </div>
+            
+            <div class="terminal" id="console-output">
+                > Initializing backtesting system...<span class="blink">_</span>
+            </div>
+            
+            <div class="text-center" id="status-message">
+                <p>Please wait while the system processes your backtest. This may take a few moments.</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="mt-4 text-center">
+        <a href="/backtest" class="btn btn-outline-secondary">Cancel and Return</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const progressBar = document.getElementById('progress-bar');
+        const consoleOutput = document.getElementById('console-output');
+        const statusMessage = document.getElementById('status-message');
+        
+        // Get the backtest_id from the URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const backtestId = urlParams.get('backtest_id');
+        
+        if (!backtestId) {
+            consoleOutput.innerHTML += "\n> ERROR: No backtest ID provided. Redirecting back to form...";
+            setTimeout(() => {
+                window.location.href = '/backtest';
+            }, 3000);
+            return;
+        }
+        
+        // Connect to the SSE endpoint
+        const eventSource = new EventSource(`/backtest_progress_stream?backtest_id=${backtestId}`);
+        
+        eventSource.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            
+            // Update console output if there's a message
+            if (data.message) {
+                consoleOutput.innerHTML += "\n> " + data.message;
+                consoleOutput.scrollTop = consoleOutput.scrollHeight;
+            }
+            
+            // Update progress bar if there's progress
+            if (data.progress !== undefined) {
+                const progress = data.progress;
+                progressBar.style.width = `${progress}%`;
+                progressBar.setAttribute('aria-valuenow', progress);
+                progressBar.textContent = `${progress}%`;
+            }
+            
+            // Handle status updates
+            if (data.status) {
+                if (data.status === 'complete') {
+                    // Close the event source
+                    eventSource.close();
+                    
+                    // Update status message
+                    statusMessage.innerHTML = '<p class="text-success">Backtest complete! Redirecting to results...</p>';
+                    
+                    // Redirect to results page
+                    setTimeout(() => {
+                        window.location.href = `/backtest_results?backtest_id=${backtestId}`;
+                    }, 2000);
+                } else if (data.status === 'error') {
+                    // Close the event source
+                    eventSource.close();
+                    
+                    // Update status message
+                    statusMessage.innerHTML = `<p class="text-danger">Error: ${data.message}</p>`;
+                    
+                    // Redirect if there's a redirect URL
+                    if (data.redirect_url) {
+                        setTimeout(() => {
+                            window.location.href = data.redirect_url;
+                        }, 3000);
+                    }
+                }
+            }
+        };
+        
+        eventSource.onerror = function() {
+            consoleOutput.innerHTML += "\n> ERROR: Connection to server lost. Please try again.";
+            eventSource.close();
+        };
+    });
+</script>
+{% endblock %}

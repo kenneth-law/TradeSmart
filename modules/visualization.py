@@ -71,8 +71,8 @@ def get_detailed_stock_metrics(stock_data):
     if not stock_data:
         return {"error": "No stock data provided"}
     
-    # Extract key metrics
-    metrics = {
+    # Extract key metrics in the original structure
+    metrics_original = {
         "ticker": stock_data.get('ticker', ''),
         "company_name": stock_data.get('company_name', ''),
         "current_price": stock_data.get('current_price', 0),
@@ -113,7 +113,40 @@ def get_detailed_stock_metrics(stock_data):
     
     # Calculate score contributions
     score_contributions = calculate_score_contribution(stock_data)
-    metrics["score_contributions"] = score_contributions
+    metrics_original["score_contributions"] = score_contributions
+    
+    # Create the structure expected by the template
+    metrics = {
+        # Keep the original structure
+        **metrics_original,
+        
+        # Add the structure expected by the template
+        "Technical Indicators": {
+            "RSI (7-day)": f"{stock_data.get('rsi7', 0):.2f}",
+            "RSI (14-day)": f"{stock_data.get('rsi14', 0):.2f}",
+            "MACD": f"{stock_data.get('macd', 0):.4f}",
+            "MACD Signal": f"{stock_data.get('macd_signal', 0):.4f}",
+            "MACD Histogram": f"{stock_data.get('macd_hist', 0):.4f}",
+            "MACD Trend": stock_data.get('macd_trend', 'neutral').capitalize(),
+            "Bollinger Position": f"{stock_data.get('bb_position', 0):.2f}",
+            "Above MA5": "Yes" if stock_data.get('above_ma5', False) else "No",
+            "Above MA20": "Yes" if stock_data.get('above_ma20', False) else "No"
+        },
+        "Volatility Metrics": {
+            "ATR": f"${stock_data.get('atr', 0):.2f}",
+            "ATR %": f"{stock_data.get('atr_pct', 0):.2f}%",
+            "Avg Intraday Range": f"{stock_data.get('avg_intraday_range', 0):.2f}%",
+            "Gap Ups (5d)": stock_data.get('gap_ups_5d', 0),
+            "Gap Downs (5d)": stock_data.get('gap_downs_5d', 0)
+        },
+        "Performance Metrics": {
+            "1-Day Return": f"{stock_data.get('return_1d', 0):.2f}%",
+            "3-Day Return": f"{stock_data.get('return_3d', 0):.2f}%",
+            "5-Day Return": f"{stock_data.get('return_5d', 0):.2f}%",
+            "Volume Ratio": f"{stock_data.get('volume_ratio', 0):.2f}x",
+            "News Sentiment": f"{stock_data.get('news_sentiment_label', 'Neutral')} ({stock_data.get('news_sentiment_score', 0):.2f})"
+        }
+    }
     
     return metrics
 

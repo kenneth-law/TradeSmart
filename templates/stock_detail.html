@@ -31,6 +31,7 @@
                     <div class="metric-value {% if stock.day_trading_score >= 70 %}text-success{% elif stock.day_trading_score >= 45 %}text-warning{% else %}text-danger{% endif %}">
                         {{ "%.1f"|format(stock.day_trading_score) }}/100
                     </div>
+                    <div id="scoreGauge" style="height: 200px;"></div>
                 </div>
             </div>
             <div class="col-md-6 col-lg-3 mb-3">
@@ -126,6 +127,16 @@
     {% endfor %}
 </div>
 
+<!-- Performance Radar Chart -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="fas fa-chart-radar me-2"></i>Performance Metrics</h5>
+    </div>
+    <div class="card-body">
+        <div id="radarChart" style="height: 400px;"></div>
+    </div>
+</div>
+
 <!-- Price Chart -->
 <div class="card mb-4">
     <div class="card-header">
@@ -178,16 +189,17 @@
 
 {% block extra_js %}
 <script>
-    // Render the radar chart from JSON data
-    const radarChartData = JSON.parse('{{ charts.radar|safe }}');
-    Plotly.newPlot('radarChart', radarChartData.data, radarChartData.layout);
-    
-    // Render the score gauge from JSON data
-    const scoreGaugeData = JSON.parse('{{ charts.score_gauge|safe }}');
-    Plotly.newPlot('scoreGauge', scoreGaugeData.data, scoreGaugeData.layout);
-    
-    // Create a price chart
+    // Create all charts when DOM is loaded
     document.addEventListener('DOMContentLoaded', function() {
+        // Render the radar chart from JSON data
+        const radarChartData = JSON.parse('{{ charts.radar|safe }}');
+        Plotly.newPlot('radarChart', radarChartData.data, radarChartData.layout);
+        
+        // Render the score gauge from JSON data
+        const scoreGaugeData = JSON.parse('{{ charts.score_gauge|safe }}');
+        Plotly.newPlot('scoreGauge', scoreGaugeData.data, scoreGaugeData.layout);
+        
+        // Create a price chart
         fetch(`/api/stock_price_history/{{ stock.ticker }}`)
             .then(response => response.json())
             .then(data => {

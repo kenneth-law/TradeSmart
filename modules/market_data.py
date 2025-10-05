@@ -12,6 +12,126 @@ from bs4 import BeautifulSoup
 from modules.data_retrieval import get_stock_history, get_stock_info
 from modules.utils import log_message
 
+def check_market_data_api_status():
+    """
+    Checks if the market data API is accessible by attempting to retrieve
+    data for a major index.
+    
+    Returns:
+        dict: Dictionary containing API status information
+        {
+            'status': bool,  # True if API is accessible, False otherwise
+            'message': str,  # Status message
+            'timestamp': str  # Timestamp of the check
+        }
+    """
+    try:
+        # Try to get data for S&P 500 ETF (SPY) as a test
+        test_ticker = "SPY"
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=1)  # Just need 1 day of data to test
+        
+        # Format dates
+        start_date_str = start_date.strftime('%Y-%m-%d')
+        end_date_str = end_date.strftime('%Y-%m-%d')
+        
+        # Attempt to get historical data
+        hist = get_stock_history(test_ticker, start_date_str, end_date_str, "1d")
+        
+        # If we got data, the API is working
+        if len(hist) > 0:
+            return {
+                'status': True,
+                'message': 'Market data API is accessible',
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            }
+        else:
+            return {
+                'status': False,
+                'message': 'Market data API returned empty data',
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            }
+    except Exception as e:
+        # If there was an error, the API is not working
+        return {
+            'status': False,
+            'message': f'Error accessing market data API: {str(e)}',
+            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        }
+
+def get_live_market_data():
+    """
+    Retrieves live market data for major indices.
+    
+    Returns:
+        dict: Dictionary containing live market data
+    """
+    try:
+        # Define major indices to track
+        indices = {
+            "^GSPC": "S&P 500",
+            "^DJI": "Dow Jones",
+            "^IXIC": "NASDAQ",
+            "^FTSE": "FTSE 100",
+            "^N225": "Nikkei 225",
+            "^AXJO": "ASX 200",
+            "^AORD": "ASX 500",
+            "^AP": "ASX Futures"
+        }
+        
+        # Get data for each index
+        indices_data = []
+        
+        for ticker, index_name in indices.items():
+            try:
+                # Get historical data for today and yesterday
+                end_date = datetime.now()
+                start_date = end_date - timedelta(days=2)  # 2 days to ensure we have yesterday's data
+                
+                # Format dates
+                start_date_str = start_date.strftime('%Y-%m-%d')
+                end_date_str = end_date.strftime('%Y-%m-%d')
+                
+                # Get historical data
+                hist = get_stock_history(ticker, start_date_str, end_date_str, "1d")
+                
+                if len(hist) > 0:
+                    # Calculate values
+                    current_price = hist['Close'].iloc[-1]
+                    prev_day_price = hist['Close'].iloc[-2] if len(hist) > 1 else hist['Close'].iloc[0]
+                    
+                    day_change = current_price - prev_day_price
+                    day_change_pct = ((current_price / prev_day_price) - 1) * 100
+                    
+                    indices_data.append({
+                        "ticker": ticker,
+                        "name": index_name,
+                        "current_price": current_price,
+                        "day_change": day_change,
+                        "day_change_pct": day_change_pct
+                    })
+            except Exception as e:
+                log_message(f"Error retrieving data for index {ticker}: {str(e)}")
+                continue
+        
+        # Check API status
+        api_status = check_market_data_api_status()
+        
+        return {
+            "indices": indices_data,
+            "api_status": api_status,
+            "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        }
+    except Exception as e:
+        return {
+            "error": str(e),
+            "api_status": {
+                'status': False,
+                'message': f'Error: {str(e)}',
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            }
+        }
+
 def get_sector_performance():
     """
     Retrieves and analyzes sector performance data.

@@ -26,7 +26,7 @@ from modules.utils import set_message_handler, log_message
 from modules.data_retrieval import get_stock_info, get_stock_history, get_yf_session
 from modules.technical_analysis import get_stock_data
 from modules.visualization import prepare_price_chart_data, get_detailed_stock_metrics
-from modules.market_data import get_sector_performance
+from modules.market_data import get_sector_performance, get_live_market_data
 
 from requests.cookies import create_cookie
 import yfinance.data as _data
@@ -196,7 +196,9 @@ def run_analysis_with_updates(tickers, analysis_id, message_queue):
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    # Get live market data for the homepage
+    market_data = get_live_market_data()
+    return render_template('index.html', market_data=market_data)
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
@@ -289,12 +291,18 @@ def stock_detail(ticker):
 
 @app.route('/api/stock_price_history/<ticker>')
 def api_price_history(ticker):
-
     """API endpoint to get price history for charts"""
-    chart_data = prepare_price_chart_data(ticker)
-    if not chart_data:
-        return jsonify({"error": "Failed to retrieve price history"}), 404
-    return jsonify(chart_data)
+    try:
+        chart_data = prepare_price_chart_data(ticker)
+        
+        # Check if chart_data contains an error
+        if not chart_data or "error" in chart_data:
+            error_message = chart_data.get("error", "Failed to retrieve price history") if chart_data else "Failed to retrieve price history"
+            return jsonify({"error": error_message, "dates": None}), 200  # Return 200 with error message for better client handling
+        
+        return jsonify(chart_data)
+    except Exception as e:
+        return jsonify({"error": f"Error retrieving price history: {str(e)}", "dates": None}), 200
 
 @app.route('/api/industry_peers/<ticker>')
 def api_industry_peers(ticker):
@@ -843,7 +851,7 @@ def create_analysis_charts(df, session_folder):
 def create_stock_detail_charts(stock_data):
     charts = {}
 
-    # 1. Radar Chart of Key Metrics
+    # Radar Chart of Key Metrics
     categories = ['technical_score', 'volatility_score', 'news_sentiment_score_normalized',
                 'gap_score', 'volume_score']
     values = [stock_data[c] for c in categories]
@@ -865,25 +873,6 @@ def create_stock_detail_charts(stock_data):
         title=f"Performance Metrics for {stock_data['ticker']}"
     )
     charts['radar'] = plotly.utils.PlotlyJSONEncoder().encode(fig)
-
-    # 2. Technical Indicators Gauge
-    fig = go.Figure(go.Indicator(
-        mode = "gauge+number",
-        value = stock_data['day_trading_score'],
-        title = {'text': "Day Trading Score"},
-        gauge = {
-            'axis': {'range': [0, 100]},
-            'bar': {'color': "darkblue"},
-            'steps': [
-                {'range': [0, 35], 'color': "red"},
-                {'range': [35, 45], 'color': "orange"},
-                {'range': [45, 60], 'color': "yellow"},
-                {'range': [60, 70], 'color': "lightgreen"},
-                {'range': [70, 100], 'color': "green"}
-            ]
-        }
-    ))
-    charts['score_gauge'] = plotly.utils.PlotlyJSONEncoder().encode(fig)
 
     return charts
 

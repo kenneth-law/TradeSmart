@@ -28,10 +28,9 @@
             <div class="col-md-6 col-lg-3 mb-3">
                 <div class="metric-card">
                     <div class="metric-title">Day Trading Score</div>
-                    <div class="metric-value {% if stock.day_trading_score >= 70 %}text-success{% elif stock.day_trading_score >= 45 %}text-warning{% else %}text-danger{% endif %}">
+                    <div class="metric-value {% if stock.day_trading_score >= 70 %}text-success{% elif stock.day_trading_score >= 45 %}text-warning{% else %}text-danger{% endif %}" style="font-size: 2.5rem; margin: 1rem 0;">
                         {{ "%.1f"|format(stock.day_trading_score) }}/100
                     </div>
-                    <div id="scoreGauge" style="height: 200px;"></div>
                 </div>
             </div>
             <div class="col-md-6 col-lg-3 mb-3">
@@ -195,16 +194,31 @@
         const radarChartData = JSON.parse('{{ charts.radar|safe }}');
         Plotly.newPlot('radarChart', radarChartData.data, radarChartData.layout);
         
-        // Render the score gauge from JSON data
-        const scoreGaugeData = JSON.parse('{{ charts.score_gauge|safe }}');
-        Plotly.newPlot('scoreGauge', scoreGaugeData.data, scoreGaugeData.layout);
-        
         // Create a price chart
         fetch(`/api/stock_price_history/{{ stock.ticker }}`)
             .then(response => response.json())
             .then(data => {
-                if (!data || !data.dates) {
-                    document.getElementById('priceChart').innerHTML = 'No price data available';
+                // Check for error in the response
+                if (data.error) {
+                    console.error('API error:', data.error);
+                    document.getElementById('priceChart').innerHTML = `
+                        <div class="alert alert-warning text-center">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            ${data.error}
+                            <div class="mt-2">
+                                <small>This may be due to temporary API limitations or connectivity issues.</small>
+                            </div>
+                        </div>`;
+                    return;
+                }
+                
+                // Check if we have valid data
+                if (!data || !data.dates || data.dates.length === 0) {
+                    document.getElementById('priceChart').innerHTML = `
+                        <div class="alert alert-warning text-center">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            No price data available for this stock.
+                        </div>`;
                     return;
                 }
                 
@@ -268,7 +282,14 @@
             })
             .catch(error => {
                 console.error('Error fetching price history:', error);
-                document.getElementById('priceChart').innerHTML = 'Failed to load price data';
+                document.getElementById('priceChart').innerHTML = `
+                    <div class="alert alert-danger text-center">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        Failed to load price data
+                        <div class="mt-2">
+                            <small>Please try again later or contact support if the issue persists.</small>
+                        </div>
+                    </div>`;
             });
             
         // Load peer comparison data

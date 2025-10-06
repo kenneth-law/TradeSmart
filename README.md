@@ -42,6 +42,15 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE]([LICEN
 - **Detailed Stock Information**: Provides in-depth analysis of individual stocks
 - **News Sentiment Analysis**: Incorporates news sentiment into the analysis
 - **Data Export**: Allows downloading analysis results as CSV
+- **Security Features**: Implements input validation, rate limiting, and protection against malicious requests
+
+## Security Features
+
+- **Input Validation**: Validates ticker symbols using regex pattern matching to prevent injection attacks
+- **Request Rate Limiting**: Limits the number of requests from a single IP address to prevent DoS attacks
+- **Ticker Quantity Limits**: Restricts the maximum number of tickers per request to 20 to prevent resource exhaustion
+- **Error Handling**: Provides clear error messages without exposing sensitive system information
+- **Sanitized Input Processing**: Ensures all user input is properly validated before processing
 
 ## Technical Indicators Used
 

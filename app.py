@@ -13,6 +13,9 @@ import re
 import time
 import threading
 import queue
+import ipaddress
+from collections import defaultdict
+from functools import wraps
 from flask import Flask, render_template, request, jsonify, redirect, url_for, Response
 from threading import Thread
 from queue import Queue
@@ -33,6 +36,74 @@ import yfinance.data as _data
 
 
 app = Flask(__name__)
+
+# Rate limiting configuration
+RATE_LIMIT_WINDOW = 60  # seconds
+RATE_LIMIT_MAX_REQUESTS = 10  # max requests per window
+rate_limit_data = defaultdict(list)  # IP -> list of timestamps
+
+# Ticker validation configuration
+MAX_TICKERS = 20  # Maximum number of tickers allowed per request
+TICKER_PATTERN = re.compile(r'^[A-Za-z0-9\.\-]{1,10}$')  # Basic pattern for ticker symbols
+
+def validate_tickers(tickers):
+    """
+    Validate a list of ticker symbols.
+
+    Parameters:
+        tickers (list): List of ticker symbols to validate
+
+    Returns:
+        tuple: (valid_tickers, error_message)
+    """
+    if not tickers:
+        return [], "No ticker symbols provided"
+
+    if len(tickers) > MAX_TICKERS:
+        return [], f"Too many tickers. Maximum allowed is {MAX_TICKERS}"
+
+    valid_tickers = []
+    invalid_tickers = []
+
+    for ticker in tickers:
+        # Check if ticker matches the allowed pattern
+        if TICKER_PATTERN.match(ticker):
+            valid_tickers.append(ticker)
+        else:
+            invalid_tickers.append(ticker)
+
+    if invalid_tickers:
+        error_message = f"Invalid ticker format: {', '.join(invalid_tickers)}"
+        return valid_tickers, error_message
+
+    return valid_tickers, None
+
+def rate_limit(f):
+    """
+    Decorator to apply rate limiting to routes.
+    """
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        # Get client IP
+        client_ip = request.remote_addr
+
+        # Clean up old timestamps
+        current_time = time.time()
+        rate_limit_data[client_ip] = [ts for ts in rate_limit_data[client_ip] 
+                                     if current_time - ts < RATE_LIMIT_WINDOW]
+
+        # Check if rate limit exceeded
+        if len(rate_limit_data[client_ip]) >= RATE_LIMIT_MAX_REQUESTS:
+            return render_template('error.html', 
+                                  error=f"Rate limit exceeded. Please try again in {RATE_LIMIT_WINDOW} seconds."), 429
+
+        # Add current timestamp
+        rate_limit_data[client_ip].append(current_time)
+
+        # Call the original function
+        return f(*args, **kwargs)
+
+    return decorated_function
 
 
 analysis_progress = {}
@@ -205,14 +276,21 @@ def index():
     return render_template('index.html', market_data=market_data, asx200_intraday=asx200_intraday)
 
 @app.route('/analyze', methods=['POST'])
+@rate_limit
 def analyze():
     """Handle form submission and display results using the integrated trading system"""
     # Get ticker symbols from form
     ticker_input = request.form.get('tickers', '')
-    tickers = [ticker.strip() for ticker in ticker_input.split(',') if ticker.strip()]
+    raw_tickers = [ticker.strip() for ticker in ticker_input.split(',') if ticker.strip()]
+
+    # Validate tickers
+    tickers, error = validate_tickers(raw_tickers)
+
+    if error:
+        return render_template('index.html', error=error)
 
     if not tickers:
-        return render_template('index.html', error="Please enter at least one ticker symbol")
+        return render_template('index.html', error="Please enter at least one valid ticker symbol")
 
     # For form submissions without JS, run analysis directly
     # For JS-enabled clients, analysis would have already run via SSE
@@ -576,14 +654,21 @@ def integrated_results():
     return render_template('integrated_results.html', **template_data)
 
 @app.route('/run_integrated_system', methods=['POST'])
+@rate_limit
 def run_integrated_system():
     """Run the integrated trading system with the provided tickers"""
     # Get ticker symbols from form
     ticker_input = request.form.get('tickers', '')
-    tickers = [ticker.strip() for ticker in ticker_input.split(',') if ticker.strip()]
+    raw_tickers = [ticker.strip() for ticker in ticker_input.split(',') if ticker.strip()]
+
+    # Validate tickers
+    tickers, error = validate_tickers(raw_tickers)
+
+    if error:
+        return render_template('integrated_system.html', error=error)
 
     if not tickers:
-        return render_template('integrated_system.html', error="Please enter at least one ticker symbol")
+        return render_template('integrated_system.html', error="Please enter at least one valid ticker symbol")
 
     # Get options
     use_ml = request.form.get('use_ml', 'true') == 'true'
@@ -742,14 +827,21 @@ def run_backtest_with_updates(tickers, strategy, start_date, end_date, days, cus
         })
 
 @app.route('/run_backtest', methods=['POST'])
+@rate_limit
 def run_backtest():
     """Run a backtest with the provided parameters"""
     # Get ticker symbols from form
     ticker_input = request.form.get('tickers', '')
-    tickers = [ticker.strip() for ticker in ticker_input.split(',') if ticker.strip()]
+    raw_tickers = [ticker.strip() for ticker in ticker_input.split(',') if ticker.strip()]
+
+    # Validate tickers
+    tickers, error = validate_tickers(raw_tickers)
+
+    if error:
+        return render_template('backtest.html', error=error)
 
     if not tickers:
-        return render_template('backtest.html', error="Please enter at least one ticker symbol")
+        return render_template('backtest.html', error="Please enter at least one valid ticker symbol")
 
     # Get backtest parameters
     strategy = request.form.get('strategy', 'ml')

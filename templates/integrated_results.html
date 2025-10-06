@@ -215,6 +215,35 @@
             </div>
         </div>
         {% endif %}
+
+        {% if 'gbdt_tree' in charts %}
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">GBDT Tree Visualization</h5>
+                </div>
+                <div class="card-body">
+                    <iframe src="/static/sessions/{{ session_id }}/{{ charts.gbdt_tree }}" width="100%" height="400" frameborder="0"></iframe>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if 'gbdt_trees_animation' in charts %}
+        <div class="col-md-12 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">GBDT Trees Animation</h5>
+                </div>
+                <div class="card-body">
+                    <iframe src="/static/sessions/{{ session_id }}/{{ charts.gbdt_trees_animation }}" width="100%" height="500" frameborder="0"></iframe>
+                </div>
+                <div class="card-footer">
+                    <small class="text-muted">Use the slider to navigate between trees or click Play to animate. This visualization shows how the GBDT model makes decisions through multiple trees.</small>
+                </div>
+            </div>
+        </div>
+        {% endif %}
     </div>
 
     <!-- Actions -->

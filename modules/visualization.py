@@ -253,3 +253,278 @@ def get_stock_comparison_data(ticker_symbols, metric='day_trading_score'):
         comparison_data["colors"].append(color)
 
     return comparison_data
+
+def create_gbdt_tree_visualization(model, feature_names, output_folder, max_trees=5):
+    """
+    Creates visualizations for GBDT trees.
+
+    Parameters:
+        model: Trained GBDT model (GradientBoostingRegressor or GradientBoostingClassifier)
+        feature_names (list): List of feature names
+        output_folder (str): Folder to save the visualizations
+        max_trees (int): Maximum number of trees to visualize
+
+    Returns:
+        dict: Dictionary with filenames of created visualizations
+    """
+    if not hasattr(model, 'estimators_'):
+        return {"error": "Model is not a gradient boosted tree model"}
+
+    # Create output folder if it doesn't exist
+    os.makedirs(output_folder, exist_ok=True)
+
+    # Dictionary to store visualization filenames
+    visualizations = {}
+
+    # Create a visualization for a single tree (the first one)
+    tree_idx = 0
+    estimator = model.estimators_[0, 0]  # First tree in the ensemble
+
+    # Create a Plotly figure for the tree
+    tree_data = export_tree_to_plotly(estimator, feature_names)
+
+    # Create a tree visualization
+    fig = go.Figure(data=[go.Scatter(
+        x=tree_data['x'],
+        y=tree_data['y'],
+        mode='markers+text',
+        marker=dict(
+            size=20,
+            color=tree_data['colors'],
+            line=dict(width=2, color='DarkSlateGrey')
+        ),
+        text=tree_data['labels'],
+        textposition="middle center",
+        hoverinfo='text',
+        hovertext=tree_data['hover_text']
+    )])
+
+    # Add edges (connections between nodes)
+    for edge in tree_data['edges']:
+        fig.add_shape(
+            type="line",
+            x0=edge['x0'], y0=edge['y0'],
+            x1=edge['x1'], y1=edge['y1'],
+            line=dict(color="RoyalBlue", width=1)
+        )
+
+    # Update layout
+    fig.update_layout(
+        title=f"GBDT Tree Visualization (Tree #{tree_idx})",
+        showlegend=False,
+        hovermode='closest',
+        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        plot_bgcolor='white'
+    )
+
+    # Save the figure
+    tree_file = "gbdt_tree.html"
+    fig.write_html(os.path.join(output_folder, tree_file))
+    visualizations['tree'] = tree_file
+
+    # Create an animation of multiple trees
+    num_trees = min(max_trees, len(model.estimators_))
+
+    # Prepare data for animation
+    frames = []
+    for i in range(num_trees):
+        estimator = model.estimators_[i, 0]
+        tree_data = export_tree_to_plotly(estimator, feature_names)
+
+        # Create a frame for this tree
+        frame = go.Frame(
+            data=[go.Scatter(
+                x=tree_data['x'],
+                y=tree_data['y'],
+                mode='markers+text',
+                marker=dict(
+                    size=20,
+                    color=tree_data['colors'],
+                    line=dict(width=2, color='DarkSlateGrey')
+                ),
+                text=tree_data['labels'],
+                textposition="middle center",
+                hoverinfo='text',
+                hovertext=tree_data['hover_text']
+            )],
+            name=f"Tree {i}"
+        )
+        frames.append(frame)
+
+    # Create the base figure for animation
+    tree_data = export_tree_to_plotly(model.estimators_[0, 0], feature_names)
+
+    fig = go.Figure(
+        data=[go.Scatter(
+            x=tree_data['x'],
+            y=tree_data['y'],
+            mode='markers+text',
+            marker=dict(
+                size=20,
+                color=tree_data['colors'],
+                line=dict(width=2, color='DarkSlateGrey')
+            ),
+            text=tree_data['labels'],
+            textposition="middle center",
+            hoverinfo='text',
+            hovertext=tree_data['hover_text']
+        )],
+        frames=frames
+    )
+
+    # Add slider and buttons for animation
+    fig.update_layout(
+        title="GBDT Trees Animation",
+        updatemenus=[{
+            "buttons": [
+                {
+                    "args": [None, {"frame": {"duration": 1000, "redraw": True}, "fromcurrent": True}],
+                    "label": "Play",
+                    "method": "animate"
+                },
+                {
+                    "args": [[None], {"frame": {"duration": 0, "redraw": True}, "mode": "immediate", "transition": {"duration": 0}}],
+                    "label": "Pause",
+                    "method": "animate"
+                }
+            ],
+            "direction": "left",
+            "pad": {"r": 10, "t": 87},
+            "showactive": False,
+            "type": "buttons",
+            "x": 0.1,
+            "xanchor": "right",
+            "y": 0,
+            "yanchor": "top"
+        }],
+        sliders=[{
+            "active": 0,
+            "yanchor": "top",
+            "xanchor": "left",
+            "currentvalue": {
+                "font": {"size": 16},
+                "prefix": "Tree: ",
+                "visible": True,
+                "xanchor": "right"
+            },
+            "transition": {"duration": 300, "easing": "cubic-in-out"},
+            "pad": {"b": 10, "t": 50},
+            "len": 0.9,
+            "x": 0.1,
+            "y": 0,
+            "steps": [
+                {
+                    "args": [
+                        [f"Tree {i}"],
+                        {"frame": {"duration": 300, "redraw": True}, "mode": "immediate", "transition": {"duration": 300}}
+                    ],
+                    "label": f"{i}",
+                    "method": "animate"
+                } for i in range(num_trees)
+            ]
+        }],
+        showlegend=False,
+        hovermode='closest',
+        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        plot_bgcolor='white'
+    )
+
+    # Save the animation
+    animation_file = "gbdt_trees_animation.html"
+    fig.write_html(os.path.join(output_folder, animation_file))
+    visualizations['animation'] = animation_file
+
+    return visualizations
+
+def export_tree_to_plotly(tree, feature_names):
+    """
+    Exports a decision tree to a format suitable for Plotly visualization.
+
+    Parameters:
+        tree: A decision tree estimator
+        feature_names (list): List of feature names
+
+    Returns:
+        dict: Dictionary with tree data for Plotly
+    """
+    # Get tree structure
+    n_nodes = tree.tree_.node_count
+    children_left = tree.tree_.children_left
+    children_right = tree.tree_.children_right
+    feature = tree.tree_.feature
+    threshold = tree.tree_.threshold
+    value = tree.tree_.value
+
+    # Initialize lists to store node positions and labels
+    x = []
+    y = []
+    labels = []
+    hover_text = []
+    colors = []
+    edges = []
+
+    # Function to recursively compute node positions
+    def add_node(node_id, depth, parent_x=None, parent_y=None, is_left=True):
+        if node_id == -1:  # Leaf node
+            return
+
+        # Compute x position based on tree structure
+        if parent_x is None:  # Root node
+            pos_x = 0
+        else:
+            # Spread nodes horizontally based on depth
+            spread = 2.0 / (2 ** depth)
+            if is_left:
+                pos_x = parent_x - spread
+            else:
+                pos_x = parent_x + spread
+
+        # Y position is based on depth
+        pos_y = -depth
+
+        # Store node position
+        x.append(pos_x)
+        y.append(pos_y)
+
+        # Create node label
+        if children_left[node_id] == -1 and children_right[node_id] == -1:
+            # Leaf node - show the predicted value
+            node_val = value[node_id][0, 0]
+            label = f"{node_val:.2f}"
+            color = 'rgba(255, 165, 0, 0.7)'  # Orange for leaf nodes
+            hover = f"Leaf Node<br>Value: {node_val:.4f}"
+        else:
+            # Decision node - show the feature and threshold
+            feat_name = feature_names[feature[node_id]] if feature[node_id] >= 0 else "Unknown"
+            label = f"{feat_name}"
+            color = 'rgba(100, 149, 237, 0.7)'  # Cornflower blue for decision nodes
+            hover = f"Feature: {feat_name}<br>Threshold: {threshold[node_id]:.4f}"
+
+        labels.append(label)
+        hover_text.append(hover)
+        colors.append(color)
+
+        # Add edge to parent if not root
+        if parent_x is not None and parent_y is not None:
+            edges.append({
+                'x0': parent_x, 'y0': parent_y,
+                'x1': pos_x, 'y1': pos_y
+            })
+
+        # Process children
+        add_node(children_left[node_id], depth + 1, pos_x, pos_y, True)
+        add_node(children_right[node_id], depth + 1, pos_x, pos_y, False)
+
+    # Start with the root node
+    add_node(0, 0)
+
+    return {
+        'x': x,
+        'y': y,
+        'labels': labels,
+        'hover_text': hover_text,
+        'colors': colors,
+        'edges': edges
+    }

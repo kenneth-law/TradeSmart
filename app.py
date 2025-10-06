@@ -461,6 +461,44 @@ def run_integrated_system_with_updates(tickers, use_ml, execute_trades, system_i
         })
         system = TradingSystem(initial_capital=100000.0, market_neutral=True)
 
+        # If using ML, set up a callback for real-time GBDT visualization updates
+        if use_ml:
+            # Define a callback function that will be called during model training
+            def ml_training_callback(model, feature_names, iteration):
+                try:
+                    # Only update visualizations every 5 iterations to avoid overwhelming the server
+                    if iteration % 5 == 0:
+                        # Import visualization module
+                        from modules.visualization import create_gbdt_tree_visualization
+
+                        # Create GBDT tree visualizations
+                        gbdt_charts = create_gbdt_tree_visualization(
+                            model, 
+                            feature_names, 
+                            session_folder,
+                            max_trees=5  # Limit to 5 trees for performance
+                        )
+
+                        # Send update message
+                        message_queue.put({
+                            "progress": 50 + (iteration / 100),  # Progress from 50% to 60% during training
+                            "message": f"Updating GBDT visualization (iteration {iteration})...",
+                            "status": "updating_visualization",
+                            "charts_updated": True,
+                            "updated_charts": gbdt_charts
+                        })
+                except Exception as e:
+                    print(f"Error in ML training callback: {str(e)}")
+
+            # Set the callback in the trading system
+            system.set_ml_training_callback(ml_training_callback)
+
+            message_queue.put({
+                "progress": 15,
+                "message": "ML visualization enabled. You'll see GBDT trees updating in real-time during training.",
+                "status": "processing"
+            })
+
         # Run the complete workflow
         message_queue.put({
             "progress": 20,
@@ -478,10 +516,10 @@ def run_integrated_system_with_updates(tickers, use_ml, execute_trades, system_i
         with open(os.path.join(session_folder, 'workflow_results.json'), 'w') as f:
             json.dump(results, f, indent=2)
 
-        # Create charts
+        # Create final charts
         message_queue.put({
             "progress": 90,
-            "message": "Generating charts...",
+            "message": "Generating final charts...",
             "status": "generating_charts"
         })
         charts = create_trading_system_charts(system, session_folder)
@@ -983,6 +1021,28 @@ def create_trading_system_charts(system, session_folder):
             )
             charts['feature_importance'] = "feature_importance.html"
             fig.write_html(os.path.join(session_folder, charts['feature_importance']))
+
+            # 4. GBDT Tree Visualization (if ML model is available)
+            from modules.visualization import create_gbdt_tree_visualization
+
+            # Check if the model has the necessary attributes for visualization
+            if hasattr(system.ml_scorer, 'model') and system.ml_scorer.model is not None:
+                # Get feature names
+                feature_names = system.ml_scorer.feature_names
+
+                # Create GBDT tree visualizations
+                gbdt_charts = create_gbdt_tree_visualization(
+                    system.ml_scorer.model, 
+                    feature_names, 
+                    session_folder,
+                    max_trees=5  # Limit to 5 trees for performance
+                )
+
+                # Add GBDT charts to the charts dictionary
+                if 'tree' in gbdt_charts:
+                    charts['gbdt_tree'] = gbdt_charts['tree']
+                if 'animation' in gbdt_charts:
+                    charts['gbdt_trees_animation'] = gbdt_charts['animation']
 
     return charts
 

@@ -5,12 +5,12 @@
 {% block content %}
 <div class="container mt-4">
     <h1 class="mb-4">Backtest Results</h1>
-    
+
     <div class="alert alert-success">
         <h5>Backtest Complete</h5>
         <p>Successfully backtested {{ tickers|length }} stocks from {{ start_date }} to {{ end_date }} using {{ strategy }} strategy.</p>
     </div>
-    
+
     <div class="row">
         <div class="col-md-6">
             <div class="card mb-4">
@@ -39,7 +39,7 @@
                 </div>
             </div>
         </div>
-        
+
         <div class="col-md-6">
             <div class="card mb-4">
                 <div class="card-header bg-primary text-white">
@@ -84,7 +84,7 @@
             </div>
         </div>
     </div>
-    
+
     <!-- Charts -->
     <div class="row">
         {% if 'equity_curve' in charts %}
@@ -99,7 +99,7 @@
             </div>
         </div>
         {% endif %}
-        
+
         {% if 'drawdown' in charts %}
         <div class="col-md-6 mb-4">
             <div class="card h-100">
@@ -112,7 +112,7 @@
             </div>
         </div>
         {% endif %}
-        
+
         {% if 'trade_analysis' in charts %}
         <div class="col-md-12 mb-4">
             <div class="card">
@@ -126,7 +126,7 @@
         </div>
         {% endif %}
     </div>
-    
+
     <!-- Trade History -->
     {% if result.trades %}
     <div class="card mb-4">
@@ -149,7 +149,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for trade in result.trades[:20] %}  <!-- Show only first 20 trades -->
+                        {% for trade in result.trades %}  <!-- Show all trades -->
                         <tr>
                             <td>{{ trade.date }}</td>
                             <td><strong>{{ trade.ticker }}</strong></td>
@@ -167,20 +167,13 @@
                             <td>${{ trade.net_value|round(2)|format_number }}</td>
                         </tr>
                         {% endfor %}
-                        {% if result.trades|length > 20 %}
-                        <tr>
-                            <td colspan="8" class="text-center">
-                                <em>Showing 20 of {{ result.trades|length }} trades</em>
-                            </td>
-                        </tr>
-                        {% endif %}
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
     {% endif %}
-    
+
     <!-- Actions -->
     <div class="d-flex justify-content-between mb-4">
         <a href="/backtest" class="btn btn-outline-primary">&larr; Back to Backtesting</a>

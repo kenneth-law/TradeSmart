@@ -60,7 +60,21 @@ class TradingSystem:
         self.watchlist = []
         self.market_data = {}
 
+        # Callback for ML training visualization
+        self.ml_training_callback = None
+
         log_message("Trading system initialized")
+
+    def set_ml_training_callback(self, callback):
+        """
+        Set a callback function to be called during ML model training.
+        This can be used for real-time visualization updates.
+
+        Parameters:
+            callback (function): Callback function that takes (model, feature_names, iteration) as parameters
+        """
+        self.ml_training_callback = callback
+        log_message("ML training callback set")
 
     def train_ml_model(self, tickers=None, force=False):
         """
@@ -86,7 +100,71 @@ class TradingSystem:
             log_message("No training data collected")
             return False
 
-        # Train the model
+        # If we have a callback, we need to modify the training process to call it
+        if self.ml_training_callback:
+            # Custom training with callback
+            try:
+                # Extract features and targets from historical data
+                features_list = []
+                targets = []
+
+                for item in training_data:
+                    features = self.ml_scorer._extract_features(item['stock_data'])
+                    features_list.append(features)
+                    targets.append(item['future_return'])
+
+                # Combine all features
+                X = pd.concat(features_list, ignore_index=True)
+                y = np.array(targets)
+
+                # Save feature names
+                self.ml_scorer.feature_names = X.columns.tolist()
+
+                # Preprocess data
+                X_scaled = self.ml_scorer.scaler.fit_transform(X)
+                X_pca = self.ml_scorer.pca.fit_transform(X_scaled)
+
+                y_reshaped = y.reshape(-1, 1)
+                y_scaled = self.ml_scorer.target_scaler.fit_transform(y_reshaped).ravel()
+
+                # Initialize model
+                model = self.ml_scorer.model
+                if model is None:
+                    from sklearn.ensemble import GradientBoostingRegressor
+                    model = GradientBoostingRegressor(
+                        n_estimators=300,
+                        learning_rate=0.01,
+                        max_depth=3,
+                        min_samples_split=15,
+                        min_samples_leaf=10,
+                        subsample=0.7,
+                        max_features='sqrt',
+                        alpha=0.9,
+                        loss='huber',
+                        random_state=42
+                    )
+                    self.ml_scorer.model = model
+
+                # Train the model with callback
+                for i in range(model.n_estimators):
+                    # Train a single iteration
+                    model.fit(X_pca, y_scaled)
+
+                    # Call the callback
+                    if i % 5 == 0:  # Call every 5 iterations to avoid overwhelming
+                        self.ml_training_callback(model, self.ml_scorer.feature_names, i)
+
+                # Save the model
+                self.ml_scorer._save_model()
+                self.is_model_trained = True
+
+                return True
+            except Exception as e:
+                log_message(f"Error in custom training with callback: {e}")
+                # Fall back to standard training
+                pass
+
+        # Standard training without callback
         success = self.ml_scorer.train(training_data, force=force)
         self.is_model_trained = success
 
@@ -616,16 +694,16 @@ class TradingSystem:
         log_message(f"Workflow completed in {(datetime.now() - datetime.strptime(results['start_time'], '%Y-%m-%d %H:%M:%S')).total_seconds():.2f} seconds")
 
         return results
-        
+
     def run_complete_workflow_with_error_handling(self, tickers, use_ml=True, execute_trades=False):
         """
         Wrapper for run_complete_workflow that catches and handles division by zero errors.
-        
+
         Parameters:
             tickers (list): List of ticker symbols to analyze
             use_ml (bool): Whether to use ML-based scoring
             execute_trades (bool): Whether to execute recommended trades
-            
+
         Returns:
             dict: Workflow results
         """

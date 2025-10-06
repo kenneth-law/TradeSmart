@@ -427,7 +427,7 @@ def get_market_breadth():
         return {"error": str(e)}
 
 
-def get_intraday_data(ticker_symbol, interval='30m', days=5):
+def get_intraday_data(ticker_symbol, interval='30m', days=5, force_refresh=True):
     """
     Retrieves intraday price data for a given ticker.
 
@@ -435,24 +435,20 @@ def get_intraday_data(ticker_symbol, interval='30m', days=5):
         ticker_symbol (str): The stock ticker symbol
         interval (str): Time interval for data points (e.g., '30m', '1h')
         days (int): Number of days of intraday data to retrieve
+        force_refresh (bool): If True, bypass cache and force a fresh data fetch
 
     Returns:
         dict: Dictionary containing intraday price data
     """
     try:
-        # Calculate date range
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=days)
+        # Import the get_intraday_data function from data_retrieval module
+        from modules.data_retrieval import get_intraday_data as get_intraday_data_from_retrieval
 
-        # Format dates
-        start_date_str = start_date.strftime('%Y-%m-%d')
-        end_date_str = end_date.strftime('%Y-%m-%d')
+        # Get intraday data using the data_retrieval module's function
+        intraday, error = get_intraday_data_from_retrieval(ticker_symbol, interval, days, force_refresh)
 
-        # Get intraday data
-        intraday = get_stock_history(ticker_symbol, start_date_str, end_date_str, interval)
-
-        if len(intraday) == 0:
-            return {"error": "No intraday data available"}
+        if error or intraday is None or len(intraday) == 0:
+            return {"error": error if error else "No intraday data available"}
 
         # Format data for output
         timestamps = [ts.strftime('%Y-%m-%d %H:%M:%S') for ts in intraday.index]

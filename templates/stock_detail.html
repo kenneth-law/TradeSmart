@@ -18,7 +18,7 @@
 <!-- Summary Card -->
 <div class="card mb-4">
     <div class="card-header d-flex justify-content-between align-items-center">
-        <h5 class="mb-0">Day Trading Summary</h5>
+        <h5 class="mb-0">Trading Summary</h5>
         <span class="strategy-badge strategy-{{ stock.day_trading_strategy|lower|replace('/', '-') }}">
             {{ stock.day_trading_strategy }}
         </span>
@@ -27,7 +27,7 @@
         <div class="row">
             <div class="col-md-6 col-lg-3 mb-3">
                 <div class="metric-card">
-                    <div class="metric-title">Day Trading Score</div>
+                    <div class="metric-title">Trading Score</div>
                     <div class="metric-value {% if stock.day_trading_score >= 70 %}text-success{% elif stock.day_trading_score >= 45 %}text-warning{% else %}text-danger{% endif %}" style="font-size: 2.5rem; margin: 1rem 0;">
                         {{ "%.1f"|format(stock.day_trading_score) }}/100
                     </div>

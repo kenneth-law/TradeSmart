@@ -110,7 +110,7 @@ def format_results(ranked_stocks, failed_tickers=None, top_n=20):
             results += f"\n--- {category.upper()} ---\n"
             for stock in stocks:
                 results += f"- {stock['ticker']} - {stock['company_name']} (${stock['current_price']:.2f})\n"
-                results += f"  Day Trading Score: {stock['day_trading_score']:.1f}/100 | ATR: {stock['atr_pct']:.2f}% | RSI7: {stock['rsi7']:.1f}\n"
+                results += f"  Trading Score: {stock['day_trading_score']:.1f}/100 | ATR: {stock['atr_pct']:.2f}% | RSI7: {stock['rsi7']:.1f}\n"
                 results += f"  Technical Score: {stock['technical_score']:.1f} | Long-Term Score: {stock['long_term_score']:.1f}\n"
                 results += f"  1-Day Return: {stock['return_1d']:.2f}% | 30-Day: {stock.get('return_30d', 0):.2f}% | 90-Day: {stock.get('return_90d', 0):.2f}%\n"
                 results += f"  MACD: {stock['macd_trend'].upper()} | Stochastic: {stock.get('stoch_trend', 'N/A').upper()} | OBV: {stock.get('obv_trend', 'N/A').upper()}\n"

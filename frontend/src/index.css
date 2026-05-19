@@ -1,0 +1,48 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: #0A0A0B;
+  color: #E6E6E6;
+  font-family: 'IBM Plex Mono', ui-monospace, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Tabular nums on all numeric text — critical for data columns */
+.tabnum { font-variant-numeric: tabular-nums; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: #0A0A0B; }
+::-webkit-scrollbar-thumb { background: #1F1F23; border-radius: 0; }
+::-webkit-scrollbar-thumb:hover { background: #2A2A30; }
+
+/* Selection */
+::selection { background: rgba(232,155,44,0.15); color: #E89B2C; }
+
+/* Focus */
+:focus { outline: none; }
+:focus-visible { outline: 1px solid #E89B2C; outline-offset: 2px; }
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
+  }
+}
+
+/* Ensure tables never add default padding */
+table { border-collapse: collapse; border-spacing: 0; }
+
+/* Smooth transitions — capped at 80ms per design guide */
+.transition-row { transition: background-color 80ms; }

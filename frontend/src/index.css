@@ -24,7 +24,7 @@ html {
   --chrome-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
   --hero-filter: none;
   --landing-hero-overlay: linear-gradient(180deg, rgba(0,0,0,0.22) 0%, rgba(0,0,0,0.72) 54%, rgba(0,0,0,0.96) 100%), linear-gradient(90deg, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.38) 48%, rgba(0,0,0,0.70) 100%);
-  --dashboard-hero-overlay: linear-gradient(180deg, rgba(0,0,0,0.42), rgba(0,0,0,0.74)), linear-gradient(90deg, rgba(0,0,0,0.58), rgba(0,0,0,0.28), rgba(0,0,0,0.56));
+  --dashboard-hero-overlay: none;
   --hero-text: #FFFFFF;
   --hero-copy: rgba(255, 255, 255, 0.68);
   --module-card-bg: rgba(0, 0, 0, 0.42);
@@ -49,7 +49,7 @@ html[data-theme='light'] {
   --chrome-shadow: 0 10px 28px rgba(21, 23, 28, 0.12);
   --hero-filter: invert(1) hue-rotate(180deg) saturate(0.88) brightness(1.08);
   --landing-hero-overlay: linear-gradient(180deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.48) 56%, rgba(255,255,255,0.82) 100%), linear-gradient(90deg, rgba(255,255,255,0.66) 0%, rgba(255,255,255,0.16) 48%, rgba(255,255,255,0.54) 100%);
-  --dashboard-hero-overlay: linear-gradient(180deg, rgba(255,255,255,0.42), rgba(255,255,255,0.76)), linear-gradient(90deg, rgba(255,255,255,0.56), rgba(255,255,255,0.24), rgba(255,255,255,0.58));
+  --dashboard-hero-overlay: none;
   --hero-text: #0A0C10;
   --hero-copy: rgba(21, 23, 28, 0.68);
   --module-card-bg: rgba(255, 255, 255, 0.58);
@@ -145,8 +145,8 @@ table { border-collapse: collapse; border-spacing: 0; }
 .app-chrome-hover:hover { background: var(--chrome-hover); }
 
 .theme-hero-image { filter: var(--hero-filter); }
-.theme-hero-image-blurred { filter: blur(20px); }
-html[data-theme='light'] .theme-hero-image-blurred { filter: blur(20px) invert(1) hue-rotate(180deg) saturate(0.88) brightness(1.08); }
+.theme-hero-image-blurred { filter: blur(6px); }
+html[data-theme='light'] .theme-hero-image-blurred { filter: blur(6px) invert(1) hue-rotate(180deg) saturate(0.88) brightness(1.08); }
 .landing-hero-overlay { background: var(--landing-hero-overlay); }
 .dashboard-hero-overlay { background: var(--dashboard-hero-overlay); }
 .hero-title { color: var(--hero-text); }

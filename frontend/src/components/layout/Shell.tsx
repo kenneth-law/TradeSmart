@@ -45,7 +45,7 @@ export default function Shell({ children }: { children: ReactNode }) {
         aria-hidden="true"
         className={[
           'pointer-events-none absolute inset-0 h-full w-full object-cover',
-          isHome ? 'theme-hero-image' : 'theme-hero-image-blurred opacity-80',
+          isHome ? 'theme-hero-image' : 'theme-hero-image-blurred opacity-10',
         ].join(' ')}
       />
       <div className={[

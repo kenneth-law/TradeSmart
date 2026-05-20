@@ -72,7 +72,7 @@ export default function DataTable<T extends Record<string, unknown>>({
             onClick={col.sortable !== false ? () => toggleSort(col.key) : undefined}
             style={{ width: col.width }}
             className={[
-              'px-2 py-1 text-2xs text-muted uppercase tracking-wide font-medium',
+              'px-4 py-1.5 text-2xs text-muted font-medium',
               'border-b border-border bg-s2 select-none',
               col.align === 'right' ? 'text-right' : 'text-left',
               col.sortable !== false ? 'cursor-pointer hover:text-text' : '',
@@ -123,7 +123,7 @@ export default function DataTable<T extends Record<string, unknown>>({
               key={col.key}
               style={{ width: col.width }}
               className={[
-                'px-2 py-1 text-sm tabnum',
+                'px-4 py-1.5 text-sm tabnum',
                 col.align === 'right' ? 'text-right' : 'text-left',
               ].join(' ')}
             >

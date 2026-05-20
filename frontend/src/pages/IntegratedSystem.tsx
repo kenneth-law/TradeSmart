@@ -99,7 +99,7 @@ export default function IntegratedSystem() {
   if (phase === 'config') {
     return (
       <div className="p-4 max-w-2xl mx-auto">
-        <h1 className="text-sm text-text font-medium uppercase tracking-wide mb-4">Integrated Trading System</h1>
+        <h1 className="text-sm text-text font-medium mb-4">Integrated Trading System</h1>
 
         <div className="border border-border bg-s1">
           <div className="flex items-start gap-2 p-2 border-b border-border">
@@ -116,7 +116,7 @@ export default function IntegratedSystem() {
 
           <div className="grid grid-cols-2 gap-px bg-border">
             <div className="bg-s1 p-2 flex items-center justify-between">
-              <label className="text-2xs text-dim uppercase tracking-wide">ML Signals</label>
+              <label className="text-2xs text-dim">ML Signals</label>
               <button
                 onClick={() => setUseMl(v => !v)}
                 className={`text-2xs px-2 py-1 border ${useMl ? 'border-accent text-accent' : 'border-border text-muted hover:text-text'}`}
@@ -125,7 +125,7 @@ export default function IntegratedSystem() {
               </button>
             </div>
             <div className="bg-s1 p-2 flex items-center justify-between">
-              <label className="text-2xs text-dim uppercase tracking-wide">Execute Trades</label>
+              <label className="text-2xs text-dim">Execute Trades</label>
               <button
                 onClick={() => setExecuteTrades(v => !v)}
                 className={`text-2xs px-2 py-1 border ${executeTrades ? 'border-down text-down' : 'border-border text-muted hover:text-text'}`}
@@ -169,7 +169,7 @@ export default function IntegratedSystem() {
     return (
       <div className="p-4 max-w-2xl mx-auto">
         <div className="flex items-center justify-between mb-3">
-          <span className="text-sm text-text font-medium uppercase tracking-wide">System running…</span>
+          <span className="text-sm text-text font-medium">System running…</span>
           <span className="text-2xs text-dim tabnum">{progress}%</span>
         </div>
         <ProgressBar value={progress} />
@@ -184,7 +184,17 @@ export default function IntegratedSystem() {
     return <div className="p-4 text-muted text-sm tabnum">Loading results…</div>
   }
 
-  const { signals, portfolio_summary, tickers } = results
+  const { signals, tickers } = results
+  const portfolio_summary = {
+    total_value:    Number(results.portfolio_summary?.total_value    ?? 0),
+    cash:           Number(results.portfolio_summary?.cash           ?? 0),
+    invested:       Number(results.portfolio_summary?.invested       ?? 0),
+    total_pnl:      Number(results.portfolio_summary?.total_pnl      ?? 0),
+    total_pnl_pct:  Number(results.portfolio_summary?.total_pnl_pct  ?? 0),
+    num_positions:  Number(results.portfolio_summary?.num_positions   ?? 0),
+    portfolio_beta: results.portfolio_summary?.portfolio_beta != null ? Number(results.portfolio_summary.portfolio_beta) : undefined,
+    max_drawdown:   results.portfolio_summary?.max_drawdown   != null ? Number(results.portfolio_summary.max_drawdown)   : undefined,
+  }
   const signalData = (signals as unknown as Array<StockResult & Record<string, unknown>>)
 
   return (
@@ -210,7 +220,7 @@ export default function IntegratedSystem() {
 
         <div className="w-52 shrink-0 border-l border-border overflow-y-auto">
           <div className="px-3 py-2 border-b border-border">
-            <p className="text-2xs text-dim uppercase tracking-wide">Portfolio</p>
+            <p className="text-2xs text-dim">Portfolio</p>
           </div>
           <MetricTile label="Total Value" value={`$${portfolio_summary.total_value.toLocaleString()}`} />
           <MetricTile label="Cash" value={`$${portfolio_summary.cash.toLocaleString()}`} />

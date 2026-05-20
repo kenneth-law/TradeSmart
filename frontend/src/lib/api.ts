@@ -29,8 +29,8 @@ export const api = {
   getStock: (ticker: string) =>
     get<import('../types').StockResult>(`/api/stock/${ticker}`),
 
-  getPriceHistory: (ticker: string) =>
-    get<import('../types').PriceHistory>(`/api/stock_price_history/${ticker}`),
+  getPriceHistory: (ticker: string, days?: number) =>
+    get<import('../types').PriceHistory>(`/api/stock_price_history/${ticker}${days ? `?days=${days}` : ''}`),
 
   getIndustryPeers: (ticker: string) =>
     get<Array<{ ticker: string; day_trading_score: number }>>(`/api/industry_peers/${ticker}`),
@@ -50,6 +50,7 @@ export const api = {
     end_date?: string
     days?: number
     custom_transaction_cost?: number
+    transaction_cost_type?: 'fixed' | 'percent' | 'per_share'
   }) => post<{ backtest_id: string }>('/api/run_backtest', params),
 
   getBacktestResults: (backtestId: string) =>

@@ -6,11 +6,11 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api':                        { target: 'http://localhost:5000', changeOrigin: true },
-      '/analysis_progress':          { target: 'http://localhost:5000', changeOrigin: true },
-      '/integrated_progress_stream': { target: 'http://localhost:5000', changeOrigin: true },
-      '/backtest_progress_stream':   { target: 'http://localhost:5000', changeOrigin: true },
-      '/healthcheck':                { target: 'http://localhost:5000', changeOrigin: true },
+      '/api':                        { target: 'http://localhost:5001', changeOrigin: true },
+      '/analysis_progress':          { target: 'http://localhost:5001', changeOrigin: true },
+      '/integrated_progress_stream': { target: 'http://localhost:5001', changeOrigin: true },
+      '/backtest_progress_stream':   { target: 'http://localhost:5001', changeOrigin: true },
+      '/healthcheck':                { target: 'http://localhost:5001', changeOrigin: true },
     },
   },
   build: {

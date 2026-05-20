@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../lib/api'
+import { useAppStore } from '../store/useAppStore'
 import MetricTile from '../components/data/MetricTile'
 import DataTable from '../components/data/DataTable'
 import type { Column } from '../components/data/DataTable'
@@ -36,10 +37,11 @@ const COLUMNS: Column<PortfolioPosition & Record<string, unknown>>[] = [
 ]
 
 export default function Portfolio() {
+  const marketRefreshSeconds = useAppStore(s => s.settings.marketRefreshSeconds)
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['portfolio'],
     queryFn: api.getPortfolio,
-    refetchInterval: 300_000,
+    refetchInterval: marketRefreshSeconds * 1000,
   })
 
   if (isLoading) {
@@ -57,14 +59,26 @@ export default function Portfolio() {
     )
   }
 
-  const { positions, summary } = data
+  const { positions, summary: rawSummary } = data
+  // Normalise summary — backend may return missing/null fields
+  const summary = {
+    total_value:    Number(rawSummary?.total_value    ?? 0),
+    cash:           Number(rawSummary?.cash           ?? 0),
+    invested:       Number(rawSummary?.invested       ?? 0),
+    total_pnl:      Number(rawSummary?.total_pnl      ?? 0),
+    total_pnl_pct:  Number(rawSummary?.total_pnl_pct  ?? 0),
+    num_positions:  Number(rawSummary?.num_positions   ?? 0),
+    portfolio_beta: rawSummary?.portfolio_beta != null ? Number(rawSummary.portfolio_beta) : undefined,
+    max_drawdown:   rawSummary?.max_drawdown   != null ? Number(rawSummary.max_drawdown)   : undefined,
+  }
+
   const tableData = positions as unknown as Array<PortfolioPosition & Record<string, unknown>>
 
   // Sector aggregation
   const bySector: Record<string, number> = {}
   for (const p of positions) {
     const sec = p.sector ?? 'Unknown'
-    bySector[sec] = (bySector[sec] ?? 0) + p.market_value
+    bySector[sec] = (bySector[sec] ?? 0) + (p.market_value ?? 0)
   }
   const totalInvested = summary.invested || 1
   const sectorEntries = Object.entries(bySector).sort((a, b) => b[1] - a[1])
@@ -73,7 +87,7 @@ export default function Portfolio() {
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-2 border-b border-border bg-s1 shrink-0">
-        <span className="text-sm text-text font-medium uppercase tracking-wide">Portfolio</span>
+        <span className="text-sm text-text font-medium">Portfolio</span>
         <span className="text-border ml-auto">|</span>
         <span className="text-2xs text-muted tabnum">{positions.length} positions</span>
         <button onClick={() => refetch()} className="text-2xs text-muted hover:text-text ml-2">
@@ -96,7 +110,7 @@ export default function Portfolio() {
         {/* Sidebar */}
         <div className="w-52 shrink-0 border-l border-border overflow-y-auto">
           <div className="px-3 py-2 border-b border-border">
-            <p className="text-2xs text-dim uppercase tracking-wide">Summary</p>
+            <p className="text-2xs text-dim">Summary</p>
           </div>
           <MetricTile label="Total Value" value={`$${summary.total_value.toLocaleString()}`} />
           <MetricTile label="Cash" value={`$${summary.cash.toLocaleString()}`} />
@@ -123,7 +137,7 @@ export default function Portfolio() {
           {sectorEntries.length > 0 && (
             <div className="border-t border-border mt-1">
               <div className="px-3 py-2">
-                <p className="text-2xs text-dim uppercase tracking-wide mb-2">Sector Allocation</p>
+                <p className="text-2xs text-dim mb-2">Sector Allocation</p>
                 {sectorEntries.map(([name, value]) => {
                   const pct = (value / totalInvested) * 100
                   return (

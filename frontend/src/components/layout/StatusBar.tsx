@@ -14,7 +14,7 @@ export default function StatusBar() {
   return (
     <div
       className="fixed bottom-0 left-0 right-0 z-50 flex items-center px-3 gap-4 border-t border-border bg-s1 select-none"
-      style={{ height: 22 }}
+      style={{ height: 'var(--statusbar-height)' }}
       aria-label="Status bar"
     >
       {/* Connection */}
@@ -41,7 +41,7 @@ export default function StatusBar() {
 
       {/* Keyboard hint — pushed right */}
       <span className="ml-auto text-2xs text-dim">
-        <kbd className="text-dim">Ctrl+K</kbd> command · <kbd className="text-dim">Alt+1–6</kbd> nav
+        <kbd className="text-dim">Ctrl+K</kbd> command · <kbd className="text-dim">Alt+1–7</kbd> nav
       </span>
     </div>
   )

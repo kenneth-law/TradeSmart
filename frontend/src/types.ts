@@ -92,6 +92,8 @@ export interface PortfolioSummary {
 export interface SectorData {
   name: string
   return_1d: number
+  return_1w?: number
+  return_1m?: number
   trend?: string
 }
 
@@ -104,14 +106,18 @@ export interface MarketOverview {
 }
 
 export interface PriceHistory {
+  ticker?: string
   dates: string[]
   open: number[]
   high: number[]
   low: number[]
   close: number[]
+  prices?: number[]
   volume?: number[]
+  volumes?: number[]
   ma5?: number[]
   ma20?: number[]
+  stats?: { last: number; high: number; low: number; avg: number }
 }
 
 export type TickerContext = {

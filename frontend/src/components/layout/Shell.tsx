@@ -6,8 +6,9 @@ import StatusBar from './StatusBar'
 import CommandPalette from './CommandPalette'
 
 const SHORTCUTS: Record<string, string> = {
-  '1': '/', '2': '/backtest', '3': '/integrated',
+  '1': '/', '2': '/technical', '3': '/system',
   '4': '/market', '5': '/portfolio', '6': '/docs',
+  '7': '/settings',
 }
 
 export default function Shell({ children }: { children: ReactNode }) {
@@ -35,7 +36,7 @@ export default function Shell({ children }: { children: ReactNode }) {
       <TopBar onCommandPalette={() => setCmdOpen(true)} />
       <main
         className="flex-1 overflow-auto"
-        style={{ marginTop: 36, marginBottom: 22 }}
+        style={{ marginTop: 'var(--topbar-height)', marginBottom: 'var(--statusbar-height)' }}
       >
         {children}
       </main>

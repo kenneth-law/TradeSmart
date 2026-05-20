@@ -2,12 +2,13 @@ import { NavLink } from 'react-router-dom'
 import { useAppStore } from '../../store/useAppStore'
 
 const NAV = [
-  { to: '/',           label: 'DASHBOARD',  hint: '1' },
-  { to: '/backtest',   label: 'BACKTEST',   hint: '2' },
-  { to: '/integrated', label: 'INTEGRATED', hint: '3' },
+  { to: '/',           label: 'HOME',       hint: '1' },
+  { to: '/technical',  label: 'TECHNICAL',  hint: '2' },
+  { to: '/system',     label: 'SYSTEM',     hint: '3' },
   { to: '/market',     label: 'MARKET',     hint: '4' },
   { to: '/portfolio',  label: 'PORTFOLIO',  hint: '5' },
   { to: '/docs',       label: 'DOCS',       hint: '6' },
+  { to: '/settings',   label: 'SETTINGS',   hint: '7' },
 ]
 
 export default function TopBar({ onCommandPalette }: { onCommandPalette: () => void }) {
@@ -16,7 +17,7 @@ export default function TopBar({ onCommandPalette }: { onCommandPalette: () => v
   return (
     <header
       className="fixed top-0 left-0 right-0 z-50 flex items-center border-b border-border bg-s1"
-      style={{ height: 36 }}
+      style={{ height: 'var(--topbar-height)' }}
     >
       {/* Brand */}
       <div className="flex items-center gap-3 px-3 border-r border-border h-full shrink-0">

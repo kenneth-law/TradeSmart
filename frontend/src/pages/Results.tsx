@@ -98,8 +98,8 @@ export default function Results() {
       <div className="p-4">
         <p className="text-muted text-sm">
           No analysis results. Return to{' '}
-          <button onClick={() => navigate('/')} className="text-accent hover:underline">
-            Dashboard
+          <button onClick={() => navigate('/technical')} className="text-accent hover:underline">
+            Technical
           </button>{' '}
           and run an analysis first.
         </p>
@@ -130,7 +130,7 @@ export default function Results() {
       {/* Header bar */}
       <div className="flex items-center gap-4 px-4 py-2 border-b border-border bg-s1 shrink-0">
         <button
-          onClick={() => navigate('/')}
+          onClick={() => navigate('/technical')}
           className="text-2xs text-dim hover:text-text"
         >
           ← New analysis
@@ -177,7 +177,7 @@ export default function Results() {
         <div className="w-56 shrink-0 border-l border-border overflow-y-auto">
           {/* Summary counts */}
           <div className="px-3 py-2 border-b border-border">
-            <p className="text-2xs text-dim uppercase tracking-wide mb-2">Signal breakdown</p>
+            <p className="text-2xs text-dim mb-2">Signal breakdown</p>
             {STRATEGY_ORDER.map(name => {
               const count = ranked_stocks.filter(s => s.day_trading_strategy === name).length
               return (
@@ -191,13 +191,13 @@ export default function Results() {
 
           {/* Distribution chart */}
           <div className="px-3 py-2 border-b border-border">
-            <p className="text-2xs text-dim uppercase tracking-wide mb-2">Distribution</p>
+            <p className="text-2xs text-dim mb-2">Distribution</p>
             <DistributionChart data={distData} height={120} />
           </div>
 
           {/* Keyboard hints */}
           <div className="px-3 py-2">
-            <p className="text-2xs text-dim uppercase tracking-wide mb-2">Keyboard</p>
+            <p className="text-2xs text-dim mb-2">Keyboard</p>
             <div className="text-2xs text-dim space-y-0.5">
               <div>↑↓ navigate rows</div>
               <div>Enter open detail</div>

@@ -39,21 +39,42 @@ def get_historical_data_for_chart(ticker_symbol, days=30):
         dates = [d.strftime('%Y-%m-%d') for d in hist.index]
         prices = hist['Close'].tolist()
         volumes = hist['Volume'].tolist()
-        
+        opens  = hist['Open'].tolist()
+        highs  = hist['High'].tolist()
+        lows   = hist['Low'].tolist()
+
         # Calculate moving averages
         hist['MA5'] = hist['Close'].rolling(window=5).mean()
         hist['MA20'] = hist['Close'].rolling(window=20).mean()
-        
+
         ma5 = hist['MA5'].tolist()
         ma20 = hist['MA20'].tolist()
-        
+
+        # Summary stats
+        last  = float(hist['Close'].iloc[-1])
+        high  = float(hist['High'].max())
+        low   = float(hist['Low'].min())
+        avg   = float(hist['Close'].mean())
+
         return {
-            "ticker": ticker_symbol,
-            "dates": dates,
-            "prices": prices,
+            "ticker":  ticker_symbol,
+            "dates":   dates,
+            # OHLC for candlestick
+            "open":    opens,
+            "high":    highs,
+            "low":     lows,
+            "close":   prices,
+            # backwards-compat alias
+            "prices":  prices,
             "volumes": volumes,
-            "ma5": ma5,
-            "ma20": ma20
+            "ma5":     ma5,
+            "ma20":    ma20,
+            "stats": {
+                "last": last,
+                "high": high,
+                "low":  low,
+                "avg":  avg,
+            },
         }
     except Exception as e:
         return {"error": str(e)}

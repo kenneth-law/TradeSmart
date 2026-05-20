@@ -1,0 +1,58 @@
+{
+  "initial_capital": 100000.0,
+  "current_capital": 100000.0,
+  "peak_capital": 100000.0,
+  "current_drawdown": 0.0,
+  "kill_switch_activated": false,
+  "market_neutral": true,
+  "max_position_size": 0.05,
+  "max_sector_exposure": 0.25,
+  "max_drawdown_threshold": 0.15,
+  "beta_target": 0.0,
+  "portfolio_beta": 0.2481451010131836,
+  "positions": {
+    "AAPL": {
+      "shares": 83,
+      "cost_basis": 298.9700012207031,
+      "current_price": 298.9700012207031,
+      "current_value": 24814.51010131836,
+      "entry_date": "2026-05-20",
+      "last_update": "2026-05-20",
+      "sector": "Technology",
+      "beta": 1.0,
+      "volatility": 2.2359256651829202,
+      "score": 52.486960288152474
+    }
+  },
+  "sector_exposures": {
+    "Technology": 24814.51010131836
+  },
+  "equity_curve": [
+    {
+      "date": "2026-05-20",
+      "equity": 100000.0,
+      "cash": 100000.0,
+      "invested": 0.0,
+      "drawdown": 0.0
+    },
+    {
+      "date": "2026-05-20",
+      "equity": 100000.0,
+      "cash": 100000.0,
+      "invested": 0.0,
+      "drawdown": 0.0
+    }
+  ],
+  "trade_history": [
+    {
+      "date": "2026-05-20",
+      "ticker": "AAPL",
+      "action": "BUY",
+      "shares": 83,
+      "price": 298.9700012207031,
+      "cost": 0.0,
+      "value": 24814.51010131836
+    }
+  ],
+  "last_updated": "2026-05-20 19:02:45"
+}

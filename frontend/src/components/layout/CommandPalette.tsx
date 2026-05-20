@@ -2,12 +2,13 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 const COMMANDS = [
-  { label: 'Dashboard',          shortcut: 'Alt+1', action: '/' },
-  { label: 'Backtest',           shortcut: 'Alt+2', action: '/backtest' },
-  { label: 'Integrated System',  shortcut: 'Alt+3', action: '/integrated' },
+  { label: 'Home',               shortcut: 'Alt+1', action: '/' },
+  { label: 'Technical',          shortcut: 'Alt+2', action: '/technical' },
+  { label: 'System',             shortcut: 'Alt+3', action: '/system' },
   { label: 'Market Overview',    shortcut: 'Alt+4', action: '/market' },
   { label: 'Portfolio',          shortcut: 'Alt+5', action: '/portfolio' },
   { label: 'Documentation',      shortcut: 'Alt+6', action: '/docs' },
+  { label: 'Settings',           shortcut: 'Alt+7', action: '/settings' },
 ]
 
 interface CommandPaletteProps {

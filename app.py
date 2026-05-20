@@ -6,6 +6,7 @@ import plotly.express as px
 import json
 from datetime import datetime, timedelta
 import os
+import math
 from curl_cffi import requests
 import markdown
 import re
@@ -33,6 +34,28 @@ import yfinance.data as _data
 
 
 app = Flask(__name__)
+
+
+def _sanitize(obj):
+    """Recursively convert numpy / pandas types to plain Python for jsonify."""
+    try:
+        import numpy as _np
+        if isinstance(obj, _np.integer):  return int(obj)
+        if isinstance(obj, _np.floating):
+            value = float(obj)
+            return value if math.isfinite(value) else None
+        if isinstance(obj, _np.bool_):    return bool(obj)
+        if isinstance(obj, _np.ndarray):  return [_sanitize(v) for v in obj.tolist()]
+    except ImportError:
+        pass
+    if isinstance(obj, float):
+        return obj if math.isfinite(obj) else None
+    if isinstance(obj, dict):  return {k: _sanitize(v) for k, v in obj.items()}
+    if isinstance(obj, list):  return [_sanitize(v) for v in obj]
+    if isinstance(obj, tuple): return [_sanitize(v) for v in obj]
+    if hasattr(obj, 'isoformat'): return obj.isoformat()
+    if hasattr(obj, 'item'):      return obj.item()   # generic numpy scalar
+    return obj
 
 
 analysis_progress = {}
@@ -292,12 +315,12 @@ def stock_detail(ticker):
 
 @app.route('/api/stock_price_history/<ticker>')
 def api_price_history(ticker):
-
     """API endpoint to get price history for charts"""
-    chart_data = prepare_price_chart_data(ticker)
-    if not chart_data:
+    days = request.args.get('days', 30, type=int)
+    chart_data = prepare_price_chart_data(ticker, days=days)
+    if not chart_data or "error" in chart_data:
         return jsonify({"error": "Failed to retrieve price history"}), 404
-    return jsonify(chart_data)
+    return jsonify(_sanitize(chart_data))
 
 @app.route('/api/industry_peers/<ticker>')
 def api_industry_peers(ticker):
@@ -357,7 +380,7 @@ def api_industry_peers(ticker):
         # Sort by score
         peers.sort(key=lambda x: x["day_trading_score"], reverse=True)
 
-        return jsonify(peers)
+        return jsonify(_sanitize(peers))
     except Exception as e:
         return jsonify({"error": f"Error getting peer data: {str(e)}"}), 500
 
@@ -594,7 +617,8 @@ def backtest_progress_stream():
 
     return Response(generate(), mimetype="text/event-stream")
 
-def run_backtest_with_updates(tickers, strategy, start_date, end_date, days, custom_transaction_cost, backtest_id, message_queue, session_id):
+def run_backtest_with_updates(tickers, strategy, start_date, end_date, days, custom_transaction_cost,
+                              transaction_cost_type, backtest_id, message_queue, session_id):
     """Run a backtest with progress updates sent to the client"""
     try:
         # Define a custom message handler for this backtest
@@ -631,7 +655,8 @@ def run_backtest_with_updates(tickers, strategy, start_date, end_date, days, cus
             start_date=start_date if start_date else None,
             end_date=end_date if end_date else None,
             days=days,
-            custom_transaction_cost=custom_transaction_cost
+            custom_transaction_cost=custom_transaction_cost,
+            custom_transaction_cost_type=transaction_cost_type
         )
 
         message_queue.put({
@@ -723,7 +748,7 @@ def run_backtest():
     # Start the backtest in a background thread
     backtest_thread = Thread(
         target=run_backtest_with_updates, 
-        args=(tickers, strategy, start_date, end_date, days, custom_transaction_cost, backtest_id, message_queue, session_id)
+        args=(tickers, strategy, start_date, end_date, days, custom_transaction_cost, 'per_share', backtest_id, message_queue, session_id)
     )
     backtest_thread.daemon = True
     backtest_thread.start()
@@ -800,8 +825,8 @@ def api_analysis_results(session_id):
     data = analysis_progress.get(session_id)
     if not data:
         return jsonify({"error": "Session not found"}), 404
-    ranked_stocks = data.get('ranked_stocks', [])
-    failed_tickers = data.get('failed_tickers', [])
+    ranked_stocks = _sanitize(data.get('ranked_stocks', []))
+    failed_tickers = _sanitize(data.get('failed_tickers', []))
     csv_url = f'/static/sessions/{session_id}/analysis.csv'
     return jsonify({
         "ranked_stocks": ranked_stocks,
@@ -819,7 +844,7 @@ def api_stock_detail(ticker):
         if error or not stock_data:
             return jsonify({"error": f"Failed to retrieve {ticker}: {error}"}), 404
         stock_data['metrics'] = get_detailed_stock_metrics(stock_data)
-        return jsonify(stock_data)
+        return jsonify(_sanitize(stock_data))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -828,28 +853,32 @@ def api_stock_detail(ticker):
 def api_market_overview():
     """Return market overview data as JSON for the React frontend"""
     try:
-        sector_data = get_sector_performance()
+        raw = get_sector_performance()
+        # get_sector_performance returns a dict with a "sectors" key (list of sector dicts)
+        raw_sectors = raw.get("sectors", []) if isinstance(raw, dict) else []
         sectors = []
-        for item in (sector_data or []):
-            if isinstance(item, dict):
-                sectors.append({
-                    "name": item.get("sector") or item.get("name", "Unknown"),
-                    "return_1d": float(item.get("return_1d") or item.get("change_pct") or 0),
-                    "trend": item.get("trend"),
-                })
-        market_trend = "neutral"
+        for item in raw_sectors:
+            if not isinstance(item, dict):
+                continue
+            sectors.append({
+                "name": item.get("sector") or item.get("name", "Unknown"),
+                "return_1d":    float(item.get("day_change_pct") or item.get("return_1d") or 0),
+                "return_1w":    float(item.get("week_change_pct") or 0),
+                "return_1m":    float(item.get("month_change_pct") or 0),
+                "trend":        item.get("trend"),
+            })
+        market_trend = raw.get("market_trend", "Neutral") if isinstance(raw, dict) else "Neutral"
         pos = sum(1 for s in sectors if s["return_1d"] > 0)
         neg = sum(1 for s in sectors if s["return_1d"] < 0)
-        if pos > neg:
-            market_trend = "bullish"
-        elif neg > pos:
-            market_trend = "bearish"
         return jsonify({
             "sectors": sectors,
             "market_trend": market_trend,
             "advances": pos,
             "declines": neg,
             "market_health": market_trend,
+            "avg_day_change":   raw.get("avg_day_change", 0) if isinstance(raw, dict) else 0,
+            "avg_week_change":  raw.get("avg_week_change", 0) if isinstance(raw, dict) else 0,
+            "avg_month_change": raw.get("avg_month_change", 0) if isinstance(raw, dict) else 0,
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -897,6 +926,9 @@ def api_run_backtest():
     end_date = data.get('end_date', '')
     days = int(data.get('days', 365))
     custom_transaction_cost = data.get('custom_transaction_cost')
+    transaction_cost_type = data.get('transaction_cost_type', 'per_share')
+    if transaction_cost_type not in ('fixed', 'percent', 'per_share'):
+        transaction_cost_type = 'per_share'
     if custom_transaction_cost is not None:
         try:
             custom_transaction_cost = float(custom_transaction_cost)
@@ -911,7 +943,7 @@ def api_run_backtest():
 
     backtest_thread = Thread(
         target=run_backtest_with_updates,
-        args=(tickers, strategy, start_date, end_date, days, custom_transaction_cost, backtest_id, message_queue, session_id)
+        args=(tickers, strategy, start_date, end_date, days, custom_transaction_cost, transaction_cost_type, backtest_id, message_queue, session_id)
     )
     backtest_thread.daemon = True
     backtest_thread.start()
@@ -931,31 +963,58 @@ def api_backtest_results(backtest_id):
     if result is None:
         return jsonify({"error": "No result data"}), 404
 
-    def _serialize(obj):
-        if isinstance(obj, dict):
-            return {k: _serialize(v) for k, v in obj.items()}
-        if isinstance(obj, list):
-            return [_serialize(i) for i in obj]
-        if hasattr(obj, 'isoformat'):
-            return obj.isoformat()
-        if hasattr(obj, '__dict__'):
-            return _serialize(obj.__dict__)
-        return obj
+    def _get(obj, attr, default):
+        return obj.get(attr, default) if isinstance(obj, dict) else getattr(obj, attr, default)
 
-    metrics = _serialize(getattr(result, 'metrics', result.get('metrics', {})) if isinstance(result, dict) else result.__dict__.get('metrics', {}))
-    trades_raw = getattr(result, 'trades', result.get('trades', [])) if isinstance(result, dict) else result.__dict__.get('trades', [])
-    trades = _serialize(trades_raw)
-    equity_raw = getattr(result, 'equity_curve', result.get('equity_curve', [])) if isinstance(result, dict) else result.__dict__.get('equity_curve', [])
-    equity = _serialize(equity_raw)
+    raw_trades = _get(result, 'trades', [])
+    raw_equity = _get(result, 'equity_curve', [])
+
+    metrics = {
+        "total_return": (_get(result, 'total_return', 0.0) or 0.0) * 100,
+        "annualized_return": (_get(result, 'annualized_return', 0.0) or 0.0) * 100,
+        "sharpe_ratio": _get(result, 'sharpe_ratio', 0.0) or 0.0,
+        "max_drawdown": (_get(result, 'max_drawdown', 0.0) or 0.0) * 100,
+        "win_rate": _get(result, 'win_rate', 0.0) or 0.0,
+        "num_trades": len(raw_trades),
+        "profit_factor": _get(result, 'profit_factor', 0.0) or 0.0,
+    }
+
+    trades = []
+    for trade in raw_trades:
+        action = _get(trade, 'type', None) or _get(trade, 'action', '')
+        trades.append({
+            **(trade if isinstance(trade, dict) else {}),
+            "date": _get(trade, 'date', ''),
+            "ticker": _get(trade, 'ticker', ''),
+            "type": action,
+            "action": action,
+            "price": _get(trade, 'price', 0.0),
+            "shares": _get(trade, 'shares', 0),
+            "cost": _get(trade, 'cost', 0.0),
+            "value": _get(trade, 'value', 0.0),
+            "net_value": _get(trade, 'net_value', 0.0),
+        })
+
+    equity = []
+    for point in raw_equity:
+        value = _get(point, 'value', None)
+        if value is None:
+            value = _get(point, 'equity', 0.0)
+        equity.append({
+            **(point if isinstance(point, dict) else {}),
+            "date": _get(point, 'date', ''),
+            "value": value,
+            "equity": value,
+        })
 
     return jsonify({
-        "metrics": metrics,
-        "trades": trades,
-        "equity_curve": equity,
-        "tickers": template_data.get('tickers', []),
-        "strategy": template_data.get('strategy', ''),
+        "metrics":      _sanitize(metrics),
+        "trades":       _sanitize(trades),
+        "equity_curve": _sanitize(equity),
+        "tickers":   template_data.get('tickers', []),
+        "strategy":  template_data.get('strategy', ''),
         "start_date": template_data.get('start_date', ''),
-        "end_date": template_data.get('end_date', ''),
+        "end_date":   template_data.get('end_date', ''),
     })
 
 
@@ -995,20 +1054,8 @@ def api_integrated_results(system_id):
 
     template_data = app.config[key]
 
-    def _serialize(obj):
-        if isinstance(obj, dict):
-            return {k: _serialize(v) for k, v in obj.items()}
-        if isinstance(obj, list):
-            return [_serialize(i) for i in obj]
-        if hasattr(obj, 'isoformat'):
-            return obj.isoformat()
-        if hasattr(obj, '__dict__'):
-            return _serialize(obj.__dict__)
-        return obj
-
-    watchlist = _serialize(template_data.get('watchlist', []))
-    portfolio_summary_raw = template_data.get('portfolio_summary', {})
-    portfolio_summary = _serialize(portfolio_summary_raw)
+    watchlist = _sanitize(template_data.get('watchlist', []))
+    portfolio_summary = _sanitize(template_data.get('portfolio_summary', {}))
     tickers = template_data.get('tickers', [])
 
     signals = [s for s in watchlist if isinstance(s, dict)] if isinstance(watchlist, list) else []

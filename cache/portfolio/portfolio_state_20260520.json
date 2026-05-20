@@ -1,0 +1,80 @@
+{
+  "initial_capital": 100000.0,
+  "current_capital": 100000.0,
+  "peak_capital": 100000.0,
+  "current_drawdown": 0.0,
+  "kill_switch_activated": false,
+  "market_neutral": true,
+  "max_position_size": 0.05,
+  "max_sector_exposure": 0.25,
+  "max_drawdown_threshold": 0.15,
+  "beta_target": 0.0,
+  "portfolio_beta": 0.3574007308705383,
+  "positions": {
+    "CSL.AX": {
+      "shares": 165,
+      "cost_basis": 98.69000244140625,
+      "current_price": 98.69000244140625,
+      "current_value": 16283.850402832031,
+      "entry_date": "2026-05-20",
+      "last_update": "2026-05-20",
+      "sector": "Healthcare",
+      "beta": 1.0,
+      "volatility": 4.602796610416574,
+      "score": 80.0
+    },
+    "CBA.AX": {
+      "shares": 100,
+      "cost_basis": 162.8800048828125,
+      "current_price": 162.8800048828125,
+      "current_value": 16288.00048828125,
+      "entry_date": "2026-05-20",
+      "last_update": "2026-05-20",
+      "sector": "Financial Services",
+      "beta": 1.0,
+      "volatility": 2.8743777830667487,
+      "score": 65.0
+    }
+  },
+  "sector_exposures": {
+    "Healthcare": 16283.850402832031,
+    "Financial Services": 16288.00048828125
+  },
+  "equity_curve": [
+    {
+      "date": "2026-05-20",
+      "equity": 100000.0,
+      "cash": 100000.0,
+      "invested": 0.0,
+      "drawdown": 0.0
+    },
+    {
+      "date": "2026-05-20",
+      "equity": 100000.0,
+      "cash": 100000.0,
+      "invested": 0.0,
+      "drawdown": 0.0
+    }
+  ],
+  "trade_history": [
+    {
+      "date": "2026-05-20",
+      "ticker": "CSL.AX",
+      "action": "BUY",
+      "shares": 165,
+      "price": 98.69000244140625,
+      "cost": 0.0,
+      "value": 16283.850402832031
+    },
+    {
+      "date": "2026-05-20",
+      "ticker": "CBA.AX",
+      "action": "BUY",
+      "shares": 100,
+      "price": 162.8800048828125,
+      "cost": 0.0,
+      "value": 16288.00048828125
+    }
+  ],
+  "last_updated": "2026-05-20 20:27:15"
+}

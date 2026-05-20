@@ -1,19 +1,22 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import TopBar from './TopBar'
 import StatusBar from './StatusBar'
 import CommandPalette from './CommandPalette'
+import heroImage from '../../assets/landing-hero.jpg'
 
 const SHORTCUTS: Record<string, string> = {
   '1': '/', '2': '/technical', '3': '/system',
-  '4': '/market', '5': '/portfolio', '6': '/docs',
-  '7': '/settings',
+  '4': '/market', '5': '/research', '6': '/portfolio',
+  '7': '/docs', '8': '/settings',
 }
 
 export default function Shell({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
+  const location = useLocation()
   const [cmdOpen, setCmdOpen] = useState(false)
+  const showDashboardBackground = location.pathname !== '/'
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -31,11 +34,27 @@ export default function Shell({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [navigate])
 
+  const isHome = !showDashboardBackground
+
   return (
-    <div className="flex flex-col bg-bg" style={{ height: '100vh' }}>
+    <div className="relative flex flex-col overflow-hidden bg-bg" style={{ height: '100vh' }}>
+      {/* Always mounted so it never remounts/resizes on route change */}
+      <img
+        src={heroImage}
+        alt=""
+        aria-hidden="true"
+        className={[
+          'pointer-events-none absolute inset-0 h-full w-full object-cover',
+          isHome ? 'theme-hero-image' : 'theme-hero-image-blurred opacity-80',
+        ].join(' ')}
+      />
+      <div className={[
+        'pointer-events-none absolute inset-0',
+        isHome ? 'landing-hero-overlay' : 'dashboard-hero-overlay',
+      ].join(' ')} />
       <TopBar onCommandPalette={() => setCmdOpen(true)} />
       <main
-        className="flex-1 overflow-auto"
+        className="relative z-10 flex-1 overflow-auto"
         style={{ marginTop: 'var(--topbar-height)', marginBottom: 'var(--statusbar-height)' }}
       >
         {children}

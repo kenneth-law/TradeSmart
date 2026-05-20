@@ -1,10 +1,11 @@
 {
-  "timestamp": "2026-05-20 19:02:45",
+  "timestamp": "2026-05-20 20:27:15",
   "initial_capital": 100000.0,
   "market_neutral": true,
   "is_model_trained": true,
   "watchlist": [
-    "AAPL"
+    "CSL.AX",
+    "CBA.AX"
   ],
   "portfolio_path": "cache/portfolio/portfolio_state_20260520.json",
   "market_data": {}

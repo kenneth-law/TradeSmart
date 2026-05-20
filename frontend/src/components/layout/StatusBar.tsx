@@ -13,7 +13,7 @@ export default function StatusBar() {
 
   return (
     <div
-      className="fixed bottom-0 left-0 right-0 z-50 flex items-center px-3 gap-4 border-t border-border bg-s1 select-none"
+      className="app-chrome app-chrome-border-t fixed bottom-0 left-0 right-0 z-50 flex items-center gap-4 border-t px-3 select-none"
       style={{ height: 'var(--statusbar-height)' }}
       aria-label="Status bar"
     >

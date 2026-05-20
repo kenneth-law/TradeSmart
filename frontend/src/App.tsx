@@ -7,6 +7,7 @@ import StockDetail from './pages/StockDetail'
 import System from './pages/Backtest'
 import MarketOverview from './pages/MarketOverview'
 import Portfolio from './pages/Portfolio'
+import Research from './pages/Research'
 import Documentation from './pages/Documentation'
 import Settings from './pages/Settings'
 
@@ -22,6 +23,7 @@ export default function App() {
         <Route path="/backtest"    element={<System />} />
         <Route path="/integrated"  element={<System />} />
         <Route path="/market"      element={<MarketOverview />} />
+        <Route path="/research"    element={<Research />} />
         <Route path="/portfolio"   element={<Portfolio />} />
         <Route path="/docs"        element={<Documentation />} />
         <Route path="/docs/:type"  element={<Documentation />} />

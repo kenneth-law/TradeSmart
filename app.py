@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, Response
 import pandas as pd
 import plotly
 import plotly.graph_objects as go
@@ -8,16 +8,13 @@ from datetime import datetime, timedelta
 import os
 import math
 from curl_cffi import requests
-import markdown
 import re
 
 import time
 import threading
 import queue
-from flask import Flask, render_template, request, jsonify, redirect, url_for, Response
 from threading import Thread
 from queue import Queue
-import json
 
 # Import integrated trading system
 from modules.trading_system import TradingSystem
@@ -219,99 +216,8 @@ def run_analysis_with_updates(tickers, analysis_id, message_queue):
 
 @app.route('/')
 def index():
-    spa = _spa_index()
-    if spa:
-        return spa
-    return render_template('index.html')
+    return _spa_index()
 
-@app.route('/analyze', methods=['POST'])
-def analyze():
-    """Handle form submission and display results using the integrated trading system"""
-    # Get ticker symbols from form
-    ticker_input = request.form.get('tickers', '')
-    tickers = [ticker.strip() for ticker in ticker_input.split(',') if ticker.strip()]
-
-    if not tickers:
-        return render_template('index.html', error="Please enter at least one ticker symbol")
-
-    # For form submissions without JS, run analysis directly
-    # For JS-enabled clients, analysis would have already run via SSE
-
-    # Check if we already have analysis results in progress data
-    recent_sessions = sorted(analysis_progress.keys(), reverse=True)
-    if recent_sessions:
-        session_id = recent_sessions[0]
-        data = analysis_progress[session_id]
-        ranked_stocks = data['ranked_stocks']
-        failed_tickers = data['failed_tickers']
-
-        # Clean up the progress data
-        del analysis_progress[session_id]
-    else:
-        # Fallback to regular analysis using the integrated trading system
-        system = TradingSystem(initial_capital=100000.0)
-        ranked_stocks, failed_tickers = system.analyze_stocks(tickers, use_ml=False)
-
-        # Create session folder for charts
-        session_id = datetime.now().strftime('%Y%m%d%H%M%S')
-        session_folder = os.path.join(app.static_folder, 'sessions', session_id)
-        os.makedirs(session_folder, exist_ok=True)
-
-    if not ranked_stocks:
-        return render_template('index.html', error="No valid data found for the provided tickers")
-
-    # Convert to DataFrame for easier manipulation
-    df = pd.DataFrame(ranked_stocks)
-
-    # Save CSV
-    csv_path = os.path.join(app.static_folder, 'sessions', session_id, 'analysis.csv')
-    if not os.path.exists(csv_path):
-        df.to_csv(csv_path, index=False)
-
-    # Create charts
-    charts = create_analysis_charts(df, os.path.join(app.static_folder, 'sessions', session_id))
-
-    # Categorize stocks
-    categories = {
-        "Strong Buy": df[df['day_trading_strategy'] == 'Strong Buy'].to_dict('records'),
-        "Buy": df[df['day_trading_strategy'] == 'Buy'].to_dict('records'),
-        "Neutral/Watch": df[df['day_trading_strategy'] == 'Neutral/Watch'].to_dict('records'),
-        "Sell": df[df['day_trading_strategy'] == 'Sell'].to_dict('records'),
-        "Strong Sell": df[df['day_trading_strategy'] == 'Strong Sell'].to_dict('records')
-    }
-
-    # Generate watchlist
-    watchlist = generate_watchlist_data(df, min_score=65, max_stocks=10)
-
-    return render_template(
-        'results.html',
-        categories=categories,
-        charts=charts,
-        watchlist=watchlist,
-        failed_tickers=failed_tickers,
-        session_id=session_id,
-        csv_url=f'/static/sessions/{session_id}/analysis.csv'
-    )
-
-@app.route('/stock/<ticker>')
-def stock_detail(ticker):
-    """Display detailed information for a single stock"""
-    try:
-        # Get detailed data for a single stock using the technical_analysis module
-        stock_data, error = get_stock_data(ticker)
-
-        if error or not stock_data:
-            return render_template('error.html', error=f"Error retrieving data for {ticker}: {error}")
-
-        # Get detailed metrics
-        stock_data['metrics'] = get_detailed_stock_metrics(stock_data)
-
-        # Create detailed charts for this stock
-        charts = create_stock_detail_charts(stock_data)
-
-        return render_template('stock_detail.html', stock=stock_data, charts=charts)
-    except Exception as e:
-        return render_template('error.html', error=f"Error analyzing {ticker}: {str(e)}")
 
 @app.route('/api/stock_price_history/<ticker>')
 def api_price_history(ticker):
@@ -383,26 +289,6 @@ def api_industry_peers(ticker):
         return jsonify(_sanitize(peers))
     except Exception as e:
         return jsonify({"error": f"Error getting peer data: {str(e)}"}), 500
-
-@app.route('/market_overview')
-def market_overview():
-    """Show market overview with sector performance"""
-    sector_data = get_sector_performance()
-    return render_template('market_overview.html', sector_data=sector_data)
-
-@app.route('/integrated_system')
-def integrated_system():
-    """Show the integrated trading system interface"""
-    return render_template('integrated_system.html')
-
-@app.route('/integrated_progress')
-def integrated_progress():
-    """Show the integrated system progress page"""
-    system_id = request.args.get('system_id')
-    if not system_id or system_id not in integrated_queues:
-        return redirect(url_for('integrated_system'))
-
-    return render_template('integrated_progress.html')
 
 @app.route('/integrated_progress_stream')
 def integrated_progress_stream():
@@ -524,70 +410,6 @@ def run_integrated_system_with_updates(tickers, use_ml, execute_trades, system_i
             "status": "error",
             "redirect_url": "/integrated_system"
         })
-
-@app.route('/integrated_results')
-def integrated_results():
-    """Show the integrated system results page"""
-    system_id = request.args.get('system_id')
-
-    if not system_id or f'integrated_result_{system_id}' not in app.config:
-        return redirect(url_for('integrated_system'))
-
-    # Get the template data
-    template_data = app.config[f'integrated_result_{system_id}']
-
-    # Clean up the queue
-    if system_id in integrated_queues:
-        del integrated_queues[system_id]
-
-    return render_template('integrated_results.html', **template_data)
-
-@app.route('/run_integrated_system', methods=['POST'])
-def run_integrated_system():
-    """Run the integrated trading system with the provided tickers"""
-    # Get ticker symbols from form
-    ticker_input = request.form.get('tickers', '')
-    tickers = [ticker.strip() for ticker in ticker_input.split(',') if ticker.strip()]
-
-    if not tickers:
-        return render_template('integrated_system.html', error="Please enter at least one ticker symbol")
-
-    # Get options
-    use_ml = request.form.get('use_ml', 'true') == 'true'
-    execute_trades = request.form.get('execute_trades', 'false') == 'true'
-
-    # Create a unique ID for this integrated system session
-    system_id = f"system_{int(time.time())}"
-    session_id = datetime.now().strftime('%Y%m%d%H%M%S')
-
-    # Create a queue for this integrated system session
-    message_queue = Queue()
-    integrated_queues[system_id] = message_queue
-
-    # Start the integrated system in a background thread
-    system_thread = Thread(
-        target=run_integrated_system_with_updates, 
-        args=(tickers, use_ml, execute_trades, system_id, message_queue, session_id)
-    )
-    system_thread.daemon = True
-    system_thread.start()
-
-    # Redirect to the progress page
-    return redirect(url_for('integrated_progress', system_id=system_id))
-
-@app.route('/backtest')
-def backtest():
-    """Show the backtesting interface"""
-    return render_template('backtest.html')
-
-@app.route('/backtest_progress')
-def backtest_progress():
-    """Show the backtest progress page"""
-    backtest_id = request.args.get('backtest_id')
-    if not backtest_id or backtest_id not in backtest_queues:
-        return redirect(url_for('backtest'))
-
-    return render_template('backtest_progress.html')
 
 @app.route('/backtest_progress_stream')
 def backtest_progress_stream():
@@ -711,113 +533,6 @@ def run_backtest_with_updates(tickers, strategy, start_date, end_date, days, cus
             "redirect_url": "/backtest"
         })
 
-@app.route('/run_backtest', methods=['POST'])
-def run_backtest():
-    """Run a backtest with the provided parameters"""
-    # Get ticker symbols from form
-    ticker_input = request.form.get('tickers', '')
-    tickers = [ticker.strip() for ticker in ticker_input.split(',') if ticker.strip()]
-
-    if not tickers:
-        return render_template('backtest.html', error="Please enter at least one ticker symbol")
-
-    # Get backtest parameters
-    strategy = request.form.get('strategy', 'ml')
-    start_date = request.form.get('start_date', '')
-    end_date = request.form.get('end_date', '')
-    days = int(request.form.get('days', '180'))
-
-    # Get custom transaction cost if provided
-    custom_transaction_cost = request.form.get('custom_transaction_cost', '')
-    if custom_transaction_cost:
-        try:
-            custom_transaction_cost = float(custom_transaction_cost)
-        except ValueError:
-            custom_transaction_cost = None
-    else:
-        custom_transaction_cost = None
-
-    # Create a unique ID for this backtest session
-    backtest_id = f"backtest_{int(time.time())}"
-    session_id = datetime.now().strftime('%Y%m%d%H%M%S')
-
-    # Create a queue for this backtest session
-    message_queue = Queue()
-    backtest_queues[backtest_id] = message_queue
-
-    # Start the backtest in a background thread
-    backtest_thread = Thread(
-        target=run_backtest_with_updates, 
-        args=(tickers, strategy, start_date, end_date, days, custom_transaction_cost, 'per_share', backtest_id, message_queue, session_id)
-    )
-    backtest_thread.daemon = True
-    backtest_thread.start()
-
-    # Redirect to the progress page
-    return redirect(url_for('backtest_progress', backtest_id=backtest_id))
-
-@app.route('/backtest_results')
-def backtest_results():
-    """Show the backtest results page"""
-    backtest_id = request.args.get('backtest_id')
-
-    if not backtest_id or f'backtest_result_{backtest_id}' not in app.config:
-        return redirect(url_for('backtest'))
-
-    # Get the template data
-    template_data = app.config[f'backtest_result_{backtest_id}']
-
-    # Clean up the queue
-    if backtest_id in backtest_queues:
-        del backtest_queues[backtest_id]
-
-    return render_template('backtest_results.html', **template_data)
-
-@app.route('/portfolio')
-def portfolio():
-    """Show the portfolio management interface"""
-    # Try to load existing portfolio
-    try:
-        system = TradingSystem.load_system_state()
-        portfolio_summary = system.portfolio_manager.get_portfolio_summary()
-        positions = system.portfolio_manager.positions
-
-        return render_template('portfolio.html', 
-                              portfolio_summary=portfolio_summary,
-                              positions=positions)
-    except Exception as e:
-        # No existing portfolio, show empty interface
-        return render_template('portfolio.html', error=f"No portfolio data available: {str(e)}")
-
-@app.route('/documentation')
-@app.route('/documentation/<doc_type>')
-def documentation(doc_type='readme'):
-    """Display documentation pages with rich text formatting"""
-    if doc_type == 'readme':
-        file_path = 'README.md'
-        doc_title = 'README - TradeSmart Analytics'
-    elif doc_type == 'logic_flow':
-        file_path = os.path.join('docs', 'Logic_Flow.md')
-        doc_title = 'Integrated Trading System Logic Flow'
-    elif doc_type == 'system_architecture':
-        # For system architecture, we render a dedicated template
-        return render_template('system_architecture.html')
-    else:
-        return render_template('error.html', error="Documentation not found")
-
-    try:
-        with open(file_path, 'r', encoding='utf-8') as file:
-            content = file.read()
-
-        # Convert markdown to HTML
-        html_content = markdown.markdown(content, extensions=['tables', 'fenced_code'])
-
-        return render_template('documentation.html', 
-                              doc_type=doc_type,
-                              doc_title=doc_title,
-                              doc_content=html_content)
-    except Exception as e:
-        return render_template('error.html', error=f"Error loading documentation: {str(e)}")
 
 @app.route('/api/analysis_results/<session_id>')
 def api_analysis_results(session_id):
@@ -1100,12 +815,6 @@ def healthcheck():
     """Simple endpoint to check if the API is functioning"""
     return jsonify({"status": "ok", "timestamp": datetime.now().isoformat()})
 
-@app.route('/templates/<path:filename>')
-def templates(filename):
-    """Serve files from the templates directory"""
-    return send_from_directory('templates', filename)
-
-
 def _spa_index():
     """Serve the React SPA index.html if the build exists."""
     dist = os.path.join(os.path.dirname(__file__), 'static', 'dist')
@@ -1114,20 +823,14 @@ def _spa_index():
     return None
 
 
-@app.route('/static/dist/<path:filename>')
-def spa_assets(filename):
-    """Serve Vite build assets."""
-    dist = os.path.join(os.path.dirname(__file__), 'static', 'dist')
-    return send_from_directory(dist, filename)
-
-
 @app.route('/<path:path>')
 def spa_catchall(path):
-    """Catch-all: serve the React SPA for any unknown path."""
-    spa = _spa_index()
-    if spa:
-        return spa
-    return jsonify({"error": "Not found"}), 404
+    """Serve static assets from the Vite build, or fall back to the SPA for React routes."""
+    dist = os.path.join(os.path.dirname(__file__), 'static', 'dist')
+    candidate = os.path.join(dist, path)
+    if os.path.isfile(candidate):
+        return send_from_directory(dist, path)
+    return send_from_directory(dist, 'index.html')
 
 def create_analysis_charts(df, session_folder):
     charts = {}
@@ -1405,11 +1108,6 @@ def patch_yfdata_cookie_basic():
 
 # Apply the yfinance cookie patch at module level
 patch_yfdata_cookie_basic()
-
-@app.template_filter('format_number')
-def format_number_filter(value):
-    """Format a number with commas as thousands separators"""
-    return "{:,}".format(value)
 
 if __name__ == '__main__':
     # Create necessary directories

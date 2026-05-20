@@ -1,14 +1,16 @@
-import { NavLink } from 'react-router-dom'
+import { Link, NavLink } from 'react-router-dom'
 import { useAppStore } from '../../store/useAppStore'
+import logoImage from '../../assets/TradeSmartLogowhite.png'
 
 const NAV = [
   { to: '/',           label: 'HOME',       hint: '1' },
   { to: '/technical',  label: 'TECHNICAL',  hint: '2' },
   { to: '/system',     label: 'SYSTEM',     hint: '3' },
   { to: '/market',     label: 'MARKET',     hint: '4' },
-  { to: '/portfolio',  label: 'PORTFOLIO',  hint: '5' },
-  { to: '/docs',       label: 'DOCS',       hint: '6' },
-  { to: '/settings',   label: 'SETTINGS',   hint: '7' },
+  { to: '/research',   label: 'RESEARCH',   hint: '5' },
+  { to: '/portfolio',  label: 'PORTFOLIO',  hint: '6' },
+  { to: '/docs',       label: 'DOCS',       hint: '7' },
+  { to: '/settings',   label: 'SETTINGS',   hint: '8' },
 ]
 
 export default function TopBar({ onCommandPalette }: { onCommandPalette: () => void }) {
@@ -16,17 +18,25 @@ export default function TopBar({ onCommandPalette }: { onCommandPalette: () => v
 
   return (
     <header
-      className="fixed top-0 left-0 right-0 z-50 flex items-center border-b border-border bg-s1"
+      className="app-chrome fixed top-0 left-0 right-0 z-50 flex items-center border-b"
       style={{ height: 'var(--topbar-height)' }}
     >
       {/* Brand */}
-      <div className="flex items-center gap-3 px-3 border-r border-border h-full shrink-0">
-        <span className="text-2xs text-accent font-medium tracking-widest">TRADESMART</span>
-      </div>
+      <Link
+        to="/"
+        className="app-chrome-border-r app-chrome-hover flex h-full w-40 shrink-0 items-center border-r px-4"
+        aria-label="TradeSmart home"
+      >
+        <img
+          src={logoImage}
+          alt="TradeSmart"
+          className="brand-logo h-auto max-h-6 w-28 object-contain"
+        />
+      </Link>
 
       {/* Ticker context strip */}
       {context && (
-        <div className="flex items-center gap-3 px-3 border-r border-border h-full text-2xs tabnum shrink-0">
+        <div className="app-chrome-border-r flex h-full shrink-0 items-center gap-3 border-r px-3 text-2xs tabnum">
           <span className="text-text font-medium">{context.ticker}</span>
           <span className="text-text">{context.price.toFixed(2)}</span>
           <span className={context.change >= 0 ? 'text-up' : 'text-down'}>
@@ -47,10 +57,10 @@ export default function TopBar({ onCommandPalette }: { onCommandPalette: () => v
             title={`Alt+${hint}`}
             className={({ isActive }) =>
               [
-                'flex items-center h-full px-3 text-2xs tracking-widest border-r border-border',
-                'hover:text-text transition-colors',
+                'flex items-center h-full px-3 text-2xs tracking-widest border-r border-white/[0.08]',
+                'app-chrome-border-r app-chrome-hover hover:text-text transition-colors',
                 isActive
-                  ? 'text-accent border-b-2 border-b-accent'
+                  ? 'text-accent bg-accent/10 border-b-2 border-b-accent'
                   : 'text-dim',
               ].join(' ')
             }
@@ -63,10 +73,10 @@ export default function TopBar({ onCommandPalette }: { onCommandPalette: () => v
         <button
           onClick={onCommandPalette}
           className="flex items-center h-full px-3 text-dim text-2xs hover:text-text"
-          title="Ctrl+K — command palette"
+          title="Ctrl+K - command palette"
           aria-label="Open command palette"
         >
-          ⌘K
+          Cmd+K
         </button>
       </nav>
     </header>

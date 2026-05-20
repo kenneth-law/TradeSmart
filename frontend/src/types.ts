@@ -1,3 +1,34 @@
+export interface DetailedMetrics {
+  technical?: {
+    rsi7?: number
+    rsi14?: number
+    macd_trend?: string
+    bb_position?: number
+    above_ma5?: boolean
+    above_ma10?: boolean
+    above_ma20?: boolean
+  }
+  volatility?: {
+    atr?: number
+    atr_pct?: number
+    avg_intraday_range?: number
+    gap_ups_5d?: number
+    gap_downs_5d?: number
+  }
+  momentum?: {
+    return_1d?: number
+    return_3d?: number
+    return_5d?: number
+  }
+  volume?: {
+    volume_ratio?: number
+  }
+  sentiment?: {
+    news_sentiment_score?: number
+    news_sentiment_label?: string
+  }
+}
+
 export interface StockResult {
   ticker: string
   company_name: string
@@ -15,7 +46,7 @@ export interface StockResult {
   news_sentiment_score: number
   above_ma5: boolean
   above_ma20: boolean
-  metrics?: Record<string, Record<string, string>>
+  metrics?: DetailedMetrics
   strategy_details?: string
 }
 

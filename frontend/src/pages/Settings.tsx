@@ -131,7 +131,7 @@ export default function Settings() {
   }
 
   return (
-    <div className="flex h-full flex-col bg-bg">
+    <div className="flex h-full flex-col">
       <div className="flex shrink-0 items-center gap-3 border-b border-border bg-s1 px-4 py-3">
         <SettingsIcon size={17} className="text-accent" aria-hidden="true" />
         <div>

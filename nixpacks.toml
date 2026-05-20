@@ -1,8 +1,7 @@
 providers = ["python"]
 
 [phases.setup]
-nixPkgs = ["nodejs_20"]
-aptPkgs = ["libgomp1"]
+nixPkgs = ["nodejs_20", "gcc"]
 
 [phases.install]
 cmds = [

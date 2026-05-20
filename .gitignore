@@ -45,3 +45,6 @@ static/dist/
 
 # Project virtualenv
 .venv/
+
+# Cache and temporary data
+cache/

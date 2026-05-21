@@ -1,0 +1,18 @@
+{
+  "name": "TradeSmart",
+  "short_name": "TradeSmart",
+  "description": "Stock analysis and backtesting platform.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0b0d12",
+  "theme_color": "#0b0d12",
+  "icons": [
+    {
+      "src": "/logo-square.png",
+      "sizes": "127x122",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

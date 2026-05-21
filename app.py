@@ -187,23 +187,28 @@ def api_live_snapshot():
     return jsonify(_sanitize(alpaca_live_data.snapshot(symbols)))
 
 
+LIVE_STREAM_MAX_DURATION_SEC = 300
+
+
 @app.route('/api/live/stream')
 def api_live_stream():
     symbols = _parse_symbols(request.args.get('symbols', ''))
     if not symbols:
         return jsonify({"error": "No symbols provided"}), 400
 
-    alpaca_live_data.ensure_subscribed(symbols)
-
     def generate():
+        alpaca_live_data.acquire(symbols)
+        deadline = time.time() + LIVE_STREAM_MAX_DURATION_SEC
         try:
             yield f"data: {json.dumps(_sanitize(alpaca_live_data.snapshot(symbols, hydrate=True)))}\n\n"
-            while True:
+            while time.time() < deadline:
                 payload = alpaca_live_data.snapshot(symbols, hydrate=False)
                 yield f"data: {json.dumps(_sanitize(payload))}\n\n"
                 time.sleep(1)
         except GeneratorExit:
             pass
+        finally:
+            alpaca_live_data.release()
 
     return Response(generate(), mimetype="text/event-stream", headers={
         "Cache-Control": "no-cache",
@@ -303,10 +308,8 @@ def run_analysis_with_updates(tickers, analysis_id, message_queue):
     finally:
         # Reset the message handler to default
         set_message_handler(print)
-
-        # Clean up
-        if analysis_id in analysis_queues:
-            del analysis_queues[analysis_id]
+        message_queue.put(None)
+        analysis_queues.pop(analysis_id, None)
 
 
 @app.route('/')
@@ -505,6 +508,10 @@ def run_integrated_system_with_updates(tickers, use_ml, execute_trades, system_i
             "status": "error",
             "redirect_url": "/integrated_system"
         })
+    finally:
+        message_queue.put(None)
+        integrated_queues.pop(system_id, None)
+
 
 @app.route('/backtest_progress_stream')
 def backtest_progress_stream():
@@ -655,6 +662,9 @@ def run_backtest_with_updates(tickers, strategy, start_date, end_date, days, cus
             "status": "error",
             "redirect_url": "/backtest"
         })
+    finally:
+        message_queue.put(None)
+        backtest_queues.pop(backtest_id, None)
 
 
 @app.route('/api/analysis_results/<session_id>')

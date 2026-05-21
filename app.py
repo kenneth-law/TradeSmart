@@ -485,7 +485,10 @@ def backtest_progress_stream():
     return Response(generate(), mimetype="text/event-stream")
 
 def run_backtest_with_updates(tickers, strategy, start_date, end_date, days, custom_transaction_cost,
-                              transaction_cost_type, backtest_id, message_queue, session_id):
+                              transaction_cost_type, backtest_id, message_queue, session_id,
+                              buy_threshold=50, sell_threshold=40, partial_exit_fraction=0.25,
+                              exit_sizing_mode='fixed_tranche', reentry_cooldown_days=10,
+                              min_reentry_discount_pct=1.0, allow_pyramiding=False):
     """Run a backtest with progress updates sent to the client"""
     try:
         # Define a custom message handler for this backtest
@@ -523,7 +526,14 @@ def run_backtest_with_updates(tickers, strategy, start_date, end_date, days, cus
             end_date=end_date if end_date else None,
             days=days,
             custom_transaction_cost=custom_transaction_cost,
-            custom_transaction_cost_type=transaction_cost_type
+            custom_transaction_cost_type=transaction_cost_type,
+            buy_threshold=buy_threshold,
+            sell_threshold=sell_threshold,
+            partial_exit_fraction=partial_exit_fraction,
+            exit_sizing_mode=exit_sizing_mode,
+            reentry_cooldown_days=reentry_cooldown_days,
+            min_reentry_discount_pct=min_reentry_discount_pct,
+            allow_pyramiding=allow_pyramiding,
         )
 
         message_queue.put({
@@ -783,6 +793,33 @@ def api_run_backtest():
             custom_transaction_cost = float(custom_transaction_cost)
         except (ValueError, TypeError):
             custom_transaction_cost = None
+    try:
+        buy_threshold = int(data.get('buy_threshold', 50))
+    except (ValueError, TypeError):
+        buy_threshold = 50
+    try:
+        sell_threshold = int(data.get('sell_threshold', 40))
+    except (ValueError, TypeError):
+        sell_threshold = 40
+    try:
+        partial_exit_fraction = float(data.get('partial_exit_fraction', 0.25))
+    except (ValueError, TypeError):
+        partial_exit_fraction = 0.25
+    partial_exit_fraction = min(max(partial_exit_fraction, 0.05), 1.0)
+    exit_sizing_mode = data.get('exit_sizing_mode', 'fixed_tranche')
+    if exit_sizing_mode not in ('fixed_tranche', 'remaining_fraction'):
+        exit_sizing_mode = 'fixed_tranche'
+    try:
+        reentry_cooldown_days = int(data.get('reentry_cooldown_days', 10))
+    except (ValueError, TypeError):
+        reentry_cooldown_days = 10
+    reentry_cooldown_days = max(0, reentry_cooldown_days)
+    try:
+        min_reentry_discount_pct = float(data.get('min_reentry_discount_pct', 1.0))
+    except (ValueError, TypeError):
+        min_reentry_discount_pct = 1.0
+    min_reentry_discount_pct = max(0.0, min_reentry_discount_pct)
+    allow_pyramiding = bool(data.get('allow_pyramiding', False))
 
     backtest_id = f"backtest_{int(time.time())}"
     session_id = datetime.now().strftime('%Y%m%d%H%M%S')
@@ -792,7 +829,12 @@ def api_run_backtest():
 
     backtest_thread = Thread(
         target=run_backtest_with_updates,
-        args=(tickers, strategy, start_date, end_date, days, custom_transaction_cost, transaction_cost_type, backtest_id, message_queue, session_id)
+        args=(
+            tickers, strategy, start_date, end_date, days, custom_transaction_cost,
+            transaction_cost_type, backtest_id, message_queue, session_id,
+            buy_threshold, sell_threshold, partial_exit_fraction, exit_sizing_mode,
+            reentry_cooldown_days, min_reentry_discount_pct, allow_pyramiding
+        )
     )
     backtest_thread.daemon = True
     backtest_thread.start()
@@ -824,6 +866,8 @@ def api_backtest_results(backtest_id):
     total_transaction_costs = _get(result, 'total_transaction_costs', 0.0) or 0.0
     transaction_cost_percentage = _get(result, 'transaction_cost_percentage', 0.0) or 0.0
     total_trade_value = sum((_get(trade, 'value', 0.0) or 0.0) for trade in raw_trades)
+    if not total_transaction_costs:
+        total_transaction_costs = sum((_get(trade, 'cost', 0.0) or 0.0) for trade in raw_trades)
     buy_count = sum(1 for trade in raw_trades if (_get(trade, 'type', None) or _get(trade, 'action', '')) == 'BUY')
     sell_count = sum(1 for trade in raw_trades if (_get(trade, 'type', None) or _get(trade, 'action', '')) == 'SELL')
     avg_daily_return = (sum(daily_returns) / len(daily_returns)) if daily_returns else 0.0
@@ -834,6 +878,18 @@ def api_backtest_results(backtest_id):
         mean_return = avg_daily_return
         variance = sum((ret - mean_return) ** 2 for ret in daily_returns) / len(daily_returns)
         daily_volatility = math.sqrt(variance)
+
+    if raw_equity:
+        first_equity = _get(raw_equity[0], 'value', None)
+        if first_equity is None:
+            first_equity = _get(raw_equity[0], 'equity', 0.0)
+        last_equity = _get(raw_equity[-1], 'value', None)
+        if last_equity is None:
+            last_equity = _get(raw_equity[-1], 'equity', 0.0)
+        if not initial_capital:
+            initial_capital = first_equity or 0.0
+        if not final_capital:
+            final_capital = last_equity or initial_capital
 
     metrics = {
         "total_return": (_get(result, 'total_return', 0.0) or 0.0) * 100,
@@ -873,26 +929,42 @@ def api_backtest_results(backtest_id):
             open_lots.setdefault(ticker, []).append({
                 'price': price,
                 'shares': shares,
+                'remaining_shares': shares,
                 'cost': cost,
                 'date': _get(trade, 'date', ''),
             })
         elif action == 'SELL' and open_lots.get(ticker):
-            buy_lot = open_lots[ticker].pop(0)
-            matched_shares = min(shares, buy_lot.get('shares', shares) or shares)
-            gross_buy = buy_lot.get('price', 0.0) * matched_shares
-            gross_sell = price * matched_shares
-            pnl = gross_sell - gross_buy - cost - buy_lot.get('cost', 0.0)
-            return_pct = (pnl / gross_buy * 100) if gross_buy else None
-            completed_round_trips.append({
-                'ticker': ticker,
-                'entry_date': buy_lot.get('date', ''),
-                'exit_date': _get(trade, 'date', ''),
-                'entry_price': buy_lot.get('price', 0.0),
-                'exit_price': price,
-                'shares': matched_shares,
-                'pnl': pnl,
-                'return_pct': return_pct,
-            })
+            shares_left = shares
+            trade_pnl = 0.0
+            matched_total = 0
+            matched_cost_basis = 0.0
+            while shares_left > 0 and open_lots.get(ticker):
+                buy_lot = open_lots[ticker][0]
+                matched_shares = min(shares_left, buy_lot.get('remaining_shares', buy_lot.get('shares', shares)) or shares)
+                gross_buy = buy_lot.get('price', 0.0) * matched_shares
+                gross_sell = price * matched_shares
+                buy_cost_alloc = buy_lot.get('cost', 0.0) * (matched_shares / buy_lot.get('shares', matched_shares)) if buy_lot.get('shares') else 0.0
+                sell_cost_alloc = cost * (matched_shares / shares) if shares else 0.0
+                lot_pnl = gross_sell - gross_buy - sell_cost_alloc - buy_cost_alloc
+                completed_round_trips.append({
+                    'ticker': ticker,
+                    'entry_date': buy_lot.get('date', ''),
+                    'exit_date': _get(trade, 'date', ''),
+                    'entry_price': buy_lot.get('price', 0.0),
+                    'exit_price': price,
+                    'shares': matched_shares,
+                    'pnl': lot_pnl,
+                    'return_pct': (lot_pnl / gross_buy * 100) if gross_buy else None,
+                })
+                trade_pnl += lot_pnl
+                matched_total += matched_shares
+                matched_cost_basis += gross_buy
+                buy_lot['remaining_shares'] -= matched_shares
+                shares_left -= matched_shares
+                if buy_lot['remaining_shares'] <= 0:
+                    open_lots[ticker].pop(0)
+            pnl = trade_pnl if matched_total else None
+            return_pct = (trade_pnl / matched_cost_basis * 100) if matched_cost_basis else None
         trades.append({
             **(trade if isinstance(trade, dict) else {}),
             "date": _get(trade, 'date', ''),

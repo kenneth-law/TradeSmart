@@ -254,7 +254,10 @@ class TradingSystem:
         return ranked_stocks, failed_tickers
 
     def run_backtest(self, tickers, strategy='ml', start_date=None, end_date=None, days=180,
-                     custom_transaction_cost=None, custom_transaction_cost_type='per_share'):
+                     custom_transaction_cost=None, custom_transaction_cost_type='per_share',
+                     buy_threshold=50, sell_threshold=40, partial_exit_fraction=0.25,
+                     exit_sizing_mode='fixed_tranche', reentry_cooldown_days=10,
+                     min_reentry_discount_pct=1.0, allow_pyramiding=False):
         """
         Run a backtest on the specified tickers and strategy.
 
@@ -266,6 +269,13 @@ class TradingSystem:
             days (int): Number of days to backtest if start_date not provided
             custom_transaction_cost (float): Optional custom transaction cost value
             custom_transaction_cost_type (str): 'fixed', 'percent', or legacy 'per_share'
+            buy_threshold (int): ML score needed to open a position
+            sell_threshold (int): ML score that forces full exit
+            partial_exit_fraction (float): Original-position tranche size for partial exits
+            exit_sizing_mode (str): 'fixed_tranche' or legacy 'remaining_fraction'
+            reentry_cooldown_days (int): Days to block re-entry after a sell
+            min_reentry_discount_pct (float): Discount needed to override cooldown
+            allow_pyramiding (bool): Whether repeated buys can add to positions
 
         Returns:
             BacktestResult: Object containing backtest results
@@ -318,7 +328,14 @@ class TradingSystem:
             end_date=end_date,
             ml_scorer=self.ml_scorer if strategy == 'ml' and self.is_model_trained else None,
             custom_transaction_cost=custom_transaction_cost,
-            custom_transaction_cost_type=custom_transaction_cost_type
+            custom_transaction_cost_type=custom_transaction_cost_type,
+            buy_threshold=buy_threshold,
+            sell_threshold=sell_threshold,
+            partial_exit_fraction=partial_exit_fraction,
+            exit_sizing_mode=exit_sizing_mode,
+            reentry_cooldown_days=reentry_cooldown_days,
+            min_reentry_discount_pct=min_reentry_discount_pct,
+            allow_pyramiding=allow_pyramiding,
         )
         result.run_metadata = {
             'tickers': tickers,
@@ -331,6 +348,13 @@ class TradingSystem:
             'transaction_cost_type': custom_transaction_cost_type,
             'point_in_time_training': strategy == 'ml',
             'model_trained': bool(self.is_model_trained) if strategy == 'ml' else False,
+            'buy_threshold': buy_threshold,
+            'sell_threshold': sell_threshold,
+            'partial_exit_fraction': partial_exit_fraction,
+            'exit_sizing_mode': exit_sizing_mode,
+            'reentry_cooldown_days': reentry_cooldown_days,
+            'min_reentry_discount_pct': min_reentry_discount_pct,
+            'allow_pyramiding': allow_pyramiding,
         }
         result.training_context = self.last_training_data_summary if strategy == 'ml' else {
             'training_context': 'not_applicable',

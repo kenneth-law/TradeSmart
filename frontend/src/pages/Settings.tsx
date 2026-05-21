@@ -1,24 +1,5 @@
 import { useState, type ReactNode } from 'react'
 import {
-  Check,
-  Eye,
-  FileSpreadsheet,
-  Gauge,
-  Globe,
-  KeyRound,
-  MessageSquare,
-  Moon,
-  Palette,
-  RefreshCw,
-  RotateCcw,
-  Settings as SettingsIcon,
-  Sparkles,
-  Sun,
-  Thermometer,
-  Type,
-  Zap,
-} from 'lucide-react'
-import {
   ACCENT_OPTIONS,
   FONT_OPTIONS,
   isReasoningModel,
@@ -43,32 +24,124 @@ const REFRESH_OPTIONS = [
   { value: 900, label: '15 min' },
 ]
 
-function SettingRow({
-  icon,
+const SETTINGS_NAV: Array<{
+  id: string
+  title: string
+  description: string
+}> = [
+  {
+    id: 'appearance',
+    title: 'Appearance',
+    description: 'Theme, type, color, and density',
+  },
+  {
+    id: 'accessibility',
+    title: 'Accessibility',
+    description: 'Contrast and motion preferences',
+  },
+  {
+    id: 'market-data',
+    title: 'Market Data',
+    description: 'Refresh behavior and live quotes',
+  },
+  {
+    id: 'ai-assistant',
+    title: 'AI Assistant',
+    description: 'Model, search, prompt, and context',
+  },
+  {
+    id: 'api-key',
+    title: 'API Key',
+    description: 'Local OpenAI credential',
+  },
+]
+
+type SettingsCategoryId = typeof SETTINGS_NAV[number]['id']
+
+const inputClassName = 'min-h-[44px] w-full rounded-[8px] border border-border bg-bg px-4 py-3 text-sm text-text outline-none transition-colors placeholder:text-dim focus-visible:border-accent'
+
+function CategoryNav({
+  activeCategory,
+  onSelect,
+}: {
+  activeCategory: SettingsCategoryId
+  onSelect: (category: SettingsCategoryId) => void
+}) {
+  return (
+    <aside className="lg:w-60 lg:shrink-0">
+      <nav
+        className="sticky top-5 flex gap-1 overflow-x-auto border border-border bg-s1 p-2 lg:flex-col lg:overflow-visible"
+        aria-label="Settings categories"
+      >
+        {SETTINGS_NAV.map(({ id, title, description }) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => onSelect(id)}
+            className={[
+              'block min-w-[208px] px-4 py-3 text-left transition-colors lg:min-w-0',
+              activeCategory === id
+                ? 'bg-s2 text-text'
+                : 'text-muted hover:bg-s2 hover:text-text focus-visible:bg-s2',
+            ].join(' ')}
+            aria-current={activeCategory === id ? 'page' : undefined}
+          >
+            <span className="block text-sm font-medium text-text">{title}</span>
+            <span className="mt-1 block truncate text-2xs text-muted">{description}</span>
+          </button>
+        ))}
+      </nav>
+    </aside>
+  )
+}
+
+function SettingsSection({
+  id,
   title,
   caption,
   children,
 }: {
-  icon: ReactNode
+  id: string
   title: string
   caption: string
   children: ReactNode
 }) {
   return (
-    <section className="grid grid-cols-[minmax(0,1fr)_minmax(280px,420px)] gap-4 border-b border-border px-4 py-4 max-lg:grid-cols-1">
-      <div className="flex gap-3">
-        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center border border-border bg-s2 text-accent">
-          {icon}
-        </div>
-        <div>
-          <h2 className="text-sm font-medium text-text">{title}</h2>
-          <p className="mt-1 max-w-xl text-2xs text-muted">{caption}</p>
-        </div>
-      </div>
-      <div className="flex items-center justify-start gap-2 max-sm:flex-wrap">
+    <section
+      id={id}
+      className="scroll-mt-6 border-x border-t border-border bg-s1 last:border-b"
+      aria-labelledby={`${id}-heading`}
+    >
+      <header className="border-b border-border px-6 py-4">
+        <h2 id={`${id}-heading`} className="text-base font-semibold text-text">{title}</h2>
+        <p className="mt-1 max-w-2xl text-2xs leading-5 text-muted">{caption}</p>
+      </header>
+      <div className="divide-y divide-border">
         {children}
       </div>
     </section>
+  )
+}
+
+function FieldRow({
+  title,
+  caption,
+  children,
+}: {
+  title: string
+  caption: string
+  children: ReactNode
+}) {
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)_minmax(260px,380px)] items-center gap-6 px-6 py-4 max-md:grid-cols-1 max-md:gap-3">
+      <div className="min-w-0">
+        <h3 className="text-sm font-medium text-text">{title}</h3>
+        <p className="mt-1 max-w-2xl text-2xs leading-5 text-muted">{caption}</p>
+      </div>
+      <div className="min-w-0">
+        {children}
+      </div>
+    </div>
   )
 }
 
@@ -88,10 +161,10 @@ function SegmentButton<T extends string>({
       type="button"
       onClick={() => onSelect(value)}
       className={[
-        'flex min-h-11 items-center gap-2 border px-3 text-2xs font-medium transition-colors',
+        'flex min-h-[36px] items-center rounded-[8px] border px-4 py-1.5 text-2xs font-medium transition-colors',
         selected
           ? 'border-accent bg-s2 text-text'
-          : 'border-border bg-s1 text-muted hover:border-border-strong hover:text-text',
+          : 'border-border bg-bg text-muted hover:border-border-strong hover:bg-s2 hover:text-text',
       ].join(' ')}
       aria-pressed={selected}
     >
@@ -110,25 +183,30 @@ function Toggle({
   label: string
 }) {
   return (
-    <button
-      type="button"
-      onClick={() => onChange(!checked)}
-      className={[
-        'relative h-6 w-11 border transition-colors',
-        checked ? 'border-accent bg-accent' : 'border-border-strong bg-s2',
-      ].join(' ')}
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      title={label}
-    >
-      <span
+    <div className="flex items-center gap-3">
+      <button
+        type="button"
+        onClick={() => onChange(!checked)}
         className={[
-          'absolute top-0.5 h-5 w-5 bg-text transition-transform',
-          checked ? 'translate-x-5' : 'translate-x-0.5',
+          'relative h-[28px] w-[52px] shrink-0 rounded-full transition-colors',
+          checked ? 'bg-accent' : 'bg-border-strong',
         ].join(' ')}
-      />
-    </button>
+        role="switch"
+        aria-checked={checked}
+        aria-label={label}
+        title={label}
+      >
+        <span
+          className={[
+            'absolute left-[2px] top-[2px] h-[24px] w-[24px] rounded-full bg-white shadow-sm transition-transform',
+            checked ? 'translate-x-[24px]' : 'translate-x-0',
+          ].join(' ')}
+        />
+      </button>
+      <span className="min-w-[48px] text-2xs font-medium text-text">
+        {checked ? 'On' : 'Off'}
+      </span>
+    </div>
   )
 }
 
@@ -140,6 +218,7 @@ export default function Settings() {
   const setOpenAIKey = useAppStore(s => s.setOpenAIKey)
   const [keyDraft, setKeyDraft] = useState(openaiKey)
   const [showKey, setShowKey] = useState(false)
+  const [activeCategory, setActiveCategory] = useState<SettingsCategoryId>('appearance')
 
   function update(patch: Partial<SystemSettings>) {
     setSettings(patch)
@@ -155,360 +234,376 @@ export default function Settings() {
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex shrink-0 items-center gap-3 border-b border-border bg-s1 px-4 py-3">
-        <SettingsIcon size={17} className="text-accent" aria-hidden="true" />
-        <div>
-          <h1 className="text-sm font-medium text-text">System Settings</h1>
-          <p className="text-2xs text-muted">Global preferences are saved in this browser.</p>
+    <div className="h-full overflow-auto" style={{ colorScheme: settings.theme }}>
+      <div className="border-b border-border bg-s1 px-6 py-4">
+        <div className="mx-auto flex max-w-6xl items-center gap-4">
+          <div className="min-w-0">
+            <h1 className="text-md font-semibold text-text">System Settings</h1>
+            <p className="mt-1 text-2xs text-muted">Preferences are saved in this browser and apply across TradeSmart.</p>
+          </div>
+          <button
+            type="button"
+            onClick={resetSettings}
+            className="ml-auto min-h-[40px] shrink-0 rounded-[8px] border border-border bg-bg px-4 py-2 text-2xs font-medium text-muted transition-colors hover:border-border-strong hover:bg-s2 hover:text-text"
+          >
+            Reset
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={resetSettings}
-          className="ml-auto flex min-h-11 items-center gap-2 border border-border bg-s2 px-3 text-2xs text-muted hover:border-border-strong hover:text-text"
-        >
-          <RotateCcw size={15} aria-hidden="true" />
-          Reset
-        </button>
       </div>
 
-      <div className="flex-1 overflow-auto">
-        <SettingRow
-          icon={settings.theme === 'dark' ? <Moon size={16} aria-hidden="true" /> : <Sun size={16} aria-hidden="true" />}
-          title="Theme"
-          caption="Switch the platform shell between dark and light mode."
-        >
-          <SegmentButton<ThemeMode>
-            value="dark"
-            selected={settings.theme === 'dark'}
-            onSelect={theme => update({ theme })}
-          >
-            <Moon size={15} aria-hidden="true" />
-            Dark
-          </SegmentButton>
-          <SegmentButton<ThemeMode>
-            value="light"
-            selected={settings.theme === 'light'}
-            onSelect={theme => update({ theme })}
-          >
-            <Sun size={15} aria-hidden="true" />
-            Light
-          </SegmentButton>
-        </SettingRow>
+      <div className="mx-auto flex max-w-6xl gap-5 px-5 py-6 max-lg:flex-col">
+        <CategoryNav activeCategory={activeCategory} onSelect={setActiveCategory} />
 
-        <SettingRow
-          icon={<Type size={16} aria-hidden="true" />}
-          title="Font"
-          caption="Choose the system-wide interface typeface."
-        >
-          <select
-            value={settings.fontFamily}
-            onChange={event => update({ fontFamily: event.target.value as FontFamily })}
-            className="min-h-11 w-full border border-border bg-s1 px-3 text-sm text-text outline-none focus-visible:border-accent"
-            aria-label="Font family"
-          >
-            {FONT_OPTIONS.map(option => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </SettingRow>
-
-        <SettingRow
-          icon={<Type size={16} aria-hidden="true" />}
-          title="Font Size"
-          caption="Set the base font size used across the app."
-        >
-          <div className="flex w-full items-center gap-3">
-            <input
-              type="range"
-              min={14}
-              max={22}
-              step={1}
-              value={settings.fontSizePx}
-              onChange={event => update({ fontSizePx: Number(event.target.value) })}
-              className="w-full accent-[var(--color-accent)]"
-              aria-label="System font size"
-            />
-            <span className="w-14 border border-border bg-s2 px-2 py-2 text-center text-2xs text-text tabnum">
-              {settings.fontSizePx}px
-            </span>
-          </div>
-        </SettingRow>
-
-        <SettingRow
-          icon={<Palette size={16} aria-hidden="true" />}
-          title="Accent"
-          caption="Select the highlight color for focus, active navigation, and controls."
-        >
-          {ACCENT_OPTIONS.map(option => (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => update({ accentColor: option.value as AccentColor })}
-              className={[
-                'flex min-h-11 items-center gap-2 border px-3 text-2xs font-medium',
-                settings.accentColor === option.value
-                  ? 'border-accent bg-s2 text-text'
-                  : 'border-border bg-s1 text-muted hover:border-border-strong hover:text-text',
-              ].join(' ')}
-              aria-pressed={settings.accentColor === option.value}
+        <div className="flex min-w-0 flex-1 flex-col">
+          {activeCategory === 'appearance' && (
+            <SettingsSection
+              id="appearance"
+              title="Appearance"
+              caption="Set the visual defaults for the TradeSmart interface."
             >
-              <span
-                className="h-3 w-3 border border-border-strong"
-                style={{ background: option.color }}
-                aria-hidden="true"
-              />
-              {option.label}
-              {settings.accentColor === option.value && <Check size={14} aria-hidden="true" />}
-            </button>
-          ))}
-        </SettingRow>
-
-        <SettingRow
-          icon={<Gauge size={16} aria-hidden="true" />}
-          title="Density"
-          caption="Tune the shell spacing for scanning or relaxed viewing."
-        >
-          <SegmentButton<InterfaceDensity>
-            value="standard"
-            selected={settings.density === 'standard'}
-            onSelect={density => update({ density })}
-          >
-            Standard
-          </SegmentButton>
-          <SegmentButton<InterfaceDensity>
-            value="compact"
-            selected={settings.density === 'compact'}
-            onSelect={density => update({ density })}
-          >
-            Compact
-          </SegmentButton>
-        </SettingRow>
-
-        <SettingRow
-          icon={<Eye size={16} aria-hidden="true" />}
-          title="Contrast"
-          caption="Increase text and border contrast across the interface."
-        >
-          <Toggle
-            checked={settings.highContrast}
-            onChange={highContrast => update({ highContrast })}
-            label="High contrast"
-          />
-        </SettingRow>
-
-        <SettingRow
-          icon={<Zap size={16} aria-hidden="true" />}
-          title="Motion"
-          caption="Reduce interface animations and transitions."
-        >
-          <Toggle
-            checked={settings.reduceMotion}
-            onChange={reduceMotion => update({ reduceMotion })}
-            label="Reduced motion"
-          />
-        </SettingRow>
-
-        <SettingRow
-          icon={<RefreshCw size={16} aria-hidden="true" />}
-          title="Market Refresh"
-          caption="Set the global market refresh preference saved with the app."
-        >
-          <select
-            value={settings.marketRefreshSeconds}
-            onChange={event => update({ marketRefreshSeconds: Number(event.target.value) })}
-            className="min-h-11 w-full border border-border bg-s1 px-3 text-sm text-text outline-none focus-visible:border-accent"
-            aria-label="Market refresh interval"
-          >
-            {REFRESH_OPTIONS.map(option => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </SettingRow>
-
-        <SettingRow
-          icon={<RefreshCw size={16} aria-hidden="true" />}
-          title="Paper Trading Live Refresh"
-          caption="When on, Stock Detail and paper portfolio positions use Alpaca live quotes when credentials are configured."
-        >
-          <Toggle
-            checked={settings.fastPaperRefresh}
-            onChange={fastPaperRefresh => update({ fastPaperRefresh })}
-            label="Paper trading live refresh"
-          />
-        </SettingRow>
-
-        <SettingRow
-          icon={<KeyRound size={16} aria-hidden="true" />}
-          title="OpenAI API Key"
-          caption="Stored only in this browser (localStorage). Used by the Strategy chat on stock pages."
-        >
-          <div className="flex w-full flex-col gap-2">
-            <div className="flex w-full items-center gap-2">
-              <input
-                type={showKey ? 'text' : 'password'}
-                value={keyDraft}
-                onChange={event => setKeyDraft(event.target.value)}
-                placeholder="sk-..."
-                spellCheck={false}
-                autoComplete="off"
-                className="min-h-11 flex-1 border border-border bg-s1 px-3 text-xs text-text outline-none focus-visible:border-accent tabnum"
-                aria-label="OpenAI API key"
-              />
-              <button
-                type="button"
-                onClick={() => setShowKey(v => !v)}
-                className="min-h-11 border border-border bg-s2 px-3 text-2xs text-muted hover:border-border-strong hover:text-text"
-              >
-                {showKey ? 'Hide' : 'Show'}
-              </button>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={saveKey}
-                disabled={keyDraft === openaiKey}
-                className="min-h-11 border border-accent bg-accent px-3 text-2xs font-medium text-bg disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {openaiKey && keyDraft === openaiKey ? 'Saved' : 'Save key'}
-              </button>
-              {openaiKey && (
-                <button
-                  type="button"
-                  onClick={clearKey}
-                  className="min-h-11 border border-border bg-s2 px-3 text-2xs text-muted hover:border-border-strong hover:text-down"
+            <FieldRow
+              title="Theme"
+              caption="Switch the platform shell between dark and light mode."
+            >
+              <div className="flex items-center gap-2">
+                <SegmentButton<ThemeMode>
+                  value="dark"
+                  selected={settings.theme === 'dark'}
+                  onSelect={theme => update({ theme })}
                 >
-                  Clear
+                  Dark
+                </SegmentButton>
+                <SegmentButton<ThemeMode>
+                  value="light"
+                  selected={settings.theme === 'light'}
+                  onSelect={theme => update({ theme })}
+                >
+                  Light
+                </SegmentButton>
+              </div>
+            </FieldRow>
+
+            <FieldRow
+              title="Font"
+              caption="Choose the system-wide interface typeface."
+            >
+              <select
+                value={settings.fontFamily}
+                onChange={event => update({ fontFamily: event.target.value as FontFamily })}
+                className={inputClassName}
+                aria-label="Font family"
+              >
+                {FONT_OPTIONS.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </FieldRow>
+
+            <FieldRow
+              title="Font size"
+              caption="Set the base font size used across the app."
+            >
+              <div className="flex w-full items-center gap-3">
+                <input
+                  type="range"
+                  min={14}
+                  max={22}
+                  step={1}
+                  value={settings.fontSizePx}
+                  onChange={event => update({ fontSizePx: Number(event.target.value) })}
+                  className="w-full accent-[var(--color-accent)]"
+                  aria-label="System font size"
+                />
+                <span className="w-[56px] rounded-[8px] border border-border bg-bg px-2 py-2 text-center text-2xs text-text tabnum">
+                  {settings.fontSizePx}px
+                </span>
+              </div>
+            </FieldRow>
+
+            <FieldRow
+              title="Accent"
+              caption="Select the highlight color for focus, active navigation, and controls."
+            >
+              <div className="flex flex-wrap items-center gap-2">
+              {ACCENT_OPTIONS.map(option => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => update({ accentColor: option.value as AccentColor })}
+                  className={[
+                    'flex min-h-[36px] items-center gap-2 rounded-[8px] border px-3 py-1.5 text-2xs font-medium transition-colors',
+                    settings.accentColor === option.value
+                      ? 'border-accent bg-s2 text-text'
+                      : 'border-border bg-bg text-muted hover:border-border-strong hover:bg-s2 hover:text-text',
+                  ].join(' ')}
+                  aria-pressed={settings.accentColor === option.value}
+                >
+                  <span
+                    className="h-3.5 w-3.5 rounded-full border border-border-strong"
+                    style={{ background: option.color }}
+                    aria-hidden="true"
+                  />
+                  {option.label}
                 </button>
-              )}
-              <span className="text-2xs text-dim">
-                {openaiKey ? 'Key set' : 'No key set'}
-              </span>
-            </div>
-          </div>
-        </SettingRow>
-
-        <SettingRow
-          icon={<Sparkles size={16} aria-hidden="true" />}
-          title="Chat Model"
-          caption="Model used by the Strategy chatbot on stock pages."
-        >
-          <select
-            value={settings.openaiModel}
-            onChange={event => update({ openaiModel: event.target.value as OpenAIModel })}
-            className="min-h-11 w-full border border-border bg-s1 px-3 text-sm text-text outline-none focus-visible:border-accent"
-            aria-label="OpenAI chat model"
-          >
-            {OPENAI_MODEL_OPTIONS.map(option => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </SettingRow>
-
-        <SettingRow
-          icon={<Globe size={16} aria-hidden="true" />}
-          title="Brief Web Search"
-          caption="When on, the auto-generated Strategy Brief uses web search (latest earnings, news, filings). Adds cost per stock load."
-        >
-          <Toggle
-            checked={settings.briefWebSearch}
-            onChange={briefWebSearch => update({ briefWebSearch })}
-            label="Brief web search"
-          />
-        </SettingRow>
-
-        <SettingRow
-          icon={<Thermometer size={16} aria-hidden="true" />}
-          title="Temperature"
-          caption={
-            isReasoningModel(settings.openaiModel)
-              ? `${settings.openaiModel} is a reasoning model and ignores temperature - this slider only applies to other models.`
-              : 'Sampling temperature for chat + brief. Lower = more focused, higher = more varied.'
-          }
-        >
-          <div className="flex w-full items-center gap-3">
-            <input
-              type="range"
-              min={0}
-              max={1.5}
-              step={0.1}
-              value={settings.openaiTemperature}
-              onChange={event => update({ openaiTemperature: Number(event.target.value) })}
-              disabled={isReasoningModel(settings.openaiModel)}
-              className="w-full accent-[var(--color-accent)] disabled:opacity-40"
-              aria-label="OpenAI temperature"
-            />
-            <span className="w-14 border border-border bg-s2 px-2 py-2 text-center text-2xs text-text tabnum">
-              {settings.openaiTemperature.toFixed(1)}
-            </span>
-          </div>
-        </SettingRow>
-
-        <SettingRow
-          icon={<MessageSquare size={16} aria-hidden="true" />}
-          title="Custom System Prompt"
-          caption="Optional extra instructions appended to the built-in prompts (chat + brief). Use for style preferences, biases to avoid, extra context."
-        >
-          <textarea
-            value={settings.openaiSystemPrompt}
-            onChange={event => update({ openaiSystemPrompt: event.target.value })}
-            placeholder="e.g. Prefer conservative position sizing. Always note if RSI < 30 is a divergence vs continuation."
-            rows={4}
-            spellCheck={false}
-            className="min-h-[88px] w-full resize-y border border-border bg-s1 px-3 py-2 text-2xs text-text outline-none focus-visible:border-accent placeholder:text-dim"
-            aria-label="Custom system prompt"
-          />
-        </SettingRow>
-
-        <SettingRow
-          icon={<FileSpreadsheet size={16} aria-hidden="true" />}
-          title="Financials in AI"
-          caption="How much of the 3-statement financial data to inject into the AI context. Concise = ~10 key lines per statement. Full = every line item, annual + quarterly. Full uses many more tokens per call."
-        >
-          <SegmentButton<FinancialsDepth>
-            value="concise"
-            selected={settings.financialsDepth === 'concise'}
-            onSelect={financialsDepth => update({ financialsDepth })}
-          >
-            Concise
-          </SegmentButton>
-          <SegmentButton<FinancialsDepth>
-            value="full"
-            selected={settings.financialsDepth === 'full'}
-            onSelect={financialsDepth => update({ financialsDepth })}
-          >
-            Full
-          </SegmentButton>
-        </SettingRow>
-
-        <section className="px-4 py-4">
-          <div className="border border-border bg-s1 p-4">
-            <p className="text-2xs uppercase tracking-widest text-dim">Preview</p>
-            <div className="mt-3 grid grid-cols-3 gap-2 max-sm:grid-cols-1">
-              <div className="border border-border bg-bg p-3">
-                <p className="text-2xs text-muted">Signal</p>
-                <p className="mt-1 text-md font-medium text-text">BUY</p>
+              ))}
               </div>
-              <div className="border border-border bg-bg p-3">
-                <p className="text-2xs text-muted">Confidence</p>
-                <p className="mt-1 text-md font-medium text-accent tabnum">82.4</p>
-              </div>
-              <div className="border border-border bg-bg p-3">
-                <p className="text-2xs text-muted">Refresh</p>
-                <p className="mt-1 text-md font-medium text-text tabnum">
-                  {settings.fastPaperRefresh ? 'Alpaca' : settings.marketRefreshSeconds < 60 ? `${settings.marketRefreshSeconds}s` : `${settings.marketRefreshSeconds / 60}m`}
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
+            </FieldRow>
 
+            <FieldRow
+              title="Density"
+              caption="Tune the shell spacing for scanning or relaxed viewing."
+            >
+              <div className="flex items-center gap-2">
+                <SegmentButton<InterfaceDensity>
+                  value="standard"
+                  selected={settings.density === 'standard'}
+                  onSelect={density => update({ density })}
+                >
+                  Standard
+                </SegmentButton>
+                <SegmentButton<InterfaceDensity>
+                  value="compact"
+                  selected={settings.density === 'compact'}
+                  onSelect={density => update({ density })}
+                >
+                  Compact
+                </SegmentButton>
+              </div>
+            </FieldRow>
+          </SettingsSection>
+          )}
+
+          {activeCategory === 'accessibility' && (
+            <SettingsSection
+              id="accessibility"
+              title="Accessibility"
+              caption="Adjust contrast and motion so the app is easier to read and navigate."
+            >
+            <FieldRow
+              title="High contrast"
+              caption="Increase text and border contrast across the interface."
+            >
+              <Toggle
+                checked={settings.highContrast}
+                onChange={highContrast => update({ highContrast })}
+                label="High contrast"
+              />
+            </FieldRow>
+
+            <FieldRow
+              title="Reduced motion"
+              caption="Reduce interface animations and transitions."
+            >
+              <Toggle
+                checked={settings.reduceMotion}
+                onChange={reduceMotion => update({ reduceMotion })}
+                label="Reduced motion"
+              />
+            </FieldRow>
+          </SettingsSection>
+          )}
+
+          {activeCategory === 'market-data' && (
+            <SettingsSection
+              id="market-data"
+              title="Market Data"
+              caption="Control how frequently market context updates while you work."
+            >
+            <FieldRow
+              title="Market refresh"
+              caption="Set the global market refresh preference saved with the app."
+            >
+              <select
+                value={settings.marketRefreshSeconds}
+                onChange={event => update({ marketRefreshSeconds: Number(event.target.value) })}
+                className={inputClassName}
+                aria-label="Market refresh interval"
+              >
+                {REFRESH_OPTIONS.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </FieldRow>
+
+            <FieldRow
+              title="Paper trading live refresh"
+              caption="When on, Stock Detail and paper portfolio positions use Alpaca live quotes when credentials are configured."
+            >
+              <Toggle
+                checked={settings.fastPaperRefresh}
+                onChange={fastPaperRefresh => update({ fastPaperRefresh })}
+                label="Paper trading live refresh"
+              />
+            </FieldRow>
+          </SettingsSection>
+          )}
+
+          {activeCategory === 'ai-assistant' && (
+            <SettingsSection
+              id="ai-assistant"
+              title="AI Assistant"
+              caption="Configure strategy brief and chat behavior for stock pages."
+            >
+            <FieldRow
+              title="Chat model"
+              caption="Model used by the Strategy chatbot on stock pages."
+            >
+              <select
+                value={settings.openaiModel}
+                onChange={event => update({ openaiModel: event.target.value as OpenAIModel })}
+                className={inputClassName}
+                aria-label="OpenAI chat model"
+              >
+                {OPENAI_MODEL_OPTIONS.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </FieldRow>
+
+            <FieldRow
+              title="Brief web search"
+              caption="When on, the auto-generated Strategy Brief uses web search for recent earnings, news, and filings. Adds cost per stock load."
+            >
+              <Toggle
+                checked={settings.briefWebSearch}
+                onChange={briefWebSearch => update({ briefWebSearch })}
+                label="Brief web search"
+              />
+            </FieldRow>
+
+            <FieldRow
+              title="Temperature"
+              caption={
+                isReasoningModel(settings.openaiModel)
+                  ? `${settings.openaiModel} is a reasoning model and ignores temperature. This slider only applies to other models.`
+                  : 'Sampling temperature for chat and brief. Lower is more focused; higher is more varied.'
+              }
+            >
+              <div className="flex w-full items-center gap-3">
+                <input
+                  type="range"
+                  min={0}
+                  max={1.5}
+                  step={0.1}
+                  value={settings.openaiTemperature}
+                  onChange={event => update({ openaiTemperature: Number(event.target.value) })}
+                  disabled={isReasoningModel(settings.openaiModel)}
+                  className="w-full accent-[var(--color-accent)] disabled:opacity-40"
+                  aria-label="OpenAI temperature"
+                />
+                <span className="w-[56px] rounded-[8px] border border-border bg-bg px-2 py-2 text-center text-2xs text-text tabnum">
+                  {settings.openaiTemperature.toFixed(1)}
+                </span>
+              </div>
+            </FieldRow>
+
+            <FieldRow
+              title="Custom system prompt"
+              caption="Optional extra instructions appended to the built-in chat and brief prompts."
+            >
+              <div className="w-full">
+                <div className="mb-2 text-2xs text-muted">
+                  Applies to chat and strategy briefs
+                </div>
+                <textarea
+                  value={settings.openaiSystemPrompt}
+                  onChange={event => update({ openaiSystemPrompt: event.target.value })}
+                  placeholder="e.g. Prefer conservative position sizing. Always note if RSI < 30 is a divergence vs continuation."
+                  rows={4}
+                  spellCheck={false}
+                  className="min-h-[112px] w-full resize-y rounded-[8px] border border-border bg-bg px-4 py-3 text-sm leading-5 text-text outline-none transition-colors placeholder:text-dim focus-visible:border-accent"
+                  aria-label="Custom system prompt"
+                />
+              </div>
+            </FieldRow>
+
+            <FieldRow
+              title="Financials in AI"
+              caption="Choose how much 3-statement financial data is injected into AI context."
+            >
+              <div className="flex items-center gap-2">
+                <SegmentButton<FinancialsDepth>
+                  value="concise"
+                  selected={settings.financialsDepth === 'concise'}
+                  onSelect={financialsDepth => update({ financialsDepth })}
+                >
+                  Concise
+                </SegmentButton>
+                <SegmentButton<FinancialsDepth>
+                  value="full"
+                  selected={settings.financialsDepth === 'full'}
+                  onSelect={financialsDepth => update({ financialsDepth })}
+                >
+                  Full
+                </SegmentButton>
+              </div>
+            </FieldRow>
+          </SettingsSection>
+          )}
+
+          {activeCategory === 'api-key' && (
+            <SettingsSection
+              id="api-key"
+              title="API Key"
+              caption="Manage the OpenAI key stored locally in this browser."
+            >
+            <FieldRow
+              title="OpenAI API key"
+              caption="Stored only in localStorage. Used by Strategy chat and AI-generated strategy briefs."
+            >
+              <div className="flex w-full flex-col gap-3">
+                <div className="flex w-full items-center gap-2">
+                  <input
+                    type={showKey ? 'text' : 'password'}
+                    value={keyDraft}
+                    onChange={event => setKeyDraft(event.target.value)}
+                    placeholder="sk-..."
+                    spellCheck={false}
+                    autoComplete="off"
+                    className={`${inputClassName} flex-1 text-xs tabnum`}
+                    aria-label="OpenAI API key"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowKey(v => !v)}
+                    className="min-h-[44px] shrink-0 rounded-[8px] border border-border bg-bg px-4 py-2 text-2xs font-medium text-muted transition-colors hover:border-border-strong hover:bg-s2 hover:text-text"
+                  >
+                    {showKey ? 'Hide' : 'Show'}
+                  </button>
+                </div>
+                <div className="flex items-center gap-2 max-sm:flex-wrap">
+                  <button
+                    type="button"
+                    onClick={saveKey}
+                    disabled={keyDraft === openaiKey}
+                    className="min-h-[44px] rounded-[8px] border border-accent bg-accent px-4 py-2 text-2xs font-medium text-bg transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {openaiKey && keyDraft === openaiKey ? 'Saved' : 'Save key'}
+                  </button>
+                  {openaiKey && (
+                    <button
+                      type="button"
+                      onClick={clearKey}
+                      className="min-h-[44px] rounded-[8px] border border-border bg-bg px-4 py-2 text-2xs font-medium text-muted transition-colors hover:border-border-strong hover:bg-s2 hover:text-down"
+                    >
+                      Clear
+                    </button>
+                  )}
+                  <span className="text-2xs text-dim">
+                    {openaiKey ? 'Key saved' : 'No key saved'}
+                  </span>
+                </div>
+              </div>
+            </FieldRow>
+          </SettingsSection>
+          )}
+        </div>
       </div>
     </div>
   )

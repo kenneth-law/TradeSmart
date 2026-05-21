@@ -7,7 +7,7 @@ const ENTRY_POINTS = [
   { label: 'Technical Ranking', to: '/technical' },
   { label: 'Daily Lineup', to: '/daily-lineup' },
   { label: 'Portfolio', to: '/portfolio' },
-  { label: 'Docs', to: '/docs' },
+  { label: 'Settings', to: '/settings' },
 ]
 
 export default function LandingPage() {

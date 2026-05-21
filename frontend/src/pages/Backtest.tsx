@@ -593,7 +593,7 @@ export default function Backtest() {
   }
 
   if (status === 'error' && phase === 'running') {
-    setError('System run failed. Check the log above.')
+    setError('Quant trading run failed. Check the log above.')
     setPhase('config')
     setSseUrl(null)
   }
@@ -639,7 +639,7 @@ export default function Backtest() {
       setSystemId(null)
       setSseUrl(`/backtest_progress_stream?backtest_id=${resp.backtest_id}`)
     } catch (e: unknown) {
-      setError(`Failed to start system run: ${e instanceof Error ? e.message : String(e)}`)
+      setError(`Failed to start quant trading run: ${e instanceof Error ? e.message : String(e)}`)
       setPhase('config')
     }
   }
@@ -665,7 +665,7 @@ export default function Backtest() {
   if (phase === 'config') {
     return (
       <div className="p-4 max-w-4xl mx-auto">
-        <h1 className="text-sm text-text font-medium mb-4">System</h1>
+        <h1 className="text-sm text-text font-medium mb-4">Quant Trading</h1>
 
         <div className="flex gap-px mb-3 border border-border bg-border">
           {([
@@ -936,7 +936,7 @@ export default function Backtest() {
     return (
       <div className="p-4 max-w-2xl mx-auto">
         <div className="flex items-center justify-between mb-3">
-          <span className="text-sm text-text font-medium">System running…</span>
+          <span className="text-sm text-text font-medium">Quant trading running...</span>
           <span className="text-2xs text-dim tabnum">{progress}%</span>
         </div>
         <ProgressBar value={progress} />
@@ -968,7 +968,7 @@ export default function Backtest() {
     return (
       <div className="flex flex-col h-full">
         <div className="flex items-center gap-3 px-4 py-2 border-b border-border bg-s1 shrink-0">
-          <button onClick={reset} className="text-2xs text-dim hover:text-text">← New system run</button>
+          <button onClick={reset} className="text-2xs text-dim hover:text-text">← New quant run</button>
           <span className="text-border">|</span>
           <span className="text-2xs text-muted tabnum">Integrated · {tickers.length} tickers processed</span>
         </div>
@@ -1141,7 +1141,7 @@ export default function Backtest() {
     <div className="flex flex-col h-full">
       <div className="flex flex-wrap items-center gap-3 px-4 py-2 border-b border-border bg-s1 shrink-0">
         <button onClick={reset} className="text-2xs text-dim hover:text-text">
-          ← New system run
+          ← New quant run
         </button>
         <span className="text-border">|</span>
         <span className="text-2xs text-muted tabnum">

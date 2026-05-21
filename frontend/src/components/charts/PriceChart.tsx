@@ -5,7 +5,7 @@ import type { IChartApi, Time } from 'lightweight-charts'
 import { api } from '../../lib/api'
 import type { PriceHistory } from '../../types'
 import { quotePrice, useLiveQuotes } from '../../hooks/useLiveQuotes'
-import { aggregateIntradayHistory, floorToScale, INTRADAY_SCALES, type IntradayScale } from './intradayScales'
+import { aggregateIntradayHistory, floorToScale, formatChartTime, INTRADAY_SCALES, type IntradayScale } from './intradayScales'
 
 type ChartType = 'candlestick' | 'line'
 
@@ -96,7 +96,15 @@ export default function PriceChart({ ticker, overlayPeers = [] }: PriceChartProp
       },
       rightPriceScale: { borderColor: '#1F1F23' },
       leftPriceScale:  { borderColor: '#1F1F23', visible: hasOverlays },
-      timeScale:       { borderColor: '#1F1F23', timeVisible: true },
+      localization: {
+        timeFormatter: time => formatChartTime(time, isIntraday, intradayScale),
+      },
+      timeScale: {
+        borderColor: '#1F1F23',
+        timeVisible: isIntraday,
+        secondsVisible: isIntraday && intradayScale < 60,
+        tickMarkFormatter: time => formatChartTime(time, isIntraday, intradayScale),
+      },
     })
     chartRef.current = chart
 

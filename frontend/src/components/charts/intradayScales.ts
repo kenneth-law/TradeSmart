@@ -14,11 +14,15 @@ export function floorToScale(second: number, scale: IntradayScale) {
   return Math.floor(second / scale) * scale
 }
 
+export function systemTimeZone() {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone
+}
+
 export function formatMarketTime(value: unknown, scale: IntradayScale = 60) {
   const seconds = typeof value === 'number' ? value : null
   if (seconds == null || !Number.isFinite(seconds)) return String(value ?? '')
   return new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/New_York',
+    timeZone: systemTimeZone(),
     hour: '2-digit',
     minute: '2-digit',
     second: scale < 60 ? '2-digit' : undefined,
@@ -30,6 +34,10 @@ export function formatChartTime(value: unknown, intraday: boolean, scale: Intrad
   if (intraday) return formatMarketTime(value, scale)
   if (typeof value === 'string') return value
   if (typeof value === 'number') return new Date(value * 1000).toISOString().slice(0, 10)
+  if (value && typeof value === 'object' && 'year' in value && 'month' in value && 'day' in value) {
+    const day = value as { year: number; month: number; day: number }
+    return `${day.year}-${String(day.month).padStart(2, '0')}-${String(day.day).padStart(2, '0')}`
+  }
   return String(value ?? '')
 }
 

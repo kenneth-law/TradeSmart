@@ -4,10 +4,10 @@ import logoImage from '../../assets/TradeSmartLogowhite.png'
 
 const NAV = [
   { to: '/',           label: 'HOME',       hint: '1' },
-  { to: '/technical',  label: 'TECHNICAL',  hint: '2' },
-  { to: '/system',     label: 'SYSTEM',     hint: '3' },
-  { to: '/market',     label: 'MARKET',     hint: '4' },
-  { to: '/research',   label: 'RESEARCH',   hint: '5' },
+  { to: '/market',     label: 'MARKETS',    hint: '2' },
+  { to: '/system',     label: 'QUANT',      hint: '3' },
+  { to: '/technical',  label: 'TECHNICAL',  hint: '4' },
+  { to: '/daily-lineup', label: 'LINEUP',    hint: '5' },
   { to: '/portfolio',  label: 'PORTFOLIO',  hint: '6' },
   { to: '/docs',       label: 'DOCS',       hint: '7' },
   { to: '/settings',   label: 'SETTINGS',   hint: '8' },

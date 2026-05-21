@@ -2,10 +2,10 @@ import { Link } from 'react-router-dom'
 import { ArrowRight } from 'lucide-react'
 
 const ENTRY_POINTS = [
-  { label: 'Trading System', to: '/system' },
+  { label: 'Markets', to: '/market' },
+  { label: 'Quant Trading', to: '/system' },
   { label: 'Technical Ranking', to: '/technical' },
-  { label: 'Market', to: '/market' },
-  { label: 'Research', to: '/research' },
+  { label: 'Daily Lineup', to: '/daily-lineup' },
   { label: 'Portfolio', to: '/portfolio' },
   { label: 'Docs', to: '/docs' },
 ]
@@ -31,7 +31,7 @@ export default function LandingPage() {
           </p>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {ENTRY_POINTS.map(item => {
-              const highlighted = item.to === '/system'
+              const highlighted = item.to === '/market'
 
               return (
                 <Link

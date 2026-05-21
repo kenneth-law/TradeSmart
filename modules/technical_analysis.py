@@ -11,7 +11,7 @@ from modules.data_retrieval import get_stock_info, get_stock_history
 from modules.news_sentiment import get_news_sentiment_with_timeframes
 from modules.utils import log_message
 
-def get_stock_data(ticker_symbol, historical_data=None):
+def get_stock_data(ticker_symbol, historical_data=None, point_in_time=None, as_of_date=None):
     """
     Fetches and computes stock market data and technical indicators for the given ticker symbol. The function
     retrieves basic stock information, historical price data, and intraday data when available. It calculates
@@ -23,6 +23,9 @@ def get_stock_data(ticker_symbol, historical_data=None):
         ticker_symbol (str): The symbol representing the stock (e.g., 'AAPL', 'GOOGL').
         historical_data (pandas.DataFrame, optional): Pre-loaded historical data to use instead of fetching new data.
                                                      Used primarily for backtesting and ML training.
+        point_in_time (bool, optional): When True, avoids live-only features such as current news,
+                                        pre-market price, and current market cap.
+        as_of_date (date/datetime/str, optional): Simulated date used for logging/context.
 
     Returns:
         tuple: A tuple containing the following elements:
@@ -30,6 +33,9 @@ def get_stock_data(ticker_symbol, historical_data=None):
             - str: An error message if no data is found, otherwise None.
     """
     try:
+        if point_in_time is None:
+            point_in_time = historical_data is not None
+
         # Generate a cache timestamp (changes every minute to ensure fresh data)
         cache_timestamp = datetime.now().strftime('%Y%m%d%H%M')
 
@@ -68,11 +74,11 @@ def get_stock_data(ticker_symbol, historical_data=None):
         # Calculate technical indicators
         if len(hist) > 0:
             # Check if we have data for the current trading day
-            today = datetime.now().date()
+            today = pd.to_datetime(as_of_date).date() if point_in_time and as_of_date is not None else datetime.now().date()
             latest_data_date = hist.index[-1].date() if len(hist) > 0 else None
 
             # Log if we're using data from a previous day
-            if latest_data_date and latest_data_date < today:
+            if not point_in_time and latest_data_date and latest_data_date < today:
                 log_message(f"Using data from {latest_data_date} for {ticker_symbol} (current date: {today})")
 
             # Basic price data
@@ -243,7 +249,7 @@ def get_stock_data(ticker_symbol, historical_data=None):
             premarket_change = 0
 
             # Calculate a score for pre-market movement if available
-            if 'preMarketPrice' in info and info.get('preMarketPrice') and prev_close:
+            if not point_in_time and 'preMarketPrice' in info and info.get('preMarketPrice') and prev_close:
                 premarket_available = True
                 premarket_price = info.get('preMarketPrice')
                 premarket_change = ((premarket_price / prev_close) - 1) * 100
@@ -289,10 +295,13 @@ def get_stock_data(ticker_symbol, historical_data=None):
 
         # Get key financial data
         company_name = info.get('shortName', ticker_symbol)
-        market_cap = info.get('marketCap', 0)
+        market_cap = 0 if point_in_time else info.get('marketCap', 0)
 
         # Get news sentiment
-        sentiment_score, sentiment_label, sentiment_error, raw_sentiment_score, headlines = get_news_sentiment_with_timeframes(ticker_symbol, company_name)
+        if point_in_time:
+            sentiment_score, sentiment_label, sentiment_error, raw_sentiment_score, headlines = 0, "Neutral", "Point-in-time mode: live news disabled", 0, []
+        else:
+            sentiment_score, sentiment_label, sentiment_error, raw_sentiment_score, headlines = get_news_sentiment_with_timeframes(ticker_symbol, company_name)
 
         # Day Trading Score Components
 

@@ -76,6 +76,19 @@ export interface BacktestMetrics {
   win_rate: number
   num_trades: number
   profit_factor?: number
+  initial_capital?: number
+  final_capital?: number
+  total_transaction_costs?: number
+  transaction_cost_percentage?: number
+  total_trade_value?: number
+  avg_trade_value?: number
+  buy_count?: number
+  sell_count?: number
+  avg_daily_return?: number
+  daily_volatility?: number
+  annualized_volatility?: number
+  best_day?: number
+  worst_day?: number
 }
 
 export interface Trade {
@@ -85,12 +98,60 @@ export interface Trade {
   price: number
   shares?: number
   return_pct?: number
+  cost?: number
+  value?: number
+  net_value?: number
+  pnl?: number | null
+}
+
+export interface RoundTrip {
+  ticker: string
+  entry_date: string
+  exit_date: string
+  entry_price: number
+  exit_price: number
+  shares: number
+  pnl: number
+  return_pct: number
+}
+
+export interface TrainingPreviewRow {
+  ticker?: string
+  feature_date?: string
+  label_date?: string
+  prediction_horizon_days?: number
+  future_return_pct?: number
+  future_signal?: number
+  features?: Record<string, unknown>
+}
+
+export interface BacktestTrainingContext {
+  training_context?: string
+  model_trained?: boolean
+  sample_count?: number
+  min_feature_date?: string
+  max_feature_date?: string
+  min_label_date?: string
+  max_label_date?: string
+  training_end_date_exclusive?: string
+  prediction_horizon_days?: number
+  positive_samples?: number
+  negative_samples?: number
+  label_balance?: Record<string, number>
+  feature_importance?: Record<string, number>
+  preview_rows?: TrainingPreviewRow[]
 }
 
 export interface BacktestResult {
   metrics: BacktestMetrics
   trades: Trade[]
   equity_curve?: Array<{ date: string; value: number }>
+  drawdown_curve?: Array<{ date: string; drawdown: number }>
+  daily_returns?: number[]
+  round_trips?: RoundTrip[]
+  risk_summary?: Record<string, number>
+  training_context?: BacktestTrainingContext
+  run_metadata?: Record<string, unknown>
   tickers: string[]
   strategy: string
   start_date: string
@@ -138,7 +199,7 @@ export interface MarketOverview {
 
 export interface PriceHistory {
   ticker?: string
-  dates: string[]
+  dates: Array<string | number>
   open: number[]
   high: number[]
   low: number[]
@@ -148,6 +209,9 @@ export interface PriceHistory {
   volumes?: number[]
   ma5?: number[]
   ma20?: number[]
+  interval?: string
+  source?: string
+  live_granularity?: string
   stats?: { last: number; high: number; low: number; avg: number }
 }
 
@@ -156,4 +220,45 @@ export type TickerContext = {
   price: number
   change: number
   score: number
+}
+
+export interface LiveQuote {
+  symbol: string
+  price?: number | null
+  bid?: number | null
+  ask?: number | null
+  last?: number | null
+  bid_size?: number | null
+  ask_size?: number | null
+  last_size?: number | null
+  source?: string
+  feed?: string
+  timestamp?: string
+  received_at?: string
+}
+
+export interface LiveMarketPayload {
+  provider: string
+  configured: boolean
+  connected: boolean
+  authenticated: boolean
+  feed: string
+  missing?: string[]
+  error?: string | null
+  quotes: Record<string, LiveQuote | null>
+}
+
+export interface FinancialsStatement {
+  periods: string[]
+  rows: Record<string, Record<string, number | null>>
+}
+
+export type FinancialsPeriod = 'annual' | 'quarterly'
+
+export interface FinancialsResponse {
+  ticker: string
+  period: FinancialsPeriod
+  income_statement: FinancialsStatement
+  balance_sheet: FinancialsStatement
+  cash_flow: FinancialsStatement
 }

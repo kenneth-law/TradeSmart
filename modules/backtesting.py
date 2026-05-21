@@ -478,13 +478,18 @@ class Backtester:
                         continue
 
                     # Get stock data for this point in time
-                    stock_data, error = get_stock_data(ticker, historical_data=hist_slice)
+                    stock_data, error = get_stock_data(
+                        ticker,
+                        historical_data=hist_slice,
+                        point_in_time=True,
+                        as_of_date=day.date()
+                    )
 
                     if error or not stock_data:
                         continue
 
                     # Apply ML scoring if using ml_strategy
-                    if strategy.__name__ == 'ml_strategy':
+                    if strategy.__name__ == 'ml_strategy' and ml_scorer is not None:
                         stock_data = score_stock_ml(stock_data, ml_scorer)
 
                     # Get signal from strategy

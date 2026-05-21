@@ -1,5 +1,7 @@
 import { useState } from 'react'
+import type { ReactNode } from 'react'
 import { useLocation } from 'react-router-dom'
+import { Activity, Database, Download, FileJson, Table2 } from 'lucide-react'
 import { api } from '../lib/api'
 import { useSSE } from '../hooks/useSSE'
 import { useQueries, useQuery } from '@tanstack/react-query'
@@ -37,12 +39,74 @@ const TRADE_COLUMNS: Column<Trade & Record<string, unknown>>[] = [
   { key: 'shares',     label: 'SHARES',     width: 72, align: 'right',
     render: r => <span className="tabnum">{r.shares !== undefined ? String(r.shares) : '—'}</span>
   },
+  { key: 'cost',       label: 'COST',       width: 80, align: 'right',
+    render: r => {
+      const v = r.cost as number | undefined
+      return v === undefined ? <span className="text-dim">—</span> : <span className="tabnum">${v.toFixed(2)}</span>
+    }
+  },
+  { key: 'pnl',        label: 'P&L',        width: 86, align: 'right',
+    render: r => {
+      const v = r.pnl as number | undefined | null
+      if (v === undefined || v === null) return <span className="text-dim">—</span>
+      return <span className={`tabnum ${v >= 0 ? 'text-up' : 'text-down'}`}>{v >= 0 ? '+' : ''}${v.toFixed(2)}</span>
+    }
+  },
   { key: 'return_pct', label: 'RETURN%',    width: 80, align: 'right',
     render: r => {
       const v = r.return_pct as number | undefined
       if (v === undefined) return <span className="text-dim">—</span>
       return <span className={`tabnum ${v >= 0 ? 'text-up' : 'text-down'}`}>{v >= 0 ? '+' : ''}{v.toFixed(2)}%</span>
     }
+  },
+]
+
+const ROUND_TRIP_COLUMNS: Column<RoundTripRow & Record<string, unknown>>[] = [
+  { key: 'ticker',      label: 'TICKER', width: 82 },
+  { key: 'entry_date',  label: 'ENTRY',  width: 104 },
+  { key: 'exit_date',   label: 'EXIT',   width: 104 },
+  { key: 'entry_price', label: 'IN',     width: 76, align: 'right',
+    render: r => <span className="tabnum">{Number(r.entry_price ?? 0).toFixed(2)}</span>
+  },
+  { key: 'exit_price',  label: 'OUT',    width: 76, align: 'right',
+    render: r => <span className="tabnum">{Number(r.exit_price ?? 0).toFixed(2)}</span>
+  },
+  { key: 'shares',      label: 'QTY',    width: 64, align: 'right' },
+  { key: 'pnl',         label: 'P&L',    width: 86, align: 'right',
+    render: r => {
+      const v = Number(r.pnl ?? 0)
+      return <span className={`tabnum ${v >= 0 ? 'text-up' : 'text-down'}`}>{v >= 0 ? '+' : ''}${v.toFixed(2)}</span>
+    }
+  },
+  { key: 'return_pct',  label: 'RET%',   width: 78, align: 'right',
+    render: r => {
+      const v = Number(r.return_pct ?? 0)
+      return <span className={`tabnum ${v >= 0 ? 'text-up' : 'text-down'}`}>{v >= 0 ? '+' : ''}{v.toFixed(2)}%</span>
+    }
+  },
+]
+
+const TRAINING_COLUMNS: Column<TrainingPreviewRow & Record<string, unknown>>[] = [
+  { key: 'ticker', label: 'TICKER', width: 82 },
+  { key: 'feature_date', label: 'FEATURE DATE', width: 120 },
+  { key: 'label_date', label: 'LABEL DATE', width: 110 },
+  { key: 'future_return_pct', label: 'FWD RET%', width: 92, align: 'right',
+    render: r => {
+      const v = Number(r.future_return_pct ?? 0)
+      return <span className={`tabnum ${v >= 0 ? 'text-up' : 'text-down'}`}>{v >= 0 ? '+' : ''}{v.toFixed(2)}%</span>
+    }
+  },
+  { key: 'future_signal', label: 'LABEL', width: 72, align: 'right',
+    render: r => <span className={Number(r.future_signal ?? 0) === 1 ? 'text-up' : 'text-down'}>{Number(r.future_signal ?? 0) === 1 ? 'UP' : 'DOWN'}</span>
+  },
+  { key: 'rsi14', label: 'RSI14', width: 72, align: 'right',
+    render: r => <span className="tabnum">{Number(r.features?.rsi14 ?? 0).toFixed(1)}</span>
+  },
+  { key: 'atr_pct', label: 'ATR%', width: 72, align: 'right',
+    render: r => <span className="tabnum">{Number(r.features?.atr_pct ?? 0).toFixed(2)}</span>
+  },
+  { key: 'volume_ratio', label: 'VOL R', width: 76, align: 'right',
+    render: r => <span className="tabnum">{Number(r.features?.volume_ratio ?? 0).toFixed(2)}</span>
   },
 ]
 
@@ -74,6 +138,7 @@ const SIGNAL_COLUMNS: Column<StockResult & Record<string, unknown>>[] = [
 type Phase = 'config' | 'running' | 'results'
 type RunMode = 'simulation' | 'workflow'
 type TransactionCostType = 'fixed' | 'percent'
+type ResultTab = 'trades' | 'research' | 'training' | 'export'
 
 type RawTrade = Omit<Trade, 'type'> & {
   action?: 'BUY' | 'SELL'
@@ -84,6 +149,38 @@ type RawEquityPoint = {
   date: string
   value?: number
   equity?: number
+}
+
+type KeyValue = {
+  label: string
+  value: string | number
+  color?: 'up' | 'down' | 'accent' | 'warn' | 'muted' | 'text'
+}
+
+type TrainingPreviewRow = {
+  ticker?: string
+  feature_date?: string
+  label_date?: string
+  prediction_horizon_days?: number
+  future_return_pct?: number
+  future_signal?: number
+  features?: Record<string, unknown>
+}
+
+type RoundTripRow = {
+  ticker?: string
+  entry_date?: string
+  exit_date?: string
+  entry_price?: number
+  exit_price?: number
+  shares?: number
+  pnl?: number
+  return_pct?: number
+}
+
+type DrawdownPoint = {
+  date: string
+  drawdown: number
 }
 
 const OVERLAY_COLORS = ['#E89B2C', '#3B82F6', '#A78BFA', '#14B8A6', '#F472B6', '#FACC15', '#94A3B8']
@@ -100,6 +197,126 @@ function normalizeEquityPoint(point: RawEquityPoint) {
     date: point.date,
     value: Number(point.value ?? point.equity ?? 0),
   }
+}
+
+function formatMoney(value: unknown, digits = 0) {
+  const number = Number(value ?? 0)
+  return `$${number.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits })}`
+}
+
+function formatPct(value: unknown, digits = 2) {
+  const number = Number(value ?? 0)
+  return `${number >= 0 ? '+' : ''}${number.toFixed(digits)}%`
+}
+
+function formatNumber(value: unknown, digits = 2) {
+  return Number(value ?? 0).toFixed(digits)
+}
+
+function downloadJson(payload: unknown, filename: string) {
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
+function buildFineTuningPayload(
+  raw: Record<string, unknown>,
+  metrics: Record<string, unknown>,
+  trades: Trade[],
+  equityCurve: Array<{ date: string; value: number }>,
+) {
+  const training = (raw.training_context ?? {}) as Record<string, unknown>
+  const runMetadata = (raw.run_metadata ?? {}) as Record<string, unknown>
+  const previewRows = (training.preview_rows ?? []) as TrainingPreviewRow[]
+  const roundTrips = (raw.round_trips ?? []) as RoundTripRow[]
+
+  return {
+    schema_version: 'tradesmart.backtest.finetune.v1',
+    generated_at: new Date().toISOString(),
+    task: 'trade_strategy_research_and_model_fine_tuning',
+    run: {
+      backtest_id: runMetadata.backtest_id,
+      strategy: raw.strategy,
+      tickers: raw.tickers,
+      start_date: raw.start_date,
+      end_date: raw.end_date,
+      metadata: runMetadata,
+    },
+    model_training: training,
+    performance: metrics,
+    risk_summary: raw.risk_summary ?? {},
+    supervised_examples: previewRows.map(row => ({
+      input: {
+        ticker: row.ticker,
+        as_of_date: row.feature_date,
+        prediction_horizon_days: row.prediction_horizon_days,
+        features: row.features,
+      },
+      output: {
+        future_return_pct: row.future_return_pct,
+        future_signal: row.future_signal,
+        label_date: row.label_date,
+      },
+    })),
+    trade_outcomes: roundTrips.map(trade => ({
+      input: {
+        ticker: trade.ticker,
+        entry_date: trade.entry_date,
+        entry_price: trade.entry_price,
+        shares: trade.shares,
+        strategy: raw.strategy,
+      },
+      output: {
+        exit_date: trade.exit_date,
+        exit_price: trade.exit_price,
+        pnl: trade.pnl,
+        return_pct: trade.return_pct,
+      },
+    })),
+    raw: {
+      trades,
+      equity_curve: equityCurve,
+      drawdown_curve: raw.drawdown_curve ?? [],
+      daily_returns: raw.daily_returns ?? [],
+    },
+  }
+}
+
+function StatStrip({ items }: { items: KeyValue[] }) {
+  const colors = {
+    up: 'text-up',
+    down: 'text-down',
+    accent: 'text-accent',
+    warn: 'text-warn',
+    muted: 'text-muted',
+    text: 'text-text',
+  }
+
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 border-b border-border bg-s1">
+      {items.map(item => (
+        <div key={item.label} className="border-r border-border px-3 py-2 last:border-r-0">
+          <p className="text-2xs text-dim">{item.label}</p>
+          <p className={`tabnum text-sm font-medium ${colors[item.color ?? 'text']}`}>{item.value}</p>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function ResearchPanel({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="border-b border-border">
+      <div className="flex items-center justify-between bg-s1 px-3 py-2 border-b border-border">
+        <h2 className="text-2xs text-dim font-medium uppercase tracking-[0.18em]">{title}</h2>
+      </div>
+      {children}
+    </section>
+  )
 }
 
 function backtestLookbackDays(startDate?: string, endDate?: string) {
@@ -124,7 +341,7 @@ function buildPriceOverlay(
 
   const points = history.dates
     .map((date, i) => ({
-      date,
+      date: String(date),
       value: Number(history.close?.[i] ?? history.prices?.[i]),
     }))
     .filter(point => (
@@ -160,6 +377,7 @@ export default function Backtest() {
   const [sseUrl, setSseUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [selectedOverlayTickers, setSelectedOverlayTickers] = useState<string[]>([])
+  const [activeResultTab, setActiveResultTab] = useState<ResultTab>('trades')
 
   const { messages, progress, status, lastMessage } = useSSE(sseUrl)
 
@@ -213,6 +431,7 @@ export default function Backtest() {
     if (!tickers) return
     setError(null)
     setSelectedOverlayTickers([])
+    setActiveResultTab('trades')
     setPhase('running')
     try {
       const tickerList = tickers.split(',').map(t => t.trim()).filter(Boolean)
@@ -253,6 +472,7 @@ export default function Backtest() {
     setSseUrl(null)
     setError(null)
     setSelectedOverlayTickers([])
+    setActiveResultTab('trades')
   }
 
   function toggleOverlayTicker(ticker: string) {
@@ -525,6 +745,19 @@ export default function Backtest() {
     win_rate:          Number(raw.metrics?.win_rate          ?? 0),
     num_trades:        Number(raw.metrics?.num_trades        ?? 0),
     profit_factor:     raw.metrics?.profit_factor != null ? Number(raw.metrics.profit_factor) : undefined,
+    initial_capital:   Number(raw.metrics?.initial_capital   ?? 0),
+    final_capital:     Number(raw.metrics?.final_capital     ?? 0),
+    total_transaction_costs: Number(raw.metrics?.total_transaction_costs ?? 0),
+    transaction_cost_percentage: Number(raw.metrics?.transaction_cost_percentage ?? 0),
+    total_trade_value: Number(raw.metrics?.total_trade_value ?? 0),
+    avg_trade_value:   Number(raw.metrics?.avg_trade_value   ?? 0),
+    buy_count:         Number(raw.metrics?.buy_count         ?? 0),
+    sell_count:        Number(raw.metrics?.sell_count        ?? 0),
+    avg_daily_return:  Number(raw.metrics?.avg_daily_return  ?? 0),
+    daily_volatility:  Number(raw.metrics?.daily_volatility  ?? 0),
+    annualized_volatility: Number(raw.metrics?.annualized_volatility ?? 0),
+    best_day:          Number(raw.metrics?.best_day          ?? 0),
+    worst_day:         Number(raw.metrics?.worst_day         ?? 0),
   }
   const trades = ((raw.trades ?? []) as RawTrade[]).map(normalizeTrade)
   const equity_curve = ((raw.equity_curve ?? []) as RawEquityPoint[])
@@ -542,11 +775,38 @@ export default function Backtest() {
       raw.end_date,
     ))
     .filter((overlay): overlay is PriceOverlay => overlay !== null)
+  const resultRecord = raw as unknown as Record<string, unknown>
+  const trainingContext = (resultRecord.training_context ?? {}) as Record<string, unknown>
+  const riskSummary = (resultRecord.risk_summary ?? {}) as Record<string, unknown>
+  const runMetadata = (resultRecord.run_metadata ?? {}) as Record<string, unknown>
+  const trainingRows = ((trainingContext.preview_rows ?? []) as TrainingPreviewRow[])
+    .map(row => ({ ...row, ...row.features }))
+  const featureImportance = Object.entries((trainingContext.feature_importance ?? {}) as Record<string, number>)
+    .slice(0, 12)
+  const roundTrips = ((resultRecord.round_trips ?? []) as RoundTripRow[])
+    .map(row => ({ ...row }))
+  const drawdownCurve = ((resultRecord.drawdown_curve ?? []) as DrawdownPoint[])
+  const fineTuningPayload = buildFineTuningPayload(resultRecord, metrics, trades, equity_curve)
+  const exportFilename = `tradesmart-backtest-${raw.strategy || 'strategy'}-${raw.start_date || 'start'}-${raw.end_date || 'end'}.json`
+  const topStats: KeyValue[] = [
+    { label: 'Total Return', value: formatPct(metrics.total_return), color: metrics.total_return >= 0 ? 'up' : 'down' },
+    { label: 'Final Equity', value: formatMoney(metrics.final_capital), color: metrics.final_capital >= metrics.initial_capital ? 'up' : 'down' },
+    { label: 'Sharpe', value: formatNumber(metrics.sharpe_ratio), color: metrics.sharpe_ratio >= 1 ? 'up' : metrics.sharpe_ratio >= 0 ? 'warn' : 'down' },
+    { label: 'Max Drawdown', value: formatPct(-Math.abs(metrics.max_drawdown)), color: 'down' },
+    { label: 'Trades', value: metrics.num_trades, color: 'text' },
+    { label: 'Training Samples', value: Number(trainingContext.sample_count ?? 0).toLocaleString(), color: Number(trainingContext.sample_count ?? 0) > 0 ? 'accent' : 'muted' },
+  ]
+
+  const resultTabs: Array<{ key: ResultTab; label: string; icon: typeof Table2 }> = [
+    { key: 'trades', label: 'Trades', icon: Table2 },
+    { key: 'research', label: 'Research', icon: Activity },
+    { key: 'training', label: 'Training Data', icon: Database },
+    { key: 'export', label: 'Fine-Tune JSON', icon: FileJson },
+  ]
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-2 border-b border-border bg-s1 shrink-0">
+      <div className="flex flex-wrap items-center gap-3 px-4 py-2 border-b border-border bg-s1 shrink-0">
         <button onClick={reset} className="text-2xs text-dim hover:text-text">
           ← New system run
         </button>
@@ -554,9 +814,17 @@ export default function Backtest() {
         <span className="text-2xs text-muted tabnum">
           Simulation · {results.strategy} · {results.tickers.length} tickers · {results.start_date} → {results.end_date}
         </span>
+        <button
+          onClick={() => downloadJson(fineTuningPayload, exportFilename)}
+          className="ml-auto inline-flex items-center gap-1.5 border border-accent bg-accent px-2.5 py-1 text-2xs font-medium text-bg hover:opacity-90"
+        >
+          <Download size={13} aria-hidden="true" />
+          Export JSON
+        </button>
       </div>
 
-      {/* Equity curve with trade markers */}
+      <StatStrip items={topStats} />
+
       {equity_curve && equity_curve.length > 0 && (
         <div className="shrink-0 border-b border-border">
           <div className="flex items-center gap-2 px-3 py-1 bg-s1 border-b border-border">
@@ -597,44 +865,166 @@ export default function Backtest() {
               </>
             )}
           </div>
-          <EquityChart equityCurve={equity_curve} trades={trades} overlays={overlays} height={240} />
+          <EquityChart equityCurve={equity_curve} trades={trades} overlays={overlays} height={220} />
         </div>
       )}
 
+      <div className="flex items-center gap-px border-b border-border bg-border shrink-0">
+        {resultTabs.map(tab => {
+          const Icon = tab.icon
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setActiveResultTab(tab.key)}
+              className={[
+                'inline-flex items-center gap-1.5 bg-s1 px-3 py-2 text-2xs',
+                activeResultTab === tab.key ? 'text-accent' : 'text-muted hover:text-text',
+              ].join(' ')}
+            >
+              <Icon size={13} aria-hidden="true" />
+              {tab.label}
+            </button>
+          )
+        })}
+      </div>
+
       <div className="flex flex-1 overflow-hidden">
-        {/* Trades table */}
         <div className="flex-1 overflow-auto">
-          <DataTable
-            columns={TRADE_COLUMNS}
-            data={tradeData}
-            rowKey={r => `${r.date}-${r.ticker}-${r.type}`}
-            emptyMessage="No trades recorded."
-          />
+          {activeResultTab === 'trades' && (
+            <DataTable
+              columns={TRADE_COLUMNS}
+              data={tradeData}
+              rowKey={r => `${r.date}-${r.ticker}-${r.type}-${r.price}-${r.shares}`}
+              emptyMessage="No trades recorded."
+            />
+          )}
+
+          {activeResultTab === 'research' && (
+            <div>
+              <ResearchPanel title="Execution Diagnostics">
+                <div className="grid grid-cols-2 md:grid-cols-4">
+                  <MetricTile label="Initial Capital" value={formatMoney(metrics.initial_capital)} size="sm" />
+                  <MetricTile label="Final Capital" value={formatMoney(metrics.final_capital)} color={metrics.final_capital >= metrics.initial_capital ? 'up' : 'down'} size="sm" />
+                  <MetricTile label="Total Notional" value={formatMoney(metrics.total_trade_value)} size="sm" />
+                  <MetricTile label="Avg Trade" value={formatMoney(metrics.avg_trade_value)} size="sm" />
+                  <MetricTile label="Buys" value={metrics.buy_count} color="up" size="sm" />
+                  <MetricTile label="Sells" value={metrics.sell_count} color="down" size="sm" />
+                  <MetricTile label="Round Trips" value={Number(riskSummary.completed_round_trips ?? 0)} size="sm" />
+                  <MetricTile label="Open Lots" value={Number(riskSummary.open_positions_estimate ?? 0)} color="warn" size="sm" />
+                </div>
+              </ResearchPanel>
+
+              <ResearchPanel title="Risk And Costs">
+                <div className="grid grid-cols-2 md:grid-cols-4">
+                  <MetricTile label="Avg Daily Return" value={formatPct(metrics.avg_daily_return)} color={metrics.avg_daily_return >= 0 ? 'up' : 'down'} size="sm" />
+                  <MetricTile label="Daily Vol" value={formatNumber(metrics.daily_volatility)} unit="%" color="warn" size="sm" />
+                  <MetricTile label="Ann. Vol" value={formatNumber(metrics.annualized_volatility)} unit="%" color="warn" size="sm" />
+                  <MetricTile label="Best Day" value={formatPct(metrics.best_day)} color="up" size="sm" />
+                  <MetricTile label="Worst Day" value={formatPct(metrics.worst_day)} color="down" size="sm" />
+                  <MetricTile label="Total Costs" value={formatMoney(metrics.total_transaction_costs, 2)} color="warn" size="sm" />
+                  <MetricTile label="Cost Drag" value={formatNumber(metrics.transaction_cost_percentage)} unit="%" color="warn" size="sm" />
+                  <MetricTile label="Turnover" value={formatNumber(Number(riskSummary.turnover_to_initial_capital ?? 0))} unit="x" size="sm" />
+                </div>
+              </ResearchPanel>
+
+              <ResearchPanel title="Completed Round Trips">
+                <DataTable
+                  columns={ROUND_TRIP_COLUMNS}
+                  data={roundTrips as Array<RoundTripRow & Record<string, unknown>>}
+                  rowKey={r => `${r.ticker}-${r.entry_date}-${r.exit_date}-${r.shares}`}
+                  emptyMessage="No completed round trips yet."
+                />
+              </ResearchPanel>
+
+              <ResearchPanel title="Drawdown Tail">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
+                  {drawdownCurve.slice(-12).map(point => (
+                    <div key={`${point.date}-${point.drawdown}`} className="flex items-center justify-between border-b border-r border-border px-3 py-2">
+                      <span className="text-2xs text-muted tabnum">{point.date}</span>
+                      <span className="text-2xs text-down tabnum">-{Math.abs(Number(point.drawdown ?? 0)).toFixed(2)}%</span>
+                    </div>
+                  ))}
+                  {!drawdownCurve.length && <p className="p-4 text-sm text-muted">No drawdown series returned.</p>}
+                </div>
+              </ResearchPanel>
+            </div>
+          )}
+
+          {activeResultTab === 'training' && (
+            <div>
+              <ResearchPanel title="Point-In-Time Training Context">
+                <div className="grid grid-cols-2 md:grid-cols-4">
+                  <MetricTile label="Model Trained" value={trainingContext.model_trained ? 'Yes' : 'No'} color={trainingContext.model_trained ? 'up' : 'warn'} size="sm" />
+                  <MetricTile label="Samples" value={Number(trainingContext.sample_count ?? 0).toLocaleString()} color="accent" size="sm" />
+                  <MetricTile label="Feature Window" value={`${trainingContext.min_feature_date ?? '—'} → ${trainingContext.max_feature_date ?? '—'}`} size="sm" />
+                  <MetricTile label="Label Cutoff" value={String(trainingContext.training_end_date_exclusive ?? '—')} color="warn" size="sm" />
+                  <MetricTile label="Horizon" value={Number(trainingContext.prediction_horizon_days ?? 0)} unit="days" size="sm" />
+                  <MetricTile label="Positive Labels" value={Number(trainingContext.positive_samples ?? 0).toLocaleString()} color="up" size="sm" />
+                  <MetricTile label="Negative Labels" value={Number(trainingContext.negative_samples ?? 0).toLocaleString()} color="down" size="sm" />
+                  <MetricTile label="Persisted" value={runMetadata.model_trained ? 'Memory' : 'None'} color="muted" size="sm" />
+                </div>
+              </ResearchPanel>
+
+              <ResearchPanel title="Feature Importance">
+                <div className="grid grid-cols-1 md:grid-cols-2">
+                  {featureImportance.map(([feature, importance]) => (
+                    <div key={feature} className="flex items-center gap-3 border-b border-r border-border px-3 py-2">
+                      <span className="w-44 truncate text-2xs text-muted">{feature}</span>
+                      <div className="h-1.5 flex-1 bg-s2">
+                        <div className="h-full bg-accent" style={{ width: `${Math.min(100, Number(importance ?? 0) * 100)}%` }} />
+                      </div>
+                      <span className="w-14 text-right text-2xs tabnum text-text">{Number(importance ?? 0).toFixed(3)}</span>
+                    </div>
+                  ))}
+                  {!featureImportance.length && <p className="p-4 text-sm text-muted">Feature importance is only available when the ML model trains successfully.</p>}
+                </div>
+              </ResearchPanel>
+
+              <ResearchPanel title="Training Rows Preview">
+                <DataTable
+                  columns={TRAINING_COLUMNS}
+                  data={trainingRows as Array<TrainingPreviewRow & Record<string, unknown>>}
+                  rowKey={r => `${r.ticker}-${r.feature_date}-${r.label_date}`}
+                  emptyMessage="No training rows were captured for this run."
+                />
+              </ResearchPanel>
+            </div>
+          )}
+
+          {activeResultTab === 'export' && (
+            <div className="h-full overflow-auto">
+              <ResearchPanel title="Fine-Tuning Export">
+                <div className="flex flex-wrap items-center gap-2 px-3 py-3 border-b border-border">
+                  <button
+                    onClick={() => downloadJson(fineTuningPayload, exportFilename)}
+                    className="inline-flex items-center gap-1.5 bg-accent px-3 py-1.5 text-2xs font-medium text-bg hover:opacity-90"
+                  >
+                    <Download size={13} aria-hidden="true" />
+                    Download JSON
+                  </button>
+                  <span className="text-2xs text-muted tabnum">{exportFilename}</span>
+                </div>
+                <pre className="m-0 max-h-[520px] overflow-auto bg-bg p-3 text-2xs leading-5 text-muted tabnum">
+                  {JSON.stringify(fineTuningPayload, null, 2)}
+                </pre>
+              </ResearchPanel>
+            </div>
+          )}
         </div>
 
-        {/* Metrics sidebar */}
-        <div className="w-52 shrink-0 border-l border-border overflow-y-auto">
+        <div className="w-56 shrink-0 border-l border-border overflow-y-auto">
           <div className="px-3 py-2 border-b border-border">
-            <p className="text-2xs text-dim mb-1">Performance</p>
+            <p className="text-2xs text-dim mb-1">Performance Stack</p>
           </div>
-          <MetricTile
-            label="Total Return"
-            value={`${metrics.total_return >= 0 ? '+' : ''}${metrics.total_return.toFixed(2)}`}
-            unit="%"
-            color={metrics.total_return >= 0 ? 'up' : 'down'}
-          />
+          <MetricTile label="Total Return" value={formatPct(metrics.total_return)} color={metrics.total_return >= 0 ? 'up' : 'down'} />
           {metrics.annualized_return !== undefined && (
-            <MetricTile
-              label="Ann. Return"
-              value={`${metrics.annualized_return >= 0 ? '+' : ''}${metrics.annualized_return.toFixed(2)}`}
-              unit="%"
-              color={metrics.annualized_return >= 0 ? 'up' : 'down'}
-            />
+            <MetricTile label="Ann. Return" value={formatPct(metrics.annualized_return)} color={metrics.annualized_return >= 0 ? 'up' : 'down'} />
           )}
           <MetricTile label="Sharpe" value={metrics.sharpe_ratio.toFixed(2)} color={metrics.sharpe_ratio >= 1 ? 'up' : metrics.sharpe_ratio >= 0 ? 'warn' : 'down'} />
           <MetricTile label="Max Drawdown" value={metrics.max_drawdown.toFixed(2)} unit="%" color="down" />
           <MetricTile label="Win Rate" value={`${(metrics.win_rate * 100).toFixed(1)}`} unit="%" color={metrics.win_rate >= 0.5 ? 'up' : 'down'} />
           <MetricTile label="Trades" value={metrics.num_trades} />
+          <MetricTile label="Training Rows" value={Number(trainingContext.sample_count ?? 0).toLocaleString()} color="accent" />
           {metrics.profit_factor !== undefined && (
             <MetricTile label="Profit Factor" value={metrics.profit_factor.toFixed(2)} color={metrics.profit_factor >= 1 ? 'up' : 'down'} />
           )}

@@ -1,31 +1,42 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import {
   Check,
   Eye,
+  FileSpreadsheet,
   Gauge,
+  Globe,
+  KeyRound,
+  MessageSquare,
   Moon,
   Palette,
   RefreshCw,
   RotateCcw,
   Settings as SettingsIcon,
+  Sparkles,
   Sun,
+  Thermometer,
   Type,
   Zap,
 } from 'lucide-react'
 import {
   ACCENT_OPTIONS,
   FONT_OPTIONS,
+  isReasoningModel,
+  OPENAI_MODEL_OPTIONS,
   useAppStore,
 } from '../store/useAppStore'
 import type {
   AccentColor,
+  FinancialsDepth,
   FontFamily,
   InterfaceDensity,
+  OpenAIModel,
   SystemSettings,
   ThemeMode,
 } from '../store/useAppStore'
 
 const REFRESH_OPTIONS = [
+  { value: 5, label: '5 sec' },
   { value: 60, label: '1 min' },
   { value: 180, label: '3 min' },
   { value: 300, label: '5 min' },
@@ -125,9 +136,22 @@ export default function Settings() {
   const settings = useAppStore(s => s.settings)
   const setSettings = useAppStore(s => s.setSettings)
   const resetSettings = useAppStore(s => s.resetSettings)
+  const openaiKey = useAppStore(s => s.openaiKey)
+  const setOpenAIKey = useAppStore(s => s.setOpenAIKey)
+  const [keyDraft, setKeyDraft] = useState(openaiKey)
+  const [showKey, setShowKey] = useState(false)
 
   function update(patch: Partial<SystemSettings>) {
     setSettings(patch)
+  }
+
+  function saveKey() {
+    setOpenAIKey(keyDraft)
+  }
+
+  function clearKey() {
+    setKeyDraft('')
+    setOpenAIKey('')
   }
 
   return (
@@ -306,6 +330,163 @@ export default function Settings() {
           </select>
         </SettingRow>
 
+        <SettingRow
+          icon={<RefreshCw size={16} aria-hidden="true" />}
+          title="Paper Trading Live Refresh"
+          caption="When on, Stock Detail and paper portfolio positions use Alpaca live quotes when credentials are configured."
+        >
+          <Toggle
+            checked={settings.fastPaperRefresh}
+            onChange={fastPaperRefresh => update({ fastPaperRefresh })}
+            label="Paper trading live refresh"
+          />
+        </SettingRow>
+
+        <SettingRow
+          icon={<KeyRound size={16} aria-hidden="true" />}
+          title="OpenAI API Key"
+          caption="Stored only in this browser (localStorage). Used by the Strategy chat on stock pages."
+        >
+          <div className="flex w-full flex-col gap-2">
+            <div className="flex w-full items-center gap-2">
+              <input
+                type={showKey ? 'text' : 'password'}
+                value={keyDraft}
+                onChange={event => setKeyDraft(event.target.value)}
+                placeholder="sk-..."
+                spellCheck={false}
+                autoComplete="off"
+                className="min-h-11 flex-1 border border-border bg-s1 px-3 text-xs text-text outline-none focus-visible:border-accent tabnum"
+                aria-label="OpenAI API key"
+              />
+              <button
+                type="button"
+                onClick={() => setShowKey(v => !v)}
+                className="min-h-11 border border-border bg-s2 px-3 text-2xs text-muted hover:border-border-strong hover:text-text"
+              >
+                {showKey ? 'Hide' : 'Show'}
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={saveKey}
+                disabled={keyDraft === openaiKey}
+                className="min-h-11 border border-accent bg-accent px-3 text-2xs font-medium text-bg disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {openaiKey && keyDraft === openaiKey ? 'Saved' : 'Save key'}
+              </button>
+              {openaiKey && (
+                <button
+                  type="button"
+                  onClick={clearKey}
+                  className="min-h-11 border border-border bg-s2 px-3 text-2xs text-muted hover:border-border-strong hover:text-down"
+                >
+                  Clear
+                </button>
+              )}
+              <span className="text-2xs text-dim">
+                {openaiKey ? 'Key set' : 'No key set'}
+              </span>
+            </div>
+          </div>
+        </SettingRow>
+
+        <SettingRow
+          icon={<Sparkles size={16} aria-hidden="true" />}
+          title="Chat Model"
+          caption="Model used by the Strategy chatbot on stock pages."
+        >
+          <select
+            value={settings.openaiModel}
+            onChange={event => update({ openaiModel: event.target.value as OpenAIModel })}
+            className="min-h-11 w-full border border-border bg-s1 px-3 text-sm text-text outline-none focus-visible:border-accent"
+            aria-label="OpenAI chat model"
+          >
+            {OPENAI_MODEL_OPTIONS.map(option => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </SettingRow>
+
+        <SettingRow
+          icon={<Globe size={16} aria-hidden="true" />}
+          title="Brief Web Search"
+          caption="When on, the auto-generated Strategy Brief uses web search (latest earnings, news, filings). Adds cost per stock load."
+        >
+          <Toggle
+            checked={settings.briefWebSearch}
+            onChange={briefWebSearch => update({ briefWebSearch })}
+            label="Brief web search"
+          />
+        </SettingRow>
+
+        <SettingRow
+          icon={<Thermometer size={16} aria-hidden="true" />}
+          title="Temperature"
+          caption={
+            isReasoningModel(settings.openaiModel)
+              ? `${settings.openaiModel} is a reasoning model and ignores temperature - this slider only applies to other models.`
+              : 'Sampling temperature for chat + brief. Lower = more focused, higher = more varied.'
+          }
+        >
+          <div className="flex w-full items-center gap-3">
+            <input
+              type="range"
+              min={0}
+              max={1.5}
+              step={0.1}
+              value={settings.openaiTemperature}
+              onChange={event => update({ openaiTemperature: Number(event.target.value) })}
+              disabled={isReasoningModel(settings.openaiModel)}
+              className="w-full accent-[var(--color-accent)] disabled:opacity-40"
+              aria-label="OpenAI temperature"
+            />
+            <span className="w-14 border border-border bg-s2 px-2 py-2 text-center text-2xs text-text tabnum">
+              {settings.openaiTemperature.toFixed(1)}
+            </span>
+          </div>
+        </SettingRow>
+
+        <SettingRow
+          icon={<MessageSquare size={16} aria-hidden="true" />}
+          title="Custom System Prompt"
+          caption="Optional extra instructions appended to the built-in prompts (chat + brief). Use for style preferences, biases to avoid, extra context."
+        >
+          <textarea
+            value={settings.openaiSystemPrompt}
+            onChange={event => update({ openaiSystemPrompt: event.target.value })}
+            placeholder="e.g. Prefer conservative position sizing. Always note if RSI < 30 is a divergence vs continuation."
+            rows={4}
+            spellCheck={false}
+            className="min-h-[88px] w-full resize-y border border-border bg-s1 px-3 py-2 text-2xs text-text outline-none focus-visible:border-accent placeholder:text-dim"
+            aria-label="Custom system prompt"
+          />
+        </SettingRow>
+
+        <SettingRow
+          icon={<FileSpreadsheet size={16} aria-hidden="true" />}
+          title="Financials in AI"
+          caption="How much of the 3-statement financial data to inject into the AI context. Concise = ~10 key lines per statement. Full = every line item, annual + quarterly. Full uses many more tokens per call."
+        >
+          <SegmentButton<FinancialsDepth>
+            value="concise"
+            selected={settings.financialsDepth === 'concise'}
+            onSelect={financialsDepth => update({ financialsDepth })}
+          >
+            Concise
+          </SegmentButton>
+          <SegmentButton<FinancialsDepth>
+            value="full"
+            selected={settings.financialsDepth === 'full'}
+            onSelect={financialsDepth => update({ financialsDepth })}
+          >
+            Full
+          </SegmentButton>
+        </SettingRow>
+
         <section className="px-4 py-4">
           <div className="border border-border bg-s1 p-4">
             <p className="text-2xs uppercase tracking-widest text-dim">Preview</p>
@@ -321,7 +502,7 @@ export default function Settings() {
               <div className="border border-border bg-bg p-3">
                 <p className="text-2xs text-muted">Refresh</p>
                 <p className="mt-1 text-md font-medium text-text tabnum">
-                  {settings.marketRefreshSeconds / 60}m
+                  {settings.fastPaperRefresh ? 'Alpaca' : settings.marketRefreshSeconds < 60 ? `${settings.marketRefreshSeconds}s` : `${settings.marketRefreshSeconds / 60}m`}
                 </p>
               </div>
             </div>

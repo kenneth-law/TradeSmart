@@ -43,6 +43,10 @@ export default function StatusBar() {
       <span className="ml-auto text-2xs text-dim">
         <kbd className="text-dim">Ctrl+K</kbd> command · <kbd className="text-dim">Alt+1–7</kbd> nav
       </span>
+
+      <span className="text-border">|</span>
+
+      <span className="text-2xs text-dim">© Kenneth Law 2026 | TradeSmart Analytics</span>
     </div>
   )
 }

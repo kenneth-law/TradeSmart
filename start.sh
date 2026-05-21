@@ -9,18 +9,28 @@ PYTHON="$VENV/bin/python3"
 BACKEND_PORT=5001
 FRONTEND_PORT=5173
 
+# ── Local environment ────────────────────────────────────────────────────────
+if [ -f "$ROOT/.env" ]; then
+  echo "Loading local environment from .env"
+  set -a
+  # shellcheck disable=SC1091
+  source "$ROOT/.env"
+  set +a
+fi
+
 # ── Virtualenv setup ─────────────────────────────────────────────────────────
 if [ ! -f "$VENV/bin/activate" ]; then
   echo "Creating project virtualenv at .venv …"
   "$PYTHON_BASE" -m venv "$VENV"
 fi
 
-if ! "$PYTHON" -c "import flask, pandas, plotly, markdown" &>/dev/null; then
+if ! "$PYTHON" -c "import flask, pandas, plotly, markdown, websocket" &>/dev/null; then
   echo "Installing Python dependencies …"
   "$VENV/bin/pip" install -q \
     "flask==2.3.3" "pandas>=2.0" "numpy<2" "plotly" \
     "scikit-learn" "yfinance" "curl_cffi" "beautifulsoup4" \
-    "markdown" "matplotlib" "joblib" "tqdm" "openai" "Werkzeug" 2>&1 | \
+    "markdown" "matplotlib" "joblib" "tqdm" "openai" "Werkzeug" \
+    "websocket-client" 2>&1 | \
     grep -E "^(ERROR|Successfully installed)" || true
 fi
 

@@ -35,6 +35,9 @@ export const api = {
   getIndustryPeers: (ticker: string) =>
     get<Array<{ ticker: string; day_trading_score: number }>>(`/api/industry_peers/${ticker}`),
 
+  getFinancials: (ticker: string, period: 'annual' | 'quarterly') =>
+    get<import('../types').FinancialsResponse>(`/api/financials/${ticker}?period=${period}`),
+
   getMarketOverview: () =>
     get<import('../types').MarketOverview>('/api/market_overview'),
 
@@ -42,6 +45,9 @@ export const api = {
     get<{ positions: import('../types').PortfolioPosition[]; summary: import('../types').PortfolioSummary }>(
       '/api/portfolio'
     ),
+
+  getLiveSnapshot: (symbols: string[]) =>
+    get<import('../types').LiveMarketPayload>(`/api/live/snapshot?symbols=${encodeURIComponent(symbols.join(','))}`),
 
   runBacktest: (params: {
     tickers: string[]

@@ -23,13 +23,37 @@ from sklearn.pipeline import Pipeline
 from sklearn.feature_selection import SelectFromModel, SelectKBest, f_regression, mutual_info_regression
 import joblib
 import os
-from datetime import datetime, timedelta
+import json
+from datetime import datetime, timedelta, date
 import logging
 from modules.utils import log_message
 from modules.data_retrieval import get_stock_history
 
 # Create cache directory for models if it doesn't exist
 os.makedirs('cache/models', exist_ok=True)
+
+def _coerce_datetime(value):
+    """Convert common date inputs to a datetime without silently using future data."""
+    if value is None:
+        return datetime.now()
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, date):
+        return datetime.combine(value, datetime.min.time())
+    if hasattr(value, "to_pydatetime"):
+        return value.to_pydatetime()
+    return datetime.strptime(str(value)[:10], '%Y-%m-%d')
+
+def _date_to_iso(value):
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.date().isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    if hasattr(value, "date"):
+        return value.date().isoformat()
+    return str(value)[:10]
 
 class MLScorer:
     """
@@ -76,6 +100,7 @@ class MLScorer:
             self.feature_selector_path = os.path.join(self.ticker_dir, 'feature_selector.joblib')
             self.pca_path = os.path.join(self.ticker_dir, 'feature_pca.joblib')
             self.feature_names_path = os.path.join(self.ticker_dir, 'feature_names.joblib')
+            self.metadata_path = os.path.join(self.ticker_dir, 'training_metadata.json')
         else:
             # Global model paths (for backward compatibility)
             self.model_path = os.path.join(self.model_dir, f'stock_scorer_{model_type}.joblib')
@@ -84,6 +109,9 @@ class MLScorer:
             self.feature_selector_path = os.path.join(self.model_dir, 'feature_selector.joblib')
             self.pca_path = os.path.join(self.model_dir, 'feature_pca.joblib')
             self.feature_names_path = os.path.join(self.model_dir, 'feature_names.joblib')
+            self.metadata_path = os.path.join(self.model_dir, 'training_metadata.json')
+
+        self.training_metadata = {}
 
         # Try to load existing model
         self._load_model()
@@ -105,6 +133,10 @@ class MLScorer:
                 if os.path.exists(self.feature_selector_path):
                     self.feature_selector = joblib.load(self.feature_selector_path)
 
+                if os.path.exists(self.metadata_path):
+                    with open(self.metadata_path, 'r') as f:
+                        self.training_metadata = json.load(f)
+
                 # Get last modified time of model file
                 last_modified = os.path.getmtime(self.model_path)
                 self.last_train_date = datetime.fromtimestamp(last_modified)
@@ -116,14 +148,19 @@ class MLScorer:
 
         return False
 
-    def _save_model(self):
+    def _save_model(self, metadata=None):
         """Save model and preprocessors"""
         try:
+            if metadata is not None:
+                self.training_metadata = metadata
             joblib.dump(self.model, self.model_path)
             joblib.dump(self.scaler, self.scaler_path)
             joblib.dump(self.target_scaler, self.target_scaler_path)  # Save target scaler
             joblib.dump(self.pca, self.pca_path)
             joblib.dump(self.feature_names, self.feature_names_path)
+            if self.training_metadata:
+                with open(self.metadata_path, 'w') as f:
+                    json.dump(self.training_metadata, f, indent=2, sort_keys=True)
             self.last_train_date = datetime.now()
             log_message(f"Model saved successfully on {self.last_train_date}")
             return True
@@ -189,13 +226,15 @@ class MLScorer:
         days_since_last_train = (datetime.now() - self.last_train_date).days
         return days_since_last_train >= self.retrain_interval_days
 
-    def train(self, historical_data, force=False):
+    def train(self, historical_data, force=False, persist=True, metadata=None):
         """
         Train the model using historical stock data with proper time-series cross-validation.
 
         Parameters:
             historical_data (list): List of dictionaries with historical stock data and outcomes
             force (bool): Force retraining even if interval hasn't elapsed
+            persist (bool): Save trained model artifacts to disk. Backtests should keep this False.
+            metadata (dict): Optional metadata to attach to the trained model.
 
         Returns:
             bool: True if training was successful
@@ -219,6 +258,21 @@ class MLScorer:
 
             # Ensure data is sorted by date for proper time-series validation
             training_data = sorted(training_data, key=lambda x: x['date'])
+            feature_dates = [_date_to_iso(item.get('date')) for item in training_data]
+            label_dates = [_date_to_iso(item.get('label_date', item.get('date'))) for item in training_data]
+            training_metadata = {
+                'model_type': self.model_type,
+                'ticker': self.ticker,
+                'sample_count': len(training_data),
+                'min_feature_date': min(feature_dates) if feature_dates else None,
+                'max_feature_date': max(feature_dates) if feature_dates else None,
+                'min_label_date': min(label_dates) if label_dates else None,
+                'max_label_date': max(label_dates) if label_dates else None,
+                'trained_at': datetime.now().isoformat(timespec='seconds'),
+                'persisted': bool(persist),
+            }
+            if metadata:
+                training_metadata.update(metadata)
 
             # Extract features and targets from historical data
             features_list = []
@@ -371,8 +425,12 @@ class MLScorer:
             model.fit(X_pca, y_scaled)
             self.model = model
 
-            # Save the model
-            self._save_model()
+            self.training_metadata = training_metadata
+            if persist:
+                self._save_model(training_metadata)
+            else:
+                self.last_train_date = datetime.now()
+                log_message(f"Model trained in memory on {self.last_train_date}; not saved to disk")
 
             # Log results
             if self.model_type == 'regression':
@@ -528,11 +586,17 @@ def get_stock_data_point_in_time(ticker, historical_data, current_idx):
     verify_no_future_data(hist_slice, current_idx)
 
     # Get the stock data for this point in time
-    stock_data, error = get_stock_data(ticker, historical_data=hist_slice)
+    as_of_date = hist_slice.index[-1].date() if len(hist_slice) else None
+    stock_data, error = get_stock_data(
+        ticker,
+        historical_data=hist_slice,
+        point_in_time=True,
+        as_of_date=as_of_date
+    )
 
     return stock_data, error
 
-def collect_training_data(tickers, lookback_days=180, prediction_horizon=5):
+def collect_training_data(tickers, lookback_days=180, prediction_horizon=5, end_date=None):
     """
     Collect historical data for model training with proper time-series separation.
 
@@ -540,6 +604,8 @@ def collect_training_data(tickers, lookback_days=180, prediction_horizon=5):
         tickers (list): List of ticker symbols to collect data for
         lookback_days (int): Number of days to look back for historical data
         prediction_horizon (int): Number of days ahead to predict returns for
+        end_date (str/datetime/date): Exclusive cutoff for label availability. Samples whose
+                                      label date is on or after this date are skipped.
 
     Returns:
         list: List of dictionaries with stock data and future returns, sorted by date
@@ -551,17 +617,18 @@ def collect_training_data(tickers, lookback_days=180, prediction_horizon=5):
     try:
         log_message(f"Collecting training data for {len(tickers)} tickers...")
 
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=lookback_days + prediction_horizon + 30)  # Add extra buffer for indicators
+        end_dt = _coerce_datetime(end_date)
+        cutoff_date = end_dt.date()
+        start_date = end_dt - timedelta(days=lookback_days + prediction_horizon + 30)  # Add extra buffer for indicators
 
         # Use a fixed timestamp for caching to ensure consistency
-        cache_timestamp = f"training_fixed_{end_date.strftime('%Y%m%d')}"
+        cache_timestamp = f"training_fixed_{end_dt.strftime('%Y%m%d')}"
 
         for ticker in tickers:
             try:
                 # Get full history for the ticker
                 start_date_str = start_date.strftime('%Y-%m-%d')
-                end_date_str = end_date.strftime('%Y-%m-%d')
+                end_date_str = end_dt.strftime('%Y-%m-%d')
 
                 hist = get_stock_history(ticker, start_date_str, end_date_str, "1d", cache_timestamp)
 
@@ -573,6 +640,9 @@ def collect_training_data(tickers, lookback_days=180, prediction_horizon=5):
                 for i in range(30, len(hist) - prediction_horizon):
                     # Get the date for this data point
                     current_date = hist.index[i].date()
+                    label_date = hist.index[i + prediction_horizon].date()
+                    if label_date >= cutoff_date:
+                        continue
 
                     # Get the stock data for this point in time with strict time boundary
                     stock_data, error = get_stock_data_point_in_time(ticker, hist, i)
@@ -594,6 +664,7 @@ def collect_training_data(tickers, lookback_days=180, prediction_horizon=5):
                     training_data.append({
                         'ticker': ticker,
                         'date': current_date,
+                        'label_date': label_date,
                         'stock_data': stock_data,
                         'future_return': future_return,
                         'future_signal': 1 if future_return > 0 else 0

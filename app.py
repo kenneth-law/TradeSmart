@@ -25,6 +25,7 @@ from modules.data_retrieval import get_stock_info, get_stock_history, get_yf_ses
 from modules.technical_analysis import get_stock_data
 from modules.visualization import prepare_price_chart_data, get_detailed_stock_metrics
 from modules.market_data import get_sector_performance
+from modules.alpaca_live_data import alpaca_live_data
 
 from requests.cookies import create_cookie
 import yfinance.data as _data
@@ -113,7 +114,51 @@ def analysis_progress_stream():
             if analysis_id in analysis_queues:
                 del analysis_queues[analysis_id]
 
-    return Response(generate(), mimetype="text/event-stream")
+    return Response(generate(), mimetype="text/event-stream", headers={
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
+    })
+
+
+def _parse_symbols(value):
+    return [s.strip().upper() for s in (value or '').split(',') if s.strip()]
+
+
+@app.route('/api/live/status')
+def api_live_status():
+    return jsonify(_sanitize(alpaca_live_data.status()))
+
+
+@app.route('/api/live/snapshot')
+def api_live_snapshot():
+    symbols = _parse_symbols(request.args.get('symbols', ''))
+    if not symbols:
+        return jsonify({"error": "No symbols provided"}), 400
+    return jsonify(_sanitize(alpaca_live_data.snapshot(symbols)))
+
+
+@app.route('/api/live/stream')
+def api_live_stream():
+    symbols = _parse_symbols(request.args.get('symbols', ''))
+    if not symbols:
+        return jsonify({"error": "No symbols provided"}), 400
+
+    alpaca_live_data.ensure_subscribed(symbols)
+
+    def generate():
+        try:
+            yield f"data: {json.dumps(_sanitize(alpaca_live_data.snapshot(symbols, hydrate=True)))}\n\n"
+            while True:
+                payload = alpaca_live_data.snapshot(symbols, hydrate=False)
+                yield f"data: {json.dumps(_sanitize(payload))}\n\n"
+                time.sleep(1)
+        except GeneratorExit:
+            pass
+
+    return Response(generate(), mimetype="text/event-stream", headers={
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
+    })
 
 def run_analysis_with_updates(tickers, analysis_id, message_queue):
     """Run stock analysis with progress updates sent to the client using the integrated trading system"""
@@ -564,6 +609,95 @@ def api_stock_detail(ticker):
         return jsonify({"error": str(e)}), 500
 
 
+# In-memory cache for financial statements. Keyed by (ticker, period) -> (timestamp, payload).
+# Financials don't change intraday so a 1-hour TTL is plenty.
+_financials_cache = {}
+_FINANCIALS_TTL_SECONDS = 3600
+
+
+def _df_to_periods(df):
+    """Convert a yfinance financial-statement DataFrame to a JSON-safe dict.
+
+    Returns a dict shaped as:
+        { "periods": ["2024-12-31", "2023-12-31", ...],
+          "rows": { "Total Revenue": {"2024-12-31": 123.4, ...}, ... } }
+    """
+    try:
+        import pandas as _pd
+    except ImportError:
+        return {"periods": [], "rows": {}}
+    if df is None or not hasattr(df, 'columns') or df.empty:
+        return {"periods": [], "rows": {}}
+
+    period_labels = []
+    for col in df.columns:
+        try:
+            period_labels.append(col.strftime('%Y-%m-%d'))
+        except Exception:
+            period_labels.append(str(col))
+
+    cleaned = df.where(_pd.notna(df), None)
+    rows = {}
+    for row_name, series in cleaned.iterrows():
+        row_dict = {}
+        for col, label in zip(df.columns, period_labels):
+            val = series[col]
+            if val is None:
+                row_dict[label] = None
+            else:
+                try:
+                    fval = float(val)
+                    row_dict[label] = fval if math.isfinite(fval) else None
+                except (TypeError, ValueError):
+                    row_dict[label] = None
+        rows[str(row_name)] = row_dict
+    return {"periods": period_labels, "rows": rows}
+
+
+def _fetch_financials(ticker, period):
+    """Fetch annual or quarterly financials from yfinance for one ticker."""
+    import yfinance as yf
+    t = yf.Ticker(ticker, session=yf_session)
+    if period == 'quarterly':
+        income = t.quarterly_income_stmt
+        balance = t.quarterly_balance_sheet
+        cashflow = t.quarterly_cashflow
+    else:
+        income = t.income_stmt
+        balance = t.balance_sheet
+        cashflow = t.cashflow
+    return {
+        "income_statement": _df_to_periods(income),
+        "balance_sheet": _df_to_periods(balance),
+        "cash_flow": _df_to_periods(cashflow),
+    }
+
+
+@app.route('/api/financials/<ticker>')
+def api_financials(ticker):
+    """Return annual or quarterly 3-statement financials for a ticker."""
+    period = request.args.get('period', 'annual')
+    if period not in ('annual', 'quarterly'):
+        return jsonify({"error": "period must be 'annual' or 'quarterly'"}), 400
+
+    cache_key = (ticker.upper(), period)
+    cached = _financials_cache.get(cache_key)
+    now = time.time()
+    if cached and now - cached[0] < _FINANCIALS_TTL_SECONDS:
+        return jsonify(cached[1])
+
+    try:
+        payload = _fetch_financials(ticker, period)
+    except Exception as e:
+        return jsonify({"error": f"Failed to fetch financials for {ticker}: {e}"}), 500
+
+    payload = _sanitize(payload)
+    payload['ticker'] = ticker.upper()
+    payload['period'] = period
+    _financials_cache[cache_key] = (now, payload)
+    return jsonify(payload)
+
+
 @app.route('/api/market_overview')
 def api_market_overview():
     """Return market overview data as JSON for the React frontend"""
@@ -683,6 +817,23 @@ def api_backtest_results(backtest_id):
 
     raw_trades = _get(result, 'trades', [])
     raw_equity = _get(result, 'equity_curve', [])
+    raw_drawdown = _get(result, 'drawdown_curve', [])
+    daily_returns = _get(result, 'daily_returns', []) or []
+    initial_capital = _get(result, 'initial_capital', 0.0) or 0.0
+    final_capital = _get(result, 'final_capital', initial_capital) or 0.0
+    total_transaction_costs = _get(result, 'total_transaction_costs', 0.0) or 0.0
+    transaction_cost_percentage = _get(result, 'transaction_cost_percentage', 0.0) or 0.0
+    total_trade_value = sum((_get(trade, 'value', 0.0) or 0.0) for trade in raw_trades)
+    buy_count = sum(1 for trade in raw_trades if (_get(trade, 'type', None) or _get(trade, 'action', '')) == 'BUY')
+    sell_count = sum(1 for trade in raw_trades if (_get(trade, 'type', None) or _get(trade, 'action', '')) == 'SELL')
+    avg_daily_return = (sum(daily_returns) / len(daily_returns)) if daily_returns else 0.0
+    best_day = max(daily_returns) if daily_returns else 0.0
+    worst_day = min(daily_returns) if daily_returns else 0.0
+    daily_volatility = 0.0
+    if len(daily_returns) > 1:
+        mean_return = avg_daily_return
+        variance = sum((ret - mean_return) ** 2 for ret in daily_returns) / len(daily_returns)
+        daily_volatility = math.sqrt(variance)
 
     metrics = {
         "total_return": (_get(result, 'total_return', 0.0) or 0.0) * 100,
@@ -692,22 +843,69 @@ def api_backtest_results(backtest_id):
         "win_rate": _get(result, 'win_rate', 0.0) or 0.0,
         "num_trades": len(raw_trades),
         "profit_factor": _get(result, 'profit_factor', 0.0) or 0.0,
+        "initial_capital": initial_capital,
+        "final_capital": final_capital,
+        "total_transaction_costs": total_transaction_costs,
+        "transaction_cost_percentage": transaction_cost_percentage,
+        "total_trade_value": total_trade_value,
+        "avg_trade_value": total_trade_value / len(raw_trades) if raw_trades else 0.0,
+        "buy_count": buy_count,
+        "sell_count": sell_count,
+        "avg_daily_return": avg_daily_return * 100,
+        "daily_volatility": daily_volatility * 100,
+        "annualized_volatility": daily_volatility * math.sqrt(252) * 100,
+        "best_day": best_day * 100,
+        "worst_day": worst_day * 100,
     }
 
     trades = []
+    open_lots = {}
+    completed_round_trips = []
     for trade in raw_trades:
         action = _get(trade, 'type', None) or _get(trade, 'action', '')
+        ticker = _get(trade, 'ticker', '')
+        price = _get(trade, 'price', 0.0) or 0.0
+        shares = _get(trade, 'shares', 0) or 0
+        cost = _get(trade, 'cost', 0.0) or 0.0
+        return_pct = None
+        pnl = None
+        if action == 'BUY':
+            open_lots.setdefault(ticker, []).append({
+                'price': price,
+                'shares': shares,
+                'cost': cost,
+                'date': _get(trade, 'date', ''),
+            })
+        elif action == 'SELL' and open_lots.get(ticker):
+            buy_lot = open_lots[ticker].pop(0)
+            matched_shares = min(shares, buy_lot.get('shares', shares) or shares)
+            gross_buy = buy_lot.get('price', 0.0) * matched_shares
+            gross_sell = price * matched_shares
+            pnl = gross_sell - gross_buy - cost - buy_lot.get('cost', 0.0)
+            return_pct = (pnl / gross_buy * 100) if gross_buy else None
+            completed_round_trips.append({
+                'ticker': ticker,
+                'entry_date': buy_lot.get('date', ''),
+                'exit_date': _get(trade, 'date', ''),
+                'entry_price': buy_lot.get('price', 0.0),
+                'exit_price': price,
+                'shares': matched_shares,
+                'pnl': pnl,
+                'return_pct': return_pct,
+            })
         trades.append({
             **(trade if isinstance(trade, dict) else {}),
             "date": _get(trade, 'date', ''),
-            "ticker": _get(trade, 'ticker', ''),
+            "ticker": ticker,
             "type": action,
             "action": action,
-            "price": _get(trade, 'price', 0.0),
-            "shares": _get(trade, 'shares', 0),
-            "cost": _get(trade, 'cost', 0.0),
+            "price": price,
+            "shares": shares,
+            "cost": cost,
             "value": _get(trade, 'value', 0.0),
             "net_value": _get(trade, 'net_value', 0.0),
+            "pnl": pnl,
+            "return_pct": return_pct,
         })
 
     equity = []
@@ -722,10 +920,43 @@ def api_backtest_results(backtest_id):
             "equity": value,
         })
 
+    drawdown = []
+    for point in raw_drawdown:
+        value = _get(point, 'drawdown', 0.0) or 0.0
+        drawdown.append({
+            **(point if isinstance(point, dict) else {}),
+            "date": _get(point, 'date', ''),
+            "drawdown": value * 100,
+        })
+
+    risk_summary = {
+        "trading_days": len(equity),
+        "completed_round_trips": len(completed_round_trips),
+        "winning_round_trips": sum(1 for trade in completed_round_trips if (trade.get('pnl') or 0) > 0),
+        "losing_round_trips": sum(1 for trade in completed_round_trips if (trade.get('pnl') or 0) <= 0),
+        "open_positions_estimate": sum(len(lots) for lots in open_lots.values()),
+        "turnover_to_initial_capital": (total_trade_value / initial_capital) if initial_capital else 0.0,
+        "average_transaction_cost": total_transaction_costs / len(raw_trades) if raw_trades else 0.0,
+    }
+
+    run_metadata = _get(result, 'run_metadata', {}) or {}
+    if isinstance(run_metadata, dict):
+        run_metadata = {
+            **run_metadata,
+            "backtest_id": backtest_id,
+            "session_id": template_data.get('session_id', ''),
+        }
+
     return jsonify({
         "metrics":      _sanitize(metrics),
         "trades":       _sanitize(trades),
         "equity_curve": _sanitize(equity),
+        "drawdown_curve": _sanitize(drawdown),
+        "daily_returns": _sanitize([(ret * 100) for ret in daily_returns]),
+        "round_trips": _sanitize(completed_round_trips),
+        "risk_summary": _sanitize(risk_summary),
+        "training_context": _sanitize(_get(result, 'training_context', {})),
+        "run_metadata": _sanitize(run_metadata),
         "tickers":   template_data.get('tickers', []),
         "strategy":  template_data.get('strategy', ''),
         "start_date": template_data.get('start_date', ''),

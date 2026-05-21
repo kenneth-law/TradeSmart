@@ -14,7 +14,7 @@ import EquityChart from '../components/charts/EquityChart'
 import type { PriceOverlay } from '../components/charts/EquityChart'
 import SignalBadge from '../components/data/SignalBadge'
 import ScoreBar from '../components/data/ScoreBar'
-import type { PriceHistory, StockResult, Trade } from '../types'
+import type { AlphaVerdict, BacktestBenchmark, PositionRoundTrip, PriceHistory, StockResult, Trade } from '../types'
 
 const STRATEGIES = [
   { label: 'ML Strategy', value: 'ml' },
@@ -90,6 +90,67 @@ const ROUND_TRIP_COLUMNS: Column<RoundTripRow & Record<string, unknown>>[] = [
     render: r => {
       const v = Number(r.return_pct ?? 0)
       return <span className={`tabnum ${v >= 0 ? 'text-up' : 'text-down'}`}>{v >= 0 ? '+' : ''}{v.toFixed(2)}%</span>
+    }
+  },
+]
+
+const POSITION_COLUMNS: Column<PositionRoundTrip & Record<string, unknown>>[] = [
+  { key: 'ticker', label: 'TICKER', width: 82 },
+  { key: 'entry_date', label: 'ENTRY', width: 104 },
+  { key: 'last_exit_date', label: 'LAST EXIT', width: 104 },
+  { key: 'entry_price', label: 'IN', width: 76, align: 'right',
+    render: r => <span className="tabnum">{Number(r.entry_price ?? 0).toFixed(2)}</span>
+  },
+  { key: 'shares_sold', label: 'SOLD', width: 64, align: 'right' },
+  { key: 'exit_count', label: 'EXITS', width: 64, align: 'right' },
+  { key: 'pnl', label: 'P&L', width: 86, align: 'right',
+    render: r => {
+      const v = Number(r.pnl ?? 0)
+      return <span className={`tabnum ${v >= 0 ? 'text-up' : 'text-down'}`}>{v >= 0 ? '+' : ''}${v.toFixed(2)}</span>
+    }
+  },
+  { key: 'return_pct', label: 'RET%', width: 78, align: 'right',
+    render: r => {
+      const v = Number(r.return_pct ?? 0)
+      return <span className={`tabnum ${v >= 0 ? 'text-up' : 'text-down'}`}>{v >= 0 ? '+' : ''}{v.toFixed(2)}%</span>
+    }
+  },
+]
+
+type BenchmarkRow = {
+  name: string
+  return_pct: number
+  delta?: number
+}
+
+const BENCHMARK_COLUMNS: Column<BenchmarkRow & Record<string, unknown>>[] = [
+  { key: 'name', label: 'BENCHMARK', width: 180 },
+  { key: 'return_pct', label: 'RETURN', width: 90, align: 'right',
+    render: r => {
+      const v = Number(r.return_pct ?? 0)
+      return <span className={`tabnum ${v >= 0 ? 'text-up' : 'text-down'}`}>{v >= 0 ? '+' : ''}{v.toFixed(2)}%</span>
+    }
+  },
+  { key: 'delta', label: 'DELTA', width: 90, align: 'right',
+    render: r => {
+      if (r.delta == null) return <span className="text-dim">—</span>
+      const v = Number(r.delta)
+      return <span className={`tabnum ${v >= 0 ? 'text-up' : 'text-down'}`}>{v >= 0 ? '+' : ''}{v.toFixed(2)} pp</span>
+    }
+  },
+]
+
+type TickerPnlRow = {
+  ticker: string
+  pnl: number
+}
+
+const TICKER_PNL_COLUMNS: Column<TickerPnlRow & Record<string, unknown>>[] = [
+  { key: 'ticker', label: 'TICKER', width: 100 },
+  { key: 'pnl', label: 'REALIZED P&L', width: 130, align: 'right',
+    render: r => {
+      const v = Number(r.pnl ?? 0)
+      return <span className={`tabnum ${v >= 0 ? 'text-up' : 'text-down'}`}>{v >= 0 ? '+' : ''}${v.toFixed(2)}</span>
     }
   },
 ]
@@ -227,6 +288,12 @@ function numberOrFallback(value: unknown, fallback: number) {
   return Number.isFinite(number) && number !== 0 ? number : fallback
 }
 
+function metricColor(value: unknown): KeyValue['color'] {
+  return value === 'up' || value === 'down' || value === 'accent' || value === 'warn' || value === 'muted' || value === 'text'
+    ? value
+    : 'text'
+}
+
 function downloadJson(payload: unknown, filename: string) {
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
@@ -262,6 +329,10 @@ function buildFineTuningPayload(
     },
     model_training: training,
     performance: metrics,
+    alpha_verdict: raw.alpha_verdict ?? {},
+    benchmarks: raw.benchmarks ?? {},
+    position_diagnostics: raw.position_diagnostics ?? {},
+    concentration: raw.concentration ?? {},
     risk_summary: raw.risk_summary ?? {},
     supervised_examples: previewRows.map(row => ({
       input: {
@@ -374,6 +445,41 @@ function ResearchPanel({ title, children }: { title: string; children: ReactNode
         <h2 className="text-2xs text-dim font-medium uppercase tracking-[0.18em]">{title}</h2>
       </div>
       {children}
+    </section>
+  )
+}
+
+function AlphaVerdictPanel({ verdict }: { verdict: AlphaVerdict }) {
+  const colors = {
+    up: 'text-up border-up/40',
+    down: 'text-down border-down/40',
+    accent: 'text-accent border-accent/40',
+    warn: 'text-warn border-warn/40',
+    muted: 'text-muted border-border',
+    text: 'text-text border-border',
+  }
+  const color = metricColor(verdict.color)
+  const warnings = verdict.warnings ?? []
+
+  return (
+    <section className="border-b border-border bg-s1">
+      <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr]">
+        <div className={`border-b border-r border-border px-4 py-3 lg:border-b-0 ${colors[color]}`}>
+          <p className="text-2xs text-dim">Alpha Verdict</p>
+          <p className={`mt-1 text-xl font-medium ${colors[color].split(' ')[0]}`}>{verdict.label || 'Needs Validation'}</p>
+          <p className="mt-1 text-2xs text-muted tabnum">Score {Number(verdict.score ?? 0)}</p>
+        </div>
+        <div className="px-4 py-3">
+          <p className="text-sm text-text">{verdict.summary || 'No verdict returned for this run.'}</p>
+          {warnings.length > 0 && (
+            <div className="mt-3 grid gap-1">
+              {warnings.map(warning => (
+                <p key={warning} className="text-2xs text-warn">{warning}</p>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </section>
   )
 }
@@ -949,6 +1055,16 @@ export default function Backtest() {
   const trainingContext = (resultRecord.training_context ?? {}) as Record<string, unknown>
   const riskSummaryRaw = (resultRecord.risk_summary ?? {}) as Record<string, unknown>
   const runMetadata = (resultRecord.run_metadata ?? {}) as Record<string, unknown>
+  const alphaVerdict = (resultRecord.alpha_verdict ?? {
+    label: 'Needs Validation',
+    color: 'warn',
+    score: 0,
+    summary: 'No alpha verdict was returned for this run.',
+    warnings: [],
+  }) as AlphaVerdict
+  const benchmarks = (resultRecord.benchmarks ?? {}) as BacktestBenchmark
+  const positionDiagnostics = (resultRecord.position_diagnostics ?? {}) as Record<string, unknown>
+  const concentration = (resultRecord.concentration ?? {}) as Record<string, unknown>
   const trainingRows = ((trainingContext.preview_rows ?? []) as TrainingPreviewRow[])
     .map(row => ({ ...row, ...row.features }))
   const featureImportance = Object.entries((trainingContext.feature_importance ?? {}) as Record<string, number>)
@@ -956,6 +1072,43 @@ export default function Backtest() {
   const apiRoundTrips = ((resultRecord.round_trips ?? []) as RoundTripRow[])
     .map(row => ({ ...row }))
   const roundTrips = apiRoundTrips.length ? apiRoundTrips : buildRoundTripsFromTrades(trades)
+  const positionRoundTrips = ((positionDiagnostics.position_round_trips ?? []) as PositionRoundTrip[])
+    .map(row => ({ ...row }))
+  const tickerPnl = ((concentration.ticker_pnl ?? []) as TickerPnlRow[])
+    .map(row => ({ ...row }))
+  const benchmarkRows: BenchmarkRow[] = [
+    {
+      name: 'Equal-weight basket',
+      return_pct: Number(benchmarks.equal_weight_return ?? 0),
+      delta: Number(benchmarks.strategy_vs_equal_weight ?? metrics.total_return - Number(benchmarks.equal_weight_return ?? 0)),
+    },
+    {
+      name: 'Cash',
+      return_pct: Number(benchmarks.cash_return ?? 0),
+      delta: Number(benchmarks.strategy_vs_cash ?? metrics.total_return),
+    },
+  ]
+  if (benchmarks.technical_rule) {
+    benchmarkRows.push({
+      name: 'Simple technical rule',
+      return_pct: Number(benchmarks.technical_rule.return ?? 0),
+      delta: Number(benchmarks.strategy_vs_technical ?? metrics.total_return - Number(benchmarks.technical_rule.return ?? 0)),
+    })
+  }
+  if (benchmarks.best_ticker?.ticker) {
+    benchmarkRows.push({
+      name: `Best constituent: ${benchmarks.best_ticker.ticker}`,
+      return_pct: Number(benchmarks.best_ticker.return_pct ?? 0),
+      delta: metrics.total_return - Number(benchmarks.best_ticker.return_pct ?? 0),
+    })
+  }
+  if (benchmarks.worst_ticker?.ticker) {
+    benchmarkRows.push({
+      name: `Worst constituent: ${benchmarks.worst_ticker.ticker}`,
+      return_pct: Number(benchmarks.worst_ticker.return_pct ?? 0),
+      delta: metrics.total_return - Number(benchmarks.worst_ticker.return_pct ?? 0),
+    })
+  }
   const riskSummary: Record<string, unknown> = {
     ...riskSummaryRaw,
     completed_round_trips: numberOrFallback(riskSummaryRaw.completed_round_trips, roundTrips.length),
@@ -1004,6 +1157,7 @@ export default function Backtest() {
       </div>
 
       <StatStrip items={topStats} />
+      <AlphaVerdictPanel verdict={alphaVerdict} />
 
       {equity_curve && equity_curve.length > 0 && (
         <div className="shrink-0 border-b border-border">
@@ -1092,6 +1246,63 @@ export default function Backtest() {
                   <MetricTile label="Round Trips" value={Number(riskSummary.completed_round_trips ?? 0)} size="sm" />
                   <MetricTile label="Open Lots" value={Number(riskSummary.open_positions_estimate ?? 0)} color="warn" size="sm" />
                 </div>
+              </ResearchPanel>
+
+              <ResearchPanel title="Benchmark Comparison">
+                <div className="grid grid-cols-2 md:grid-cols-4">
+                  <MetricTile
+                    label="Vs Equal Weight"
+                    value={`${Number(benchmarks.strategy_vs_equal_weight ?? 0) >= 0 ? '+' : ''}${Number(benchmarks.strategy_vs_equal_weight ?? 0).toFixed(2)}`}
+                    unit="pp"
+                    color={Number(benchmarks.strategy_vs_equal_weight ?? 0) >= 0 ? 'up' : 'down'}
+                    size="sm"
+                  />
+                  <MetricTile
+                    label="Vs Technical"
+                    value={`${Number(benchmarks.strategy_vs_technical ?? 0) >= 0 ? '+' : ''}${Number(benchmarks.strategy_vs_technical ?? 0).toFixed(2)}`}
+                    unit="pp"
+                    color={Number(benchmarks.strategy_vs_technical ?? 0) >= 0 ? 'up' : 'down'}
+                    size="sm"
+                  />
+                  <MetricTile label="Best Constituent" value={benchmarks.best_ticker?.ticker ?? '—'} color="up" size="sm" />
+                  <MetricTile label="Worst Constituent" value={benchmarks.worst_ticker?.ticker ?? '—'} color="down" size="sm" />
+                </div>
+                <DataTable
+                  columns={BENCHMARK_COLUMNS}
+                  data={benchmarkRows as Array<BenchmarkRow & Record<string, unknown>>}
+                  rowKey={r => r.name}
+                  emptyMessage="No benchmark data returned."
+                />
+              </ResearchPanel>
+
+              <ResearchPanel title="Position-Level Diagnostics">
+                <div className="grid grid-cols-2 md:grid-cols-4">
+                  <MetricTile label="Completed Positions" value={Number(positionDiagnostics.completed_positions ?? 0)} size="sm" />
+                  <MetricTile label="Position Win Rate" value={`${(Number(positionDiagnostics.position_win_rate ?? 0) * 100).toFixed(1)}`} unit="%" color={Number(positionDiagnostics.position_win_rate ?? 0) >= 0.5 ? 'up' : 'down'} size="sm" />
+                  <MetricTile label="Position PF" value={Number(positionDiagnostics.position_profit_factor ?? 0).toFixed(2)} color={Number(positionDiagnostics.position_profit_factor ?? 0) >= 1 ? 'up' : 'down'} size="sm" />
+                  <MetricTile label="Gross Loss" value={formatMoney(positionDiagnostics.gross_position_loss, 2)} color={Number(positionDiagnostics.gross_position_loss ?? 0) > 0 ? 'down' : 'warn'} size="sm" />
+                </div>
+                <DataTable
+                  columns={POSITION_COLUMNS}
+                  data={positionRoundTrips as Array<PositionRoundTrip & Record<string, unknown>>}
+                  rowKey={r => `${r.ticker}-${r.entry_date}-${r.entry_price}`}
+                  emptyMessage="No position-level exits returned."
+                />
+              </ResearchPanel>
+
+              <ResearchPanel title="Concentration Stress">
+                <div className="grid grid-cols-2 md:grid-cols-4">
+                  <MetricTile label="Realized P&L" value={formatMoney(concentration.realized_pnl, 2)} color={Number(concentration.realized_pnl ?? 0) >= 0 ? 'up' : 'down'} size="sm" />
+                  <MetricTile label="Top Ticker" value={String(concentration.top_ticker ?? '—')} color="accent" size="sm" />
+                  <MetricTile label="Top Profit Share" value={`${(Number(concentration.top_ticker_profit_share ?? 0) * 100).toFixed(1)}`} unit="%" color={Number(concentration.top_ticker_profit_share ?? 0) > 0.4 ? 'warn' : 'text'} size="sm" />
+                  <MetricTile label="Without Best Trade" value={formatPct(concentration.return_without_best_trade)} color={Number(concentration.return_without_best_trade ?? 0) >= 0 ? 'up' : 'down'} size="sm" />
+                </div>
+                <DataTable
+                  columns={TICKER_PNL_COLUMNS}
+                  data={tickerPnl as Array<TickerPnlRow & Record<string, unknown>>}
+                  rowKey={r => r.ticker}
+                  emptyMessage="No realized ticker contribution yet."
+                />
               </ResearchPanel>
 
               <ResearchPanel title="Risk And Costs">
@@ -1202,11 +1413,21 @@ export default function Backtest() {
           )}
           <MetricTile label="Sharpe" value={metrics.sharpe_ratio.toFixed(2)} color={metrics.sharpe_ratio >= 1 ? 'up' : metrics.sharpe_ratio >= 0 ? 'warn' : 'down'} />
           <MetricTile label="Max Drawdown" value={metrics.max_drawdown.toFixed(2)} unit="%" color="down" />
+          <MetricTile label="Vs Equal Weight" value={`${Number(benchmarks.strategy_vs_equal_weight ?? 0) >= 0 ? '+' : ''}${Number(benchmarks.strategy_vs_equal_weight ?? 0).toFixed(2)}`} unit="pp" color={Number(benchmarks.strategy_vs_equal_weight ?? 0) >= 0 ? 'up' : 'down'} />
+          {benchmarks.technical_rule && (
+            <MetricTile label="Vs Technical" value={`${Number(benchmarks.strategy_vs_technical ?? 0) >= 0 ? '+' : ''}${Number(benchmarks.strategy_vs_technical ?? 0).toFixed(2)}`} unit="pp" color={Number(benchmarks.strategy_vs_technical ?? 0) >= 0 ? 'up' : 'down'} />
+          )}
           <MetricTile
             label="Win Rate"
             value={completedRoundTrips > 0 ? `${(metrics.win_rate * 100).toFixed(1)}` : '—'}
             unit={completedRoundTrips > 0 ? '%' : undefined}
             color={completedRoundTrips > 0 ? (metrics.win_rate >= 0.5 ? 'up' : 'down') : 'muted'}
+          />
+          <MetricTile
+            label="Position Win"
+            value={positionRoundTrips.length > 0 ? `${(Number(positionDiagnostics.position_win_rate ?? 0) * 100).toFixed(1)}` : '—'}
+            unit={positionRoundTrips.length > 0 ? '%' : undefined}
+            color={positionRoundTrips.length > 0 ? (Number(positionDiagnostics.position_win_rate ?? 0) >= 0.5 ? 'up' : 'down') : 'muted'}
           />
           <MetricTile label="Trades" value={metrics.num_trades} />
           <MetricTile label="Training Rows" value={Number(trainingContext.sample_count ?? 0).toLocaleString()} color="accent" />

@@ -526,3 +526,116 @@ export function streamBriefWeb(params: {
     temperature: params.temperature,
   })
 }
+
+function renderLineupMarket(
+  market: import('../types').MarketOverview | null | undefined,
+): string {
+  if (!market) return 'Market overview: unavailable.'
+  const sectors = [...(market.sectors ?? [])]
+    .sort((a, b) => b.return_1d - a.return_1d)
+    .slice(0, 12)
+    .map(s => {
+      const parts = [
+        `${s.name}: 1D ${s.return_1d >= 0 ? '+' : ''}${s.return_1d.toFixed(2)}%`,
+        s.return_1w == null ? '' : `1W ${s.return_1w >= 0 ? '+' : ''}${s.return_1w.toFixed(2)}%`,
+        s.return_1m == null ? '' : `1M ${s.return_1m >= 0 ? '+' : ''}${s.return_1m.toFixed(2)}%`,
+        s.trend ? `trend ${s.trend}` : '',
+      ].filter(Boolean)
+      return `- ${parts.join(' | ')}`
+    })
+  return [
+    `Market trend: ${market.market_trend}`,
+    market.advances == null ? '' : `Advancers: ${market.advances}`,
+    market.declines == null ? '' : `Decliners: ${market.declines}`,
+    market.market_health ? `Market health: ${market.market_health}` : '',
+    'Sector snapshot:',
+    sectors.join('\n') || '- No sector data.',
+  ].filter(Boolean).join('\n')
+}
+
+function renderLineupPositions(positions: Array<{
+  ticker: string
+  kind?: string
+  quantity?: number
+  costBasis?: number
+  companyName?: string
+  sector?: string
+  optionType?: string
+  strike?: number
+  expiry?: string
+}>): string {
+  if (positions.length === 0) return 'Paper portfolio positions: none.'
+  return [
+    'Paper portfolio positions:',
+    ...positions.map(p => {
+      const descriptor = p.kind === 'option'
+        ? `${p.optionType?.toUpperCase() ?? 'OPTION'} ${p.strike ?? '-'} ${p.expiry ?? ''}`.trim()
+        : 'stock'
+      const details = [
+        p.companyName,
+        p.sector,
+        `qty ${p.quantity ?? '-'}`,
+        p.costBasis == null ? '' : `avg cost ${p.costBasis.toFixed(2)}`,
+      ].filter(Boolean)
+      return `- ${p.ticker} (${descriptor}): ${details.join(' | ')}`
+    }),
+  ].join('\n')
+}
+
+export function streamDailyLineup(params: {
+  apiKey: string
+  model: string
+  watchlist: string[]
+  positions: Array<{
+    ticker: string
+    kind?: string
+    quantity?: number
+    costBasis?: number
+    companyName?: string
+    sector?: string
+    optionType?: string
+    strike?: number
+    expiry?: string
+  }>
+  marketOverview?: import('../types').MarketOverview | null
+  onDelta: (chunk: string) => void
+  onCitation?: (c: Citation) => void
+  onSearchStart?: () => void
+  signal?: AbortSignal
+  temperature?: number
+  extraSystemPrompt?: string
+}): Promise<WebStreamResult> {
+  const today = new Date().toLocaleDateString(undefined, {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  })
+  const system = withCustomPrompt(
+    `You are TradeSmart Daily Lineup, a concise market desk assistant. Use web_search for fresh market news, earnings, macro events, sector movers, and company-specific catalysts. Build a practical watchlist for today's session from the provided market overview, the user's watchlist, and paper portfolio positions. Prioritize what is worth watching, why it matters today, and what would invalidate the setup. Output tight markdown with these sections: Market Tape, Worth Watching, Portfolio Focus, Risk Calendar. Include specific tickers when useful. Cite fresh sources. No generic disclaimers.`,
+    params.extraSystemPrompt,
+  )
+  const input = [
+    { role: 'system' as const, content: system },
+    {
+      role: 'user' as const,
+      content: [
+        `Date: ${today}`,
+        `User watchlist: ${params.watchlist.length ? params.watchlist.join(', ') : 'none'}`,
+        renderLineupPositions(params.positions),
+        renderLineupMarket(params.marketOverview),
+        'Create the daily lineup now. Keep it scan-friendly and focus on names or themes worth watching today.',
+      ].join('\n\n'),
+    },
+  ]
+  return streamResponses({
+    apiKey: params.apiKey,
+    model: params.model,
+    input,
+    signal: params.signal,
+    onDelta: params.onDelta,
+    onCitation: params.onCitation,
+    onSearchStart: params.onSearchStart,
+    temperature: params.temperature,
+  })
+}

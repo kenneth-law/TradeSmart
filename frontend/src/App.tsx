@@ -1,13 +1,13 @@
-import { Routes, Route } from 'react-router-dom'
+import { Navigate, Routes, Route } from 'react-router-dom'
 import Shell from './components/layout/Shell'
 import LandingPage from './pages/LandingPage'
 import Technical from './pages/Technical'
 import Results from './pages/Results'
 import StockDetail from './pages/StockDetail'
 import System from './pages/Backtest'
-import MarketOverview from './pages/MarketOverview'
 import Portfolio from './pages/Portfolio'
 import Research from './pages/Research'
+import DailyLineup from './pages/DailyLineup'
 import Documentation from './pages/Documentation'
 import Settings from './pages/Settings'
 
@@ -22,8 +22,9 @@ export default function App() {
         <Route path="/system"      element={<System />} />
         <Route path="/backtest"    element={<System />} />
         <Route path="/integrated"  element={<System />} />
-        <Route path="/market"      element={<MarketOverview />} />
-        <Route path="/research"    element={<Research />} />
+        <Route path="/market"      element={<Research />} />
+        <Route path="/research"    element={<Navigate to="/market" replace />} />
+        <Route path="/daily-lineup" element={<DailyLineup />} />
         <Route path="/portfolio"   element={<Portfolio />} />
         <Route path="/docs"        element={<Documentation />} />
         <Route path="/docs/:type"  element={<Documentation />} />

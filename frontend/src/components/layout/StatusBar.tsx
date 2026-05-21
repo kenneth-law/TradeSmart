@@ -41,7 +41,7 @@ export default function StatusBar() {
 
       {/* Keyboard hint — pushed right */}
       <span className="ml-auto text-2xs text-dim">
-        <kbd className="text-dim">Ctrl+K</kbd> command · <kbd className="text-dim">Alt+1–7</kbd> nav
+        <kbd className="text-dim">Ctrl+K</kbd> command · <kbd className="text-dim">Alt+1-8</kbd> nav
       </span>
 
       <span className="text-border">|</span>

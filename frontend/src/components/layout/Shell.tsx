@@ -7,8 +7,8 @@ import CommandPalette from './CommandPalette'
 import heroImage from '../../assets/landing-hero.jpg'
 
 const SHORTCUTS: Record<string, string> = {
-  '1': '/', '2': '/technical', '3': '/system',
-  '4': '/market', '5': '/research', '6': '/portfolio',
+  '1': '/', '2': '/market', '3': '/system',
+  '4': '/technical', '5': '/daily-lineup', '6': '/portfolio',
   '7': '/docs', '8': '/settings',
 }
 

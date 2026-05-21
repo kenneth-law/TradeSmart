@@ -665,7 +665,10 @@ export default function Backtest() {
   if (phase === 'config') {
     return (
       <div className="p-4 max-w-4xl mx-auto">
-        <h1 className="text-sm text-text font-medium mb-4">Quant Trading</h1>
+        <h1 className="text-sm text-text font-medium mb-1">Quant Trading</h1>
+        <p className="mb-4 text-2xs text-dim">
+          Experimental research tool only; not financial advice.
+        </p>
 
         <div className="flex gap-px mb-3 border border-border bg-border">
           {([

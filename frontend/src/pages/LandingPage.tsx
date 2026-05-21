@@ -60,10 +60,6 @@ export default function LandingPage() {
             })}
           </div>
         </div>
-
-        <footer className="absolute bottom-4 left-1/2 -translate-x-1/2 text-2xs text-white/42 sm:left-10 lg:left-16">
-          © Kenneth Law 2026
-        </footer>
       </section>
     </div>
   )

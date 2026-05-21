@@ -68,6 +68,56 @@ integrated_queues = {}
 yf_session = get_yf_session()
 
 
+def _safe_float(value, default=0.0):
+    try:
+        if value is None:
+            return default
+        value = float(value)
+        return value if math.isfinite(value) else default
+    except (TypeError, ValueError):
+        return default
+
+
+def _calculate_buy_hold_benchmarks(tickers, start_date, end_date):
+    """Calculate passive benchmarks for the exact backtest window."""
+    ticker_returns = []
+    for ticker in tickers:
+        try:
+            hist = get_stock_history(ticker, start_date, end_date, "1d")
+            if hist is None or hist.empty or 'Close' not in hist:
+                continue
+            closes = hist['Close'].dropna()
+            if len(closes) < 2:
+                continue
+            start_price = _safe_float(closes.iloc[0])
+            end_price = _safe_float(closes.iloc[-1])
+            if start_price <= 0:
+                continue
+            ticker_returns.append({
+                "ticker": ticker,
+                "start_price": start_price,
+                "end_price": end_price,
+                "return_pct": ((end_price / start_price) - 1) * 100,
+            })
+        except Exception as exc:
+            log_message(f"Benchmark skipped for {ticker}: {exc}")
+
+    equal_weight_return = (
+        sum(row["return_pct"] for row in ticker_returns) / len(ticker_returns)
+        if ticker_returns else 0.0
+    )
+    best = max(ticker_returns, key=lambda row: row["return_pct"], default=None)
+    worst = min(ticker_returns, key=lambda row: row["return_pct"], default=None)
+    return {
+        "cash_return": 0.0,
+        "equal_weight_return": equal_weight_return,
+        "ticker_returns": ticker_returns,
+        "best_ticker": best,
+        "worst_ticker": worst,
+        "coverage": len(ticker_returns),
+    }
+
+
 @app.route('/analysis_progress')
 def analysis_progress_stream():
     """Server-Sent Events (SSE) endpoint for streaming analysis progress"""
@@ -536,6 +586,23 @@ def run_backtest_with_updates(tickers, strategy, start_date, end_date, days, cus
             allow_pyramiding=allow_pyramiding,
         )
 
+        technical_baseline_result = None
+        if strategy != 'technical':
+            message_queue.put({
+                "progress": 72,
+                "message": "Running simple technical benchmark...",
+                "status": "processing"
+            })
+            technical_baseline_result = system.run_backtest(
+                tickers=tickers,
+                strategy='technical',
+                start_date=start_date if start_date else None,
+                end_date=end_date if end_date else None,
+                days=days,
+                custom_transaction_cost=custom_transaction_cost,
+                custom_transaction_cost_type=transaction_cost_type,
+            )
+
         message_queue.put({
             "progress": 80,
             "message": "Backtest completed. Generating charts...",
@@ -558,6 +625,7 @@ def run_backtest_with_updates(tickers, strategy, start_date, end_date, days, cus
         # Prepare data for template
         template_data = {
             'result': result,
+            'technical_baseline_result': technical_baseline_result,
             'charts': charts,
             'session_id': session_id,
             'tickers': tickers,
@@ -1011,6 +1079,180 @@ def api_backtest_results(backtest_id):
         "average_transaction_cost": total_transaction_costs / len(raw_trades) if raw_trades else 0.0,
     }
 
+    position_map = {}
+    ticker_pnl = {}
+    for rt in completed_round_trips:
+        key = (
+            rt.get('ticker', ''),
+            rt.get('entry_date', ''),
+            round(_safe_float(rt.get('entry_price')), 6),
+        )
+        position = position_map.setdefault(key, {
+            "ticker": rt.get('ticker', ''),
+            "entry_date": rt.get('entry_date', ''),
+            "last_exit_date": rt.get('exit_date', ''),
+            "entry_price": rt.get('entry_price', 0.0),
+            "shares_sold": 0,
+            "exit_count": 0,
+            "pnl": 0.0,
+            "gross_entry_value": 0.0,
+        })
+        shares = int(rt.get('shares') or 0)
+        position["shares_sold"] += shares
+        position["exit_count"] += 1
+        position["last_exit_date"] = rt.get('exit_date', position["last_exit_date"])
+        position["pnl"] += _safe_float(rt.get('pnl'))
+        position["gross_entry_value"] += _safe_float(rt.get('entry_price')) * shares
+        ticker_pnl[rt.get('ticker', '')] = ticker_pnl.get(rt.get('ticker', ''), 0.0) + _safe_float(rt.get('pnl'))
+
+    position_round_trips = []
+    for position in position_map.values():
+        gross_entry = position.get("gross_entry_value", 0.0)
+        position_round_trips.append({
+            **position,
+            "return_pct": (position["pnl"] / gross_entry * 100) if gross_entry else None,
+        })
+
+    winning_positions = sum(1 for row in position_round_trips if _safe_float(row.get('pnl')) > 0)
+    losing_positions = sum(1 for row in position_round_trips if _safe_float(row.get('pnl')) <= 0)
+    gross_position_profit = sum(_safe_float(row.get('pnl')) for row in position_round_trips if _safe_float(row.get('pnl')) > 0)
+    gross_position_loss = abs(sum(_safe_float(row.get('pnl')) for row in position_round_trips if _safe_float(row.get('pnl')) < 0))
+    position_profit_factor = (
+        gross_position_profit / gross_position_loss if gross_position_loss > 0
+        else (gross_position_profit if gross_position_profit > 0 else 0.0)
+    )
+    position_diagnostics = {
+        "completed_positions": len(position_round_trips),
+        "winning_positions": winning_positions,
+        "losing_positions": losing_positions,
+        "position_win_rate": (winning_positions / len(position_round_trips)) if position_round_trips else 0.0,
+        "position_profit_factor": position_profit_factor,
+        "gross_position_profit": gross_position_profit,
+        "gross_position_loss": gross_position_loss,
+        "position_round_trips": position_round_trips,
+    }
+
+    realized_pnl = sum(_safe_float(row.get('pnl')) for row in completed_round_trips)
+    best_trade = max(completed_round_trips, key=lambda row: _safe_float(row.get('pnl')), default=None)
+    top_ticker, top_ticker_pnl = (None, 0.0)
+    if ticker_pnl:
+        top_ticker, top_ticker_pnl = max(ticker_pnl.items(), key=lambda item: item[1])
+    concentration = {
+        "realized_pnl": realized_pnl,
+        "ticker_pnl": [{"ticker": ticker, "pnl": pnl} for ticker, pnl in sorted(ticker_pnl.items(), key=lambda item: item[1], reverse=True)],
+        "top_ticker": top_ticker,
+        "top_ticker_pnl": top_ticker_pnl,
+        "top_ticker_profit_share": (top_ticker_pnl / gross_position_profit) if gross_position_profit > 0 else 0.0,
+        "best_trade": best_trade,
+        "best_trade_pnl": _safe_float(best_trade.get('pnl')) if best_trade else 0.0,
+        "return_without_top_ticker": (((final_capital - top_ticker_pnl) / initial_capital) - 1) * 100 if initial_capital and top_ticker else metrics["total_return"],
+        "return_without_best_trade": (((final_capital - (_safe_float(best_trade.get('pnl')) if best_trade else 0.0)) / initial_capital) - 1) * 100 if initial_capital else metrics["total_return"],
+    }
+
+    start_for_benchmark = template_data.get('start_date', '')
+    end_for_benchmark = template_data.get('end_date', '')
+    benchmarks = template_data.get('benchmarks')
+    if not isinstance(benchmarks, dict):
+        benchmarks = _calculate_buy_hold_benchmarks(template_data.get('tickers', []), start_for_benchmark, end_for_benchmark)
+        template_data['benchmarks'] = benchmarks
+    benchmarks["strategy_vs_equal_weight"] = metrics["total_return"] - benchmarks.get("equal_weight_return", 0.0)
+    benchmarks["strategy_vs_cash"] = metrics["total_return"] - benchmarks.get("cash_return", 0.0)
+    technical_baseline_result = template_data.get('technical_baseline_result')
+    if technical_baseline_result is not None:
+        technical_return = (_get(technical_baseline_result, 'total_return', 0.0) or 0.0) * 100
+        benchmarks["technical_rule"] = {
+            "return": technical_return,
+            "sharpe_ratio": _get(technical_baseline_result, 'sharpe_ratio', 0.0) or 0.0,
+            "max_drawdown": (_get(technical_baseline_result, 'max_drawdown', 0.0) or 0.0) * 100,
+            "num_trades": len(_get(technical_baseline_result, 'trades', []) or []),
+        }
+        benchmarks["strategy_vs_technical"] = metrics["total_return"] - technical_return
+    elif template_data.get('strategy') == 'technical':
+        benchmarks["technical_rule"] = {
+            "return": metrics["total_return"],
+            "sharpe_ratio": metrics["sharpe_ratio"],
+            "max_drawdown": metrics["max_drawdown"],
+            "num_trades": metrics["num_trades"],
+        }
+        benchmarks["strategy_vs_technical"] = 0.0
+
+    warnings = []
+    score = 0
+    equal_weight_return = benchmarks.get("equal_weight_return", 0.0)
+    if benchmarks.get("coverage", 0) > 0:
+        if metrics["total_return"] > equal_weight_return + 2:
+            score += 1
+        elif metrics["total_return"] < equal_weight_return:
+            score -= 1
+            warnings.append(f"Underperformed equal-weight buy-and-hold by {abs(metrics['total_return'] - equal_weight_return):.2f} percentage points.")
+
+    if "strategy_vs_technical" in benchmarks:
+        if benchmarks["strategy_vs_technical"] > 1:
+            score += 1
+        elif benchmarks["strategy_vs_technical"] < 0:
+            score -= 1
+            warnings.append(f"Underperformed the simple technical rule by {abs(benchmarks['strategy_vs_technical']):.2f} percentage points.")
+
+    if metrics["sharpe_ratio"] >= 1:
+        score += 2
+    elif metrics["sharpe_ratio"] >= 0.5:
+        score += 1
+    else:
+        score -= 1
+        warnings.append("Sharpe is below 0.50, so risk-adjusted return is weak.")
+
+    if metrics["max_drawdown"] <= 10:
+        score += 1
+    else:
+        score -= 1
+        warnings.append("Maximum drawdown is above 10%.")
+
+    if len(position_round_trips) >= 10:
+        score += 1
+    else:
+        score -= 1
+        warnings.append("Too few completed position lifecycles for a reliable conclusion.")
+
+    if risk_summary["open_positions_estimate"] > len(position_round_trips):
+        score -= 1
+        warnings.append("Many open lots remain, so final equity relies heavily on mark-to-market positions.")
+
+    if concentration["top_ticker_profit_share"] > 0.4:
+        score -= 1
+        warnings.append(f"Realized profits are concentrated in {top_ticker}.")
+
+    if gross_position_loss < max(100.0, initial_capital * 0.001) and gross_position_profit > 0:
+        score -= 1
+        warnings.append("Profit factor is unstable because realized losses are tiny.")
+
+    if buy_count and len(template_data.get('tickers', [])) and buy_count >= len(template_data.get('tickers', [])) * 0.8:
+        warnings.append("Entry threshold is broad; the strategy bought most of the universe rather than selecting tightly.")
+
+    if score >= 4:
+        verdict_label = "Robust Candidate"
+        verdict_color = "up"
+    elif score >= 2:
+        verdict_label = "Promising"
+        verdict_color = "accent"
+    elif score >= 0:
+        verdict_label = "Needs Validation"
+        verdict_color = "warn"
+    else:
+        verdict_label = "Weak"
+        verdict_color = "down"
+
+    alpha_verdict = {
+        "label": verdict_label,
+        "color": verdict_color,
+        "score": score,
+        "summary": (
+            f"{verdict_label}: {metrics['total_return']:.2f}% return, "
+            f"{metrics['sharpe_ratio']:.2f} Sharpe, "
+            f"{benchmarks.get('strategy_vs_equal_weight', 0.0):+.2f} pp vs equal-weight."
+        ),
+        "warnings": warnings[:6],
+    }
+
     run_metadata = _get(result, 'run_metadata', {}) or {}
     if isinstance(run_metadata, dict):
         run_metadata = {
@@ -1026,6 +1268,10 @@ def api_backtest_results(backtest_id):
         "drawdown_curve": _sanitize(drawdown),
         "daily_returns": _sanitize([(ret * 100) for ret in daily_returns]),
         "round_trips": _sanitize(completed_round_trips),
+        "position_diagnostics": _sanitize(position_diagnostics),
+        "benchmarks": _sanitize(benchmarks),
+        "concentration": _sanitize(concentration),
+        "alpha_verdict": _sanitize(alpha_verdict),
         "risk_summary": _sanitize(risk_summary),
         "training_context": _sanitize(_get(result, 'training_context', {})),
         "run_metadata": _sanitize(run_metadata),

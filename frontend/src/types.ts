@@ -115,6 +115,39 @@ export interface RoundTrip {
   return_pct: number
 }
 
+export interface PositionRoundTrip {
+  ticker?: string
+  entry_date?: string
+  last_exit_date?: string
+  entry_price?: number
+  shares_sold?: number
+  exit_count?: number
+  pnl?: number
+  gross_entry_value?: number
+  return_pct?: number | null
+}
+
+export interface BacktestBenchmark {
+  cash_return?: number
+  equal_weight_return?: number
+  strategy_vs_equal_weight?: number
+  strategy_vs_cash?: number
+  strategy_vs_technical?: number
+  coverage?: number
+  technical_rule?: { return?: number; sharpe_ratio?: number; max_drawdown?: number; num_trades?: number }
+  best_ticker?: { ticker?: string; return_pct?: number }
+  worst_ticker?: { ticker?: string; return_pct?: number }
+  ticker_returns?: Array<{ ticker: string; start_price?: number; end_price?: number; return_pct: number }>
+}
+
+export interface AlphaVerdict {
+  label: string
+  color?: 'up' | 'down' | 'accent' | 'warn' | 'muted' | 'text'
+  score?: number
+  summary?: string
+  warnings?: string[]
+}
+
 export interface TrainingPreviewRow {
   ticker?: string
   feature_date?: string
@@ -149,6 +182,10 @@ export interface BacktestResult {
   drawdown_curve?: Array<{ date: string; drawdown: number }>
   daily_returns?: number[]
   round_trips?: RoundTrip[]
+  position_diagnostics?: Record<string, unknown>
+  benchmarks?: BacktestBenchmark
+  concentration?: Record<string, unknown>
+  alpha_verdict?: AlphaVerdict
   risk_summary?: Record<string, number>
   training_context?: BacktestTrainingContext
   run_metadata?: Record<string, unknown>

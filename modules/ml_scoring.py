@@ -626,6 +626,7 @@ def collect_training_data(tickers, lookback_days=180, prediction_horizon=5, end_
 
         for ticker in tickers:
             try:
+                ticker_sample_count = 0
                 # Get full history for the ticker
                 start_date_str = start_date.strftime('%Y-%m-%d')
                 end_date_str = end_dt.strftime('%Y-%m-%d')
@@ -669,8 +670,12 @@ def collect_training_data(tickers, lookback_days=180, prediction_horizon=5, end_
                         'future_return': future_return,
                         'future_signal': 1 if future_return > 0 else 0
                     })
+                    ticker_sample_count += 1
 
-                log_message(f"Collected {len(training_data)} training samples for {ticker}")
+                log_message(
+                    f"Collected {ticker_sample_count} training samples for {ticker} "
+                    f"({len(training_data)} cumulative)"
+                )
 
             except Exception as e:
                 log_message(f"Error collecting data for {ticker}: {e}")

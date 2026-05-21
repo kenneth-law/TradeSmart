@@ -57,6 +57,13 @@ export const api = {
     days?: number
     custom_transaction_cost?: number
     transaction_cost_type?: 'fixed' | 'percent' | 'per_share'
+    buy_threshold?: number
+    sell_threshold?: number
+    partial_exit_fraction?: number
+    exit_sizing_mode?: 'fixed_tranche' | 'remaining_fraction'
+    reentry_cooldown_days?: number
+    min_reentry_discount_pct?: number
+    allow_pyramiding?: boolean
   }) => post<{ backtest_id: string }>('/api/run_backtest', params),
 
   getBacktestResults: (backtestId: string) =>

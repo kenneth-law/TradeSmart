@@ -50,6 +50,7 @@ class AlpacaLiveData:
         self._connected = False
         self._authenticated = False
         self._last_error: str | None = None
+        self._subscribers = 0
 
     @property
     def configured(self) -> bool:
@@ -93,6 +94,27 @@ class AlpacaLiveData:
 
         if added:
             self._send_subscription(sorted(added))
+
+    def acquire(self, symbols: list[str]) -> None:
+        with self._lock:
+            self._subscribers += 1
+        self.ensure_subscribed(symbols)
+
+    def release(self) -> None:
+        should_stop = False
+        with self._lock:
+            if self._subscribers > 0:
+                self._subscribers -= 1
+            should_stop = self._subscribers == 0
+            if should_stop:
+                self._desired_symbols.clear()
+        if should_stop:
+            ws = self._ws
+            if ws is not None:
+                try:
+                    ws.close()
+                except Exception:
+                    pass
 
     def snapshot(self, symbols: list[str], hydrate: bool = True) -> dict[str, Any]:
         clean = sorted({s.strip().upper() for s in symbols if s and s.strip()})

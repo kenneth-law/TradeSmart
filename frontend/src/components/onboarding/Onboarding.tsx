@@ -36,6 +36,8 @@ const ASCII_VIDEO_PLAYBACK_RATE = 0.45
 const ASCII_CELL_WIDTH_MOBILE = 8
 const ASCII_CELL_WIDTH_DESKTOP = 16
 const ASCII_MAX_DPR = 1
+const SPLASH_DURATION_MS = 6000
+const EXIT_FADE_MS = 700
 
 function StepRail({ activeIndex }: { activeIndex: number }) {
   return (
@@ -462,6 +464,7 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
   const setOpenAIKey = useAppStore(s => s.setOpenAIKey)
 
   const [showSplash, setShowSplash] = useState(true)
+  const [isExiting, setIsExiting] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
   const [draft, setDraft] = useState<SystemSettings>({ ...DEFAULT_SYSTEM_SETTINGS, ...storedSettings, theme: 'dark' })
   const [userIdDraft, setUserIdDraft] = useState('')
@@ -472,7 +475,7 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
   const [showPassword, setShowPassword] = useState(false)
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setShowSplash(false), 2000)
+    const timer = window.setTimeout(() => setShowSplash(false), SPLASH_DURATION_MS)
     return () => window.clearTimeout(timer)
   }, [])
 
@@ -501,11 +504,17 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
   function finish() {
     setSettings(draft)
     setOpenAIKey(keyDraft)
-    onComplete()
+    setIsExiting(true)
+    window.setTimeout(onComplete, EXIT_FADE_MS)
   }
 
   return (
-    <div className="fixed inset-0 isolate z-[90] overflow-auto bg-black text-text">
+    <div
+      className={[
+        'fixed inset-0 isolate z-[90] overflow-auto bg-black text-text transition-opacity duration-700',
+        isExiting ? 'pointer-events-none opacity-0' : 'opacity-100',
+      ].join(' ')}
+    >
       <AsciiBackground />
 
       <main
@@ -516,7 +525,7 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="onboarding-title"
-        aria-hidden={showSplash}
+        aria-hidden={showSplash || isExiting}
       >
         <section className="grid w-full overflow-hidden border border-white/15 bg-black/68 shadow-2xl shadow-black/35 backdrop-blur-xl md:grid-cols-[220px_minmax(0,1fr)]">
           <StepRail activeIndex={activeIndex} />
@@ -561,8 +570,6 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
               {activeStep === 'account' && (
                 <div className="max-w-3xl">
                   <h2 className="text-base font-semibold text-white">Enter your TradeSmart account details.</h2>
-                  <p className="mt-3 text-xs leading-6 text-muted">
-                  </p>
 
                 <div className="mt-8 grid gap-5">
                     <TextField
@@ -776,6 +783,12 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
                 <p className="mt-3 text-xs leading-6 text-muted">
                   Finishing writes the preferences cookie. On the next launch, TradeSmart opens directly unless that cookie is cleared.
                 </p>
+                <div className="mt-6 border-y border-white/10 bg-white/[0.035] py-4">
+                  <p className="text-sm font-medium text-white">Work in progress</p>
+                  <p className="mt-2 text-2xs leading-5 text-muted">
+                    TradeSmart is made by Kenneth Law, a Monash student, and is still a work in progress.
+                  </p>
+                </div>
                 <dl className="mt-8 divide-y divide-white/10 border-y border-white/10">
                   {savedSummary.map(([label, value]) => (
                     <div key={label} className="grid grid-cols-[150px_minmax(0,1fr)] gap-4 py-4 text-sm max-sm:grid-cols-1 max-sm:gap-1">
@@ -801,6 +814,7 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
                 <button
                   type="button"
                   onClick={finish}
+                  disabled={isExiting}
                   className="flex h-[44px] min-w-[132px] items-center justify-center rounded-[8px] bg-white px-5 text-xs font-semibold text-black transition-opacity hover:opacity-90"
                 >
                   Finish setup

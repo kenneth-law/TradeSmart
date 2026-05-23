@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
+import { useAppStore } from '../store/useAppStore'
 import { Activity, Database, Download, FileJson, Table2 } from 'lucide-react'
 import { api } from '../lib/api'
 import { useSSE } from '../hooks/useSSE'
@@ -22,6 +23,7 @@ const STRATEGIES = [
 
 const DEFAULT_BUY_THRESHOLD = '50'
 const DEFAULT_SELL_THRESHOLD = '40'
+const DEFAULT_TRAINING_LOOKBACK_DAYS = 1825
 const MAX_FREE_TICKERS = 3
 
 const TRADE_COLUMNS: Column<Trade & Record<string, unknown>>[] = [
@@ -628,6 +630,8 @@ function buildPriceOverlay(
 }
 
 export default function Backtest() {
+  const defaultTxCost = useAppStore(s => s.settings.backtestTxCost)
+  const defaultTxCostType = useAppStore(s => s.settings.backtestTxCostType)
   const initialMode: RunMode = 'simulation'
   const [phase, setPhase] = useState<Phase>('config')
   const [runMode, setRunMode] = useState<RunMode>(initialMode)
@@ -637,8 +641,9 @@ export default function Backtest() {
   const [days, setDays] = useState('365')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
-  const [txCostType, setTxCostType] = useState<TransactionCostType>('percent')
-  const [txCost, setTxCost] = useState('0.10')
+  const [txCostType, setTxCostType] = useState<TransactionCostType>(defaultTxCostType)
+  const [txCost, setTxCost] = useState(defaultTxCost)
+  const [initialCapital, setInitialCapital] = useState('100000')
   const [buyThreshold, setBuyThreshold] = useState(DEFAULT_BUY_THRESHOLD)
   const [sellThreshold, setSellThreshold] = useState(DEFAULT_SELL_THRESHOLD)
   const [partialExitPct, setPartialExitPct] = useState('25')
@@ -744,6 +749,8 @@ export default function Backtest() {
         reentry_cooldown_days: parseInt(reentryCooldownDays) || 0,
         min_reentry_discount_pct: Number.isFinite(parseFloat(reentryDiscountPct)) ? parseFloat(reentryDiscountPct) : 1,
         allow_pyramiding: allowPyramiding,
+        training_lookback_days: DEFAULT_TRAINING_LOOKBACK_DAYS,
+        initial_capital: parseFloat(initialCapital) > 0 ? parseFloat(initialCapital) : undefined,
       })
       setBacktestId(resp.backtest_id)
       setSystemId(null)
@@ -784,7 +791,7 @@ export default function Backtest() {
           <div className="flex gap-px mb-3 border border-border bg-border">
             {([
               ['simulation', 'Simulation'],
-              ['workflow', 'Integrated'],
+              ['workflow', 'Integrated (Live)'],
             ] as Array<[RunMode, string]>).map(([mode, label]) => (
               <button
                 key={mode}
@@ -1023,6 +1030,19 @@ export default function Backtest() {
               </button>
             </div>
           </div>
+
+           </div>
+            <div className="bg-s1 p-2">
+              <label className="text-2xs text-dim block mb-1">Initial Capital ($)</label>
+              <input
+                type="number"
+                min="1000"
+                step="1000"
+                value={initialCapital}
+                onChange={e => setInitialCapital(e.target.value)}
+                disabled={runMode !== 'simulation'}
+                className="w-full bg-s2 text-text text-sm border border-border px-2 py-1 outline-none focus:border-accent tabnum"
+              />
 
           {runMode === 'simulation' && !simulateTrading && (
             <div className="px-3 py-2 border-t border-border bg-s2">
@@ -1479,6 +1499,7 @@ export default function Backtest() {
                   <MetricTile label="Feature Window" value={`${trainingContext.min_feature_date ?? '—'} → ${trainingContext.max_feature_date ?? '—'}`} size="sm" />
                   <MetricTile label="Label Cutoff" value={String(trainingContext.training_end_date_exclusive ?? '—')} color="warn" size="sm" />
                   <MetricTile label="Horizon" value={Number(trainingContext.prediction_horizon_days ?? 0)} unit="days" size="sm" />
+                  <MetricTile label="Lookback" value={Number(trainingContext.training_lookback_days ?? 0).toLocaleString()} unit="days" size="sm" />
                   <MetricTile label="Positive Labels" value={Number(trainingContext.positive_samples ?? 0).toLocaleString()} color="up" size="sm" />
                   <MetricTile label="Negative Labels" value={Number(trainingContext.negative_samples ?? 0).toLocaleString()} color="down" size="sm" />
                   <MetricTile label="Persisted" value={runMetadata.model_trained ? 'Memory' : 'None'} color="muted" size="sm" />

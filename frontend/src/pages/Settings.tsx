@@ -8,6 +8,7 @@ import {
 } from '../store/useAppStore'
 import type {
   AccentColor,
+  BrokerPreset,
   FinancialsDepth,
   FontFamily,
   InterfaceDensity,
@@ -15,6 +16,191 @@ import type {
   SystemSettings,
   ThemeMode,
 } from '../store/useAppStore'
+
+
+function hslToHex(h: number, s: number, l: number): string {
+  const lNorm = l / 100
+  const sNorm = s / 100
+  const k = (n: number) => (n + h / 30) % 12
+  const a = sNorm * Math.min(lNorm, 1 - lNorm)
+  const f = (n: number) => {
+    const color = lNorm - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)))
+    return Math.round(255 * color).toString(16).padStart(2, '0')
+  }
+  return `#${f(0)}${f(8)}${f(4)}`
+}
+
+function ColorSlider({
+  label,
+  value,
+  min,
+  max,
+  gradient,
+  onChange,
+}: {
+  label: string
+  value: number
+  min: number
+  max: number
+  gradient: string
+  onChange: (v: number) => void
+}) {
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-2xs text-muted">{label}</span>
+        <span className="text-2xs tabnum text-dim">{value}</span>
+      </div>
+      <div
+        className="relative h-4 w-full cursor-pointer rounded-full border border-border"
+        style={{ background: gradient }}
+      >
+        <input
+          type="range"
+          min={min}
+          max={max}
+          value={value}
+          onChange={e => onChange(Number(e.target.value))}
+          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+          aria-label={label}
+        />
+        <div
+          className="pointer-events-none absolute top-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-md"
+          style={{ left: `${((value - min) / (max - min)) * 100}%`, background: `hsl(${label === 'Hue' ? value : 0},${label === 'Hue' ? 80 : 0}%,${label === 'Hue' ? 55 : value}%)` }}
+        />
+      </div>
+    </div>
+  )
+}
+
+function AccentPicker({ settings, update }: { settings: SystemSettings; update: (patch: Partial<SystemSettings>) => void }) {
+  const [tab, setTab] = useState<'presets' | 'custom'>(
+    settings.accentColor === 'custom' ? 'custom' : 'presets'
+  )
+  const [hue, setHue] = useState(38)
+  const [lightness, setLightness] = useState(55)
+
+  const previewHex = hslToHex(hue, 80, lightness)
+
+  function applyCustom() {
+    update({ accentColor: 'custom', accentCustomColor: previewHex })
+  }
+
+  return (
+    <div className="w-full">
+      <div className="mb-3 flex gap-1 border-b border-border pb-2">
+        {(['presets', 'custom'] as const).map(t => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => setTab(t)}
+            className={[
+              'rounded-[6px] px-3 py-1 text-2xs font-medium transition-colors',
+              tab === t ? 'bg-s2 text-text' : 'text-muted hover:text-text',
+            ].join(' ')}
+          >
+            {t === 'presets' ? 'Presets' : 'Custom'}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'presets' && (
+        <div className="flex flex-wrap gap-2">
+          {ACCENT_OPTIONS.map(option => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => update({ accentColor: option.value as AccentColor })}
+              className={[
+                'flex min-h-[36px] items-center gap-2 rounded-[8px] border px-3 py-1.5 text-2xs font-medium transition-colors',
+                settings.accentColor === option.value
+                  ? 'border-accent bg-s2 text-text'
+                  : 'border-border bg-bg text-muted hover:border-border-strong hover:bg-s2 hover:text-text',
+              ].join(' ')}
+              aria-pressed={settings.accentColor === option.value}
+            >
+              <span className="h-3.5 w-3.5 rounded-full border border-border-strong" style={{ background: option.color }} aria-hidden="true" />
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {tab === 'custom' && (
+        <div className="space-y-4">
+          <ColorSlider
+            label="Hue"
+            value={hue}
+            min={0}
+            max={359}
+            gradient="linear-gradient(to right,hsl(0,80%,55%),hsl(30,80%,55%),hsl(60,80%,55%),hsl(90,80%,55%),hsl(120,80%,55%),hsl(150,80%,55%),hsl(180,80%,55%),hsl(210,80%,55%),hsl(240,80%,55%),hsl(270,80%,55%),hsl(300,80%,55%),hsl(330,80%,55%),hsl(360,80%,55%))"
+            onChange={setHue}
+          />
+          <ColorSlider
+            label="Shade"
+            value={lightness}
+            min={25}
+            max={80}
+            gradient={`linear-gradient(to right,hsl(${hue},80%,25%),hsl(${hue},80%,80%))`}
+            onChange={setLightness}
+          />
+
+          <div className="flex items-center gap-3 border-t border-border pt-3">
+            <div
+              className="h-9 w-9 shrink-0 rounded-[6px] border border-border-strong"
+              style={{ background: previewHex }}
+            />
+            <span className="flex-1 text-2xs tabnum text-muted">{previewHex}</span>
+            <button
+              type="button"
+              onClick={applyCustom}
+              className="min-h-[34px] rounded-[8px] border border-accent bg-accent px-4 py-1.5 text-2xs font-medium text-bg transition-opacity hover:opacity-90"
+            >
+              Apply
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+const BROKER_PRESETS: Array<{
+  value: BrokerPreset
+  label: string
+  description: string
+  cost: string
+  type: 'percent' | 'fixed'
+}> = [
+  {
+    value: 'retail',
+    label: 'Zero-commission',
+    description: 'Schwab, Fidelity, Robinhood - spread only, ~0.02% on liquid large-caps',
+    cost: '0.02',
+    type: 'percent',
+  },
+  {
+    value: 'ibkr',
+    label: 'IBKR Pro',
+    description: 'Interactive Brokers tiered - $0.005/share + spread, modelled as ~0.05%',
+    cost: '0.05',
+    type: 'percent',
+  },
+  {
+    value: 'conservative',
+    label: 'Conservative',
+    description: 'Full-service or older broker - commission + spread + slippage, ~0.15%',
+    cost: '0.15',
+    type: 'percent',
+  },
+  {
+    value: 'custom',
+    label: 'Custom',
+    description: 'Set your own cost and cost type below',
+    cost: '',
+    type: 'percent',
+  },
+]
 
 const REFRESH_OPTIONS = [
   { value: 5, label: '5 sec' },
@@ -48,6 +234,11 @@ const SETTINGS_NAV: Array<{
     id: 'ai-assistant',
     title: 'AI Assistant',
     description: 'Model, search, prompt, and context',
+  },
+  {
+    id: 'backtest',
+    title: 'Backtest',
+    description: 'Broker costs and simulation defaults',
   },
   {
     id: 'api-key',
@@ -210,6 +401,106 @@ function Toggle({
   )
 }
 
+function BacktestSettings({
+  settings,
+  update,
+}: {
+  settings: SystemSettings
+  update: (patch: Partial<SystemSettings>) => void
+}) {
+  const preset = settings.backtestBrokerPreset
+  const activePreset = BROKER_PRESETS.find(p => p.value === preset)
+
+  function selectPreset(p: BrokerPreset) {
+    const found = BROKER_PRESETS.find(x => x.value === p)
+    if (found && p !== 'custom') {
+      update({ backtestBrokerPreset: p, backtestTxCost: found.cost, backtestTxCostType: found.type })
+    } else {
+      update({ backtestBrokerPreset: 'custom' })
+    }
+  }
+
+  return (
+    <SettingsSection
+      id="backtest"
+      title="Backtest & Simulation"
+      caption="Default transaction cost model applied to every new quant run. You can still override per-run on the Quant page."
+    >
+      <FieldRow
+        title="Broker preset"
+        caption="Pick the cost profile that matches your broker. This sets the cost rate and type below."
+      >
+        <div className="flex flex-wrap gap-2">
+          {BROKER_PRESETS.map(p => (
+            <button
+              key={p.value}
+              type="button"
+              onClick={() => selectPreset(p.value)}
+              className={[
+                'flex min-h-[36px] flex-col items-start rounded-[8px] border px-3 py-2 text-left transition-colors',
+                preset === p.value
+                  ? 'border-accent bg-s2 text-text'
+                  : 'border-border bg-bg text-muted hover:border-border-strong hover:bg-s2 hover:text-text',
+              ].join(' ')}
+              aria-pressed={preset === p.value}
+            >
+              <span className="text-2xs font-medium">{p.label}</span>
+              {p.value !== 'custom' && (
+                <span className="mt-0.5 text-[11px] text-dim">{p.cost}% per trade</span>
+              )}
+            </button>
+          ))}
+        </div>
+        {activePreset && activePreset.value !== 'custom' && (
+          <p className="mt-2 text-2xs text-muted">{activePreset.description}</p>
+        )}
+      </FieldRow>
+
+      <FieldRow
+        title="Cost rate"
+        caption={
+          preset !== 'custom'
+            ? 'Set by preset above. Switch to Custom to override.'
+            : 'Enter your all-in cost per trade.'
+        }
+      >
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            min={0}
+            max={5}
+            step={0.01}
+            value={settings.backtestTxCost}
+            onChange={e => update({ backtestTxCost: e.target.value, backtestBrokerPreset: 'custom' })}
+            disabled={preset !== 'custom'}
+            className={`${inputClassName} w-32 tabnum disabled:opacity-50`}
+            aria-label="Transaction cost rate"
+          />
+          <div className="flex gap-1">
+            {(['percent', 'fixed'] as const).map(mode => (
+              <button
+                key={mode}
+                type="button"
+                disabled={preset !== 'custom'}
+                onClick={() => update({ backtestTxCostType: mode, backtestBrokerPreset: 'custom' })}
+                className={[
+                  'min-h-[36px] rounded-[8px] border px-3 py-1.5 text-2xs font-medium transition-colors disabled:opacity-50',
+                  settings.backtestTxCostType === mode
+                    ? 'border-accent bg-s2 text-text'
+                    : 'border-border bg-bg text-muted hover:border-border-strong hover:bg-s2 hover:text-text',
+                ].join(' ')}
+                aria-pressed={settings.backtestTxCostType === mode}
+              >
+                {mode === 'percent' ? '%' : '$ flat'}
+              </button>
+            ))}
+          </div>
+        </div>
+      </FieldRow>
+    </SettingsSection>
+  )
+}
+
 export default function Settings() {
   const settings = useAppStore(s => s.settings)
   const setSettings = useAppStore(s => s.setSettings)
@@ -324,31 +615,9 @@ export default function Settings() {
 
             <FieldRow
               title="Accent"
-              caption="Select the highlight color for focus, active navigation, and controls."
+              caption="Select a preset or pick any hue and shade with the custom tab."
             >
-              <div className="flex flex-wrap items-center gap-2">
-              {ACCENT_OPTIONS.map(option => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => update({ accentColor: option.value as AccentColor })}
-                  className={[
-                    'flex min-h-[36px] items-center gap-2 rounded-[8px] border px-3 py-1.5 text-2xs font-medium transition-colors',
-                    settings.accentColor === option.value
-                      ? 'border-accent bg-s2 text-text'
-                      : 'border-border bg-bg text-muted hover:border-border-strong hover:bg-s2 hover:text-text',
-                  ].join(' ')}
-                  aria-pressed={settings.accentColor === option.value}
-                >
-                  <span
-                    className="h-3.5 w-3.5 rounded-full border border-border-strong"
-                    style={{ background: option.color }}
-                    aria-hidden="true"
-                  />
-                  {option.label}
-                </button>
-              ))}
-              </div>
+              <AccentPicker settings={settings} update={update} />
             </FieldRow>
 
             <FieldRow
@@ -545,6 +814,10 @@ export default function Settings() {
               </div>
             </FieldRow>
           </SettingsSection>
+          )}
+
+          {activeCategory === 'backtest' && (
+            <BacktestSettings settings={settings} update={update} />
           )}
 
           {activeCategory === 'api-key' && (

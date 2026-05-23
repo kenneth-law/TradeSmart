@@ -3,13 +3,14 @@ import type { AnalysisResult, TickerContext } from '../types'
 
 export type ThemeMode = 'dark' | 'light'
 export type FontFamily = 'lato' | 'ibm-plex' | 'inter' | 'system' | 'mono'
-export type AccentColor = 'amber' | 'blue' | 'green' | 'rose'
+export type AccentColor = 'amber' | 'blue' | 'green' | 'rose' | 'custom'
 export type InterfaceDensity = 'standard' | 'compact'
 export type OpenAIModel = 'gpt-4.1-mini' | 'gpt-4.1' | 'gpt-5.5'
 export type PaperInstrumentKind = 'stock' | 'option'
 export type PaperOptionType = 'call' | 'put'
 export type PaperOrderAction = 'BUY' | 'SELL' | 'BUY_OPTION' | 'SELL_OPTION'
 export type FinancialsDepth = 'concise' | 'full'
+export type BrokerPreset = 'ibkr' | 'retail' | 'conservative' | 'custom'
 
 export interface PaperCostModel {
   stockPerShare: number
@@ -32,6 +33,10 @@ export interface SystemSettings {
   openaiTemperature: number
   openaiSystemPrompt: string
   financialsDepth: FinancialsDepth
+  accentCustomColor: string
+  backtestBrokerPreset: BrokerPreset
+  backtestTxCost: string
+  backtestTxCostType: 'percent' | 'fixed'
 }
 
 export interface PaperPosition {
@@ -121,6 +126,10 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
   openaiTemperature: 0.4,
   openaiSystemPrompt: '',
   financialsDepth: 'concise',
+  accentCustomColor: '#E89B2C',
+  backtestBrokerPreset: 'retail',
+  backtestTxCost: '0.02',
+  backtestTxCostType: 'percent',
 }
 
 export const SETTINGS_COOKIE = 'tradesmart_system_settings'
@@ -142,7 +151,7 @@ function isFontFamily(value: unknown): value is FontFamily {
 }
 
 function isAccentColor(value: unknown): value is AccentColor {
-  return ACCENT_OPTIONS.some(option => option.value === value)
+  return value === 'custom' || ACCENT_OPTIONS.some(option => option.value === value)
 }
 
 function isDensity(value: unknown): value is InterfaceDensity {
@@ -211,6 +220,10 @@ function normaliseSettings(value: unknown): SystemSettings {
     openaiTemperature: clampFloat(raw.openaiTemperature, 0, 1.5, DEFAULT_SYSTEM_SETTINGS.openaiTemperature),
     openaiSystemPrompt: typeof raw.openaiSystemPrompt === 'string' ? raw.openaiSystemPrompt : DEFAULT_SYSTEM_SETTINGS.openaiSystemPrompt,
     financialsDepth: raw.financialsDepth === 'full' || raw.financialsDepth === 'concise' ? raw.financialsDepth : DEFAULT_SYSTEM_SETTINGS.financialsDepth,
+    accentCustomColor: typeof raw.accentCustomColor === 'string' && /^#[0-9a-fA-F]{6}$/.test(raw.accentCustomColor) ? raw.accentCustomColor : DEFAULT_SYSTEM_SETTINGS.accentCustomColor,
+    backtestBrokerPreset: (['ibkr', 'retail', 'conservative', 'custom'] as BrokerPreset[]).includes(raw.backtestBrokerPreset as BrokerPreset) ? raw.backtestBrokerPreset as BrokerPreset : DEFAULT_SYSTEM_SETTINGS.backtestBrokerPreset,
+    backtestTxCost: typeof raw.backtestTxCost === 'string' ? raw.backtestTxCost : DEFAULT_SYSTEM_SETTINGS.backtestTxCost,
+    backtestTxCostType: (raw.backtestTxCostType === 'percent' || raw.backtestTxCostType === 'fixed') ? raw.backtestTxCostType : DEFAULT_SYSTEM_SETTINGS.backtestTxCostType,
   }
 }
 
@@ -386,12 +399,29 @@ function optionFill(costModel: PaperCostModel, side: 'buy' | 'sell', contracts: 
   }
 }
 
+function hexToRgb(hex: string): string {
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  return `${r}, ${g}, ${b}`
+}
+
 export function applySystemSettings(settings: SystemSettings) {
   if (typeof document === 'undefined') return
 
   const root = document.documentElement
   const font = FONT_OPTIONS.find(option => option.value === settings.fontFamily) ?? FONT_OPTIONS[0]
-  const accent = ACCENT_OPTIONS.find(option => option.value === settings.accentColor) ?? ACCENT_OPTIONS[0]
+
+  let accentHex: string
+  let accentRgb: string
+  if (settings.accentColor === 'custom') {
+    accentHex = settings.accentCustomColor
+    accentRgb = hexToRgb(accentHex)
+  } else {
+    const accent = ACCENT_OPTIONS.find(option => option.value === settings.accentColor) ?? ACCENT_OPTIONS[0]
+    accentHex = accent.color
+    accentRgb = accent.rgb
+  }
 
   root.dataset.theme = settings.theme
   root.dataset.contrast = settings.highContrast ? 'high' : 'standard'
@@ -399,8 +429,8 @@ export function applySystemSettings(settings: SystemSettings) {
   root.dataset.density = settings.density
   root.style.setProperty('--app-font-family', font.css)
   root.style.setProperty('--app-font-size', `${settings.fontSizePx}px`)
-  root.style.setProperty('--color-accent', accent.color)
-  root.style.setProperty('--selection-rgb', accent.rgb)
+  root.style.setProperty('--color-accent', accentHex)
+  root.style.setProperty('--selection-rgb', accentRgb)
 }
 
 const initialSettings = loadSettings()

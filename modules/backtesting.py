@@ -392,7 +392,8 @@ class Backtester:
                      custom_transaction_cost=None, custom_transaction_cost_type='per_share',
                      buy_threshold=50, sell_threshold=40, partial_exit_fraction=0.25,
                      exit_sizing_mode='fixed_tranche', reentry_cooldown_days=10,
-                     min_reentry_discount_pct=1.0, allow_pyramiding=False):
+                     min_reentry_discount_pct=1.0, allow_pyramiding=False,
+                     max_position_pct=None):
         """
         Run a backtest for the given strategy and parameters.
 
@@ -413,6 +414,8 @@ class Backtester:
             reentry_cooldown_days (int): Days to block buys after a sell unless discount filter passes
             min_reentry_discount_pct (float): Required discount to last sell price during cooldown
             allow_pyramiding (bool): Whether repeated buy signals can add to existing positions
+            max_position_pct (float): Maximum fraction of equity per ticker. Defaults to an
+                                      equal-weight slot for the active universe.
 
         Returns:
             BacktestResult: Object containing backtest results
@@ -444,11 +447,16 @@ class Backtester:
         end_dt = datetime.strptime(end_date, '%Y-%m-%d')
         date_range = [start_dt + timedelta(days=x) for x in range((end_dt - start_dt).days + 1)]
 
-        # Get historical data for all tickers
+        indicator_warmup_days = 120
+        history_start_dt = start_dt - timedelta(days=indicator_warmup_days)
+        history_start_date = history_start_dt.strftime('%Y-%m-%d')
+
+        # Get historical data for all tickers, including pre-start warmup so
+        # point-in-time indicators are mature on the first simulated days.
         ticker_data = {}
         for ticker in tqdm(tickers, desc="Loading historical data"):
             try:
-                hist = get_stock_history(ticker, start_date, end_date, "1d")
+                hist = get_stock_history(ticker, history_start_date, end_date, "1d")
                 if not hist.empty:
                     ticker_data[ticker] = hist
             except Exception as e:
@@ -573,16 +581,22 @@ class Backtester:
                             if days_since_exit < reentry_cooldown_days and price > required_price:
                                 continue
 
-                        # Calculate position size based on available cash, not total equity
+                        # Calculate position size based on available cash, not total equity.
+                        # By default, let a signal fill one equal-weight universe slot. The
+                        # previous fixed 5% cap made single-ticker ML runs mathematically unable
+                        # to compete with a 100% buy-and-hold benchmark.
                         available_cash = portfolio['cash']
-                        desired_position_pct = signal.get('size', 0.1)  # 10% of portfolio
+                        universe_size = max(len(universe), 1)
+                        slot_position_pct = (
+                            float(max_position_pct)
+                            if max_position_pct is not None
+                            else min(0.95, 1.0 / universe_size)
+                        )
+                        desired_position_pct = float(signal.get('size', slot_position_pct))
+                        desired_position_pct = min(max(desired_position_pct, 0.0), slot_position_pct)
 
-                        # Calculate what 10% of portfolio would be
                         target_position_value = portfolio['equity'] * desired_position_pct
-
-                        # But limit to available cash and position size limits
-                        max_position_value = portfolio['equity'] * 0.05  # 5% position limit
-                        cash_to_use = min(available_cash * 0.8, target_position_value, max_position_value)
+                        cash_to_use = min(available_cash * 0.98, target_position_value)
 
                         shares = int(cash_to_use / price)
 
@@ -673,22 +687,16 @@ def ml_strategy(stock_data, buy_threshold=50, sell_threshold=40):
     """
     score = stock_data.get('day_trading_score', 0)
 
-    # Get volatility and volume metrics for risk management
-    volatility = stock_data.get('atr_pct', 5.0)
+    # Get volume metrics for risk management
     volume_ratio = stock_data.get('volume_ratio', 1.0)
 
     # Skip low volume days (avoid illiquid conditions)
     if volume_ratio < 0.7:
         return None
 
-    # Adjust position size based on volatility (smaller positions for higher volatility)
-    if volatility <= 0:
-        position_size = 0
-    else:
-        position_size = max(0.05, 0.15 / (volatility / 5.0))
-
-    # Limit maximum position size
-    position_size = min(position_size, 0.15)
+    # In backtests, size is capped by the execution layer's equal-weight slot.
+    # A BUY signal should therefore express conviction in that slot, not a tiny 5-15% nibble.
+    position_size = 1.0
 
     # Use configurable thresholds for entry criteria
     if score >= buy_threshold:
@@ -709,8 +717,10 @@ def ml_strategy(stock_data, buy_threshold=50, sell_threshold=40):
         if rsi > 30 or bb_position > 0.2:
             return {'action': 'SELL', 'size': 1.0}
 
-    # Add partial profit taking at moderate scores
-    elif score <= sell_threshold + 15 and score > sell_threshold:
+    # Trim only when the ML forecast has turned negative but has not reached the full-exit band.
+    # The old rule sold at mildly positive scores, which repeatedly clipped winners in trends.
+    predicted_return = stock_data.get('predicted_return_pct')
+    if sell_threshold < score < buy_threshold and predicted_return is not None and predicted_return < 0:
         return {'action': 'SELL', 'size': 0.25}
 
     return None

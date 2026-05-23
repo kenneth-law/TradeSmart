@@ -32,6 +32,11 @@ const SYSTEM_POINTS = [
 const inputClassName = 'min-h-[44px] w-full rounded-[8px] border border-border bg-black px-4 py-3 text-sm text-text outline-none transition-colors placeholder:text-dim focus-visible:border-white'
 const fieldLabelClassName = 'block text-2xs font-medium uppercase leading-none tracking-[0.2em] text-muted'
 const formGroupClassName = 'space-y-3'
+const ASCII_FRAME_MS = 500
+const ASCII_VIDEO_PLAYBACK_RATE = 0.45
+const ASCII_CELL_WIDTH_MOBILE = 8
+const ASCII_CELL_WIDTH_DESKTOP = 16
+const ASCII_MAX_DPR = 1
 
 function StepRail({ activeIndex }: { activeIndex: number }) {
   return (
@@ -181,10 +186,12 @@ function AsciiVideoBackground({ ariaLabel }: { ariaLabel?: string }) {
     const fadeVideo = document.createElement('video')
     const chars = '.,:;irsXA253hMHGS#9B&@'
 
+    video.playbackRate = ASCII_VIDEO_PLAYBACK_RATE
     fadeVideo.src = backgroundVideo
     fadeVideo.muted = true
     fadeVideo.playsInline = true
     fadeVideo.preload = 'auto'
+    fadeVideo.playbackRate = ASCII_VIDEO_PLAYBACK_RATE
 
     const getVideoSource = (sourceVideo: HTMLVideoElement) => {
       if (sourceVideo.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && sourceVideo.videoWidth && sourceVideo.videoHeight) {
@@ -245,13 +252,14 @@ function AsciiVideoBackground({ ariaLabel }: { ariaLabel?: string }) {
       const duration = video.duration
       if (!Number.isFinite(duration) || duration <= 0) return { nextSource: null, mix: 0 }
 
-      const fadeSeconds = Math.min(0.45, duration * 0.18)
+      const fadeSeconds = Math.min(1.2, duration * 0.18)
       const remaining = duration - video.currentTime
       const mix = Math.max(0, Math.min(1, (fadeSeconds - remaining) / fadeSeconds))
 
       if (mix > 0 && !fadeActive) {
         fadeActive = true
         fadeVideo.currentTime = 0
+        fadeVideo.playbackRate = ASCII_VIDEO_PLAYBACK_RATE
         void fadeVideo.play().catch(() => undefined)
       }
 
@@ -267,6 +275,7 @@ function AsciiVideoBackground({ ariaLabel }: { ariaLabel?: string }) {
         fadeVideo.pause()
         fadeVideo.currentTime = 0
         fadeActive = false
+        video.playbackRate = ASCII_VIDEO_PLAYBACK_RATE
         void video.play().catch(() => undefined)
         return { nextSource: null, mix: 0 }
       }
@@ -283,7 +292,7 @@ function AsciiVideoBackground({ ariaLabel }: { ariaLabel?: string }) {
       const rect = canvas.getBoundingClientRect()
       const width = Math.round(rect.width || window.innerWidth)
       const height = Math.round(rect.height || window.innerHeight)
-      const dpr = Math.min(window.devicePixelRatio || 1, 2)
+      const dpr = Math.min(window.devicePixelRatio || 1, ASCII_MAX_DPR)
       if (width <= 0 || height <= 0) {
         return
       }
@@ -298,7 +307,7 @@ function AsciiVideoBackground({ ariaLabel }: { ariaLabel?: string }) {
       ctx.fillStyle = 'rgba(0, 0, 0, 0.92)'
       ctx.fillRect(0, 0, width, height)
 
-      const cellWidth = width < 760 ? 4 : 8
+      const cellWidth = width < 760 ? ASCII_CELL_WIDTH_MOBILE : ASCII_CELL_WIDTH_DESKTOP
       const cellHeight = Math.round(cellWidth * 1.45)
       const cols = Math.max(1, Math.ceil(width / cellWidth))
       const rows = Math.max(1, Math.ceil(height / cellHeight))
@@ -364,6 +373,19 @@ function AsciiVideoBackground({ ariaLabel }: { ariaLabel?: string }) {
     }
 
     const start = () => {
+      video.playbackRate = ASCII_VIDEO_PLAYBACK_RATE
+      void video.play().catch(() => undefined)
+      render()
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        video.pause()
+        fadeVideo.pause()
+        return
+      }
+
+      video.playbackRate = ASCII_VIDEO_PLAYBACK_RATE
       void video.play().catch(() => undefined)
       render()
     }
@@ -372,7 +394,8 @@ function AsciiVideoBackground({ ariaLabel }: { ariaLabel?: string }) {
     video.addEventListener('loadedmetadata', start)
     video.addEventListener('loadeddata', start)
     video.addEventListener('canplay', start)
-    intervalId = window.setInterval(render, 83)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    intervalId = window.setInterval(render, ASCII_FRAME_MS)
     start()
 
     return () => {
@@ -384,6 +407,7 @@ function AsciiVideoBackground({ ariaLabel }: { ariaLabel?: string }) {
       video.removeEventListener('loadedmetadata', start)
       video.removeEventListener('loadeddata', start)
       video.removeEventListener('canplay', start)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
       if (intervalId != null) window.clearInterval(intervalId)
     }
   }, [])

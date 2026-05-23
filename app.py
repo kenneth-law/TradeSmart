@@ -66,6 +66,7 @@ integrated_queues = {}
 
 # Configure session at app startup to avoid repeated session creation
 yf_session = get_yf_session()
+_market_data_status_cache = {"expires_at": 0, "value": None}
 
 
 def _safe_float(value, default=0.0):
@@ -76,6 +77,90 @@ def _safe_float(value, default=0.0):
         return value if math.isfinite(value) else default
     except (TypeError, ValueError):
         return default
+
+
+def _probe_yfinance_status():
+    """Check Yahoo Finance reachability with a short-lived cache for UI status."""
+    now = time.time()
+    cached = _market_data_status_cache.get("value")
+    if cached and now < _market_data_status_cache.get("expires_at", 0):
+        return cached
+
+    started = time.time()
+    status = {
+        "provider": "yfinance",
+        "reachable": False,
+        "delayed": True,
+        "latency_ms": None,
+        "checked_at": datetime.now().isoformat(),
+        "error": None,
+    }
+
+    try:
+        response = yf_session.get(
+            "https://query1.finance.yahoo.com/v8/finance/chart/SPY",
+            params={"range": "1d", "interval": "1d"},
+            timeout=4,
+        )
+        status["latency_ms"] = round((time.time() - started) * 1000)
+        status_code = getattr(response, "status_code", None)
+        if not getattr(response, "ok", False):
+            status["error"] = f"Yahoo Finance returned {status_code}"
+        else:
+            payload = response.json()
+            result = payload.get("chart", {}).get("result") or []
+            status["reachable"] = bool(result)
+            if not status["reachable"]:
+                status["error"] = "Yahoo Finance returned no chart data"
+    except Exception as exc:
+        status["latency_ms"] = round((time.time() - started) * 1000)
+        status["error"] = str(exc)
+
+    _market_data_status_cache["value"] = status
+    _market_data_status_cache["expires_at"] = now + 20
+    return status
+
+
+def _market_data_status():
+    alpaca = alpaca_live_data.status()
+    yfinance = _probe_yfinance_status()
+    backend = {
+        "provider": "tradesmart_backend",
+        "reachable": True,
+        "status": "online",
+        "checked_at": datetime.now().isoformat(),
+    }
+
+    if alpaca.get("configured") and alpaca.get("connected") and alpaca.get("authenticated"):
+        provider = "alpaca"
+        label = "market data: alpaca"
+        state = "live"
+    elif yfinance.get("reachable"):
+        provider = "delayed"
+        label = "market data: delayed"
+        state = "delayed"
+    else:
+        provider = "none"
+        label = "market data: none"
+        state = "offline"
+
+    return {
+        "provider": provider,
+        "label": label,
+        "state": state,
+        "timestamp": datetime.now().isoformat(),
+        "streams": {
+            "alpaca": alpaca,
+            "yfinance": yfinance,
+            "openai": {
+                "provider": "openai",
+                "status": "client_configured",
+                "configured": None,
+                "checked_at": datetime.now().isoformat(),
+            },
+            "tradesmart_backend": backend,
+        },
+    }
 
 
 def _calculate_buy_hold_benchmarks(tickers, start_date, end_date):
@@ -177,6 +262,11 @@ def _parse_symbols(value):
 @app.route('/api/live/status')
 def api_live_status():
     return jsonify(_sanitize(alpaca_live_data.status()))
+
+
+@app.route('/api/market_data/status')
+def api_market_data_status():
+    return jsonify(_sanitize(_market_data_status()))
 
 
 @app.route('/api/live/snapshot')

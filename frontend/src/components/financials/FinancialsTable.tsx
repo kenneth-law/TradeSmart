@@ -28,7 +28,7 @@ function formatPeriod(p: string): string {
 export default function FinancialsTable({ title, data }: Props) {
   if (!data || data.periods.length === 0 || Object.keys(data.rows).length === 0) {
     return (
-      <div className="flex-1 min-w-0 border-r border-border last:border-r-0">
+      <div className="flex-1 min-w-[240px] border-r border-border last:border-r-0">
         <div className="text-2xs uppercase tracking-[0.2em] text-dim px-3 pt-3 pb-2 border-b border-border bg-s1/40 sticky top-0">
           {title}
         </div>
@@ -40,7 +40,7 @@ export default function FinancialsTable({ title, data }: Props) {
   const rowNames = Object.keys(data.rows)
 
   return (
-    <div className="flex-1 min-w-0 border-r border-border last:border-r-0">
+    <div className="flex-1 min-w-[240px] border-r border-border last:border-r-0">
       <div className="text-2xs uppercase tracking-[0.2em] text-dim px-3 pt-3 pb-2 border-b border-border bg-s1/40 sticky top-0 z-10">
         {title}
       </div>

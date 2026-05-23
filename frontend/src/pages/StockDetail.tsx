@@ -576,7 +576,7 @@ export default function StockDetail() {
           <div
             ref={stripRef}
             className="shrink-0 bg-s1/50 overflow-hidden flex flex-col"
-            style={stripHeight != null ? { height: stripHeight } : undefined}
+            style={{ height: stripHeight ?? 200 }}
           >
             {bottomTab === 'technicals' ? (
               <div className="flex-1 min-h-0 overflow-y-auto flex divide-x divide-border">

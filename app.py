@@ -163,6 +163,103 @@ def _market_data_status():
     }
 
 
+def _model_artifact_status(path):
+    exists = os.path.exists(path)
+    if not exists:
+        return {"exists": False, "size_bytes": 0, "modified_at": None}
+    stat = os.stat(path)
+    return {
+        "exists": True,
+        "size_bytes": stat.st_size,
+        "modified_at": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+    }
+
+
+def _read_model_metadata(path):
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, 'r') as f:
+            return json.load(f)
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
+def _read_feature_names(path):
+    if not os.path.exists(path):
+        return []
+    try:
+        import joblib
+        features = joblib.load(path)
+        return list(features) if features is not None else []
+    except Exception:
+        return []
+
+
+def _model_record(model_dir, scope, ticker=None):
+    model_path = os.path.join(model_dir, 'stock_scorer_regression.joblib')
+    artifact_paths = {
+        "model": model_path,
+        "feature_scaler": os.path.join(model_dir, 'feature_scaler.joblib'),
+        "target_scaler": os.path.join(model_dir, 'target_scaler.joblib'),
+        "feature_pca": os.path.join(model_dir, 'feature_pca.joblib'),
+        "feature_selector": os.path.join(model_dir, 'feature_selector.joblib'),
+        "feature_names": os.path.join(model_dir, 'feature_names.joblib'),
+        "training_metadata": os.path.join(model_dir, 'training_metadata.json'),
+    }
+    artifacts = {name: _model_artifact_status(path) for name, path in artifact_paths.items()}
+    model_status = artifacts["model"]
+    metadata = _read_model_metadata(artifact_paths["training_metadata"])
+    feature_names = _read_feature_names(artifact_paths["feature_names"])
+    trained_at = metadata.get("trained_at") or model_status.get("modified_at")
+
+    return {
+        "id": ticker or "global-regression",
+        "name": f"{ticker} regression scorer" if ticker else "Global regression scorer",
+        "scope": scope,
+        "ticker": ticker,
+        "model_type": metadata.get("model_type", "regression"),
+        "trained_at": trained_at,
+        "sample_count": metadata.get("sample_count"),
+        "feature_count": len(feature_names),
+        "feature_names": feature_names,
+        "metadata": metadata,
+        "artifacts": artifacts,
+        "ready": bool(
+            artifacts["model"]["exists"]
+            and artifacts["feature_scaler"]["exists"]
+            and artifacts["target_scaler"]["exists"]
+            and artifacts["feature_pca"]["exists"]
+            and artifacts["feature_names"]["exists"]
+        ),
+    }
+
+
+def _trained_models():
+    model_root = 'cache/models'
+    models = []
+    if not os.path.exists(model_root):
+        return {"models": [], "count": 0, "storage": {"path": model_root, "exists": False}}
+
+    if os.path.exists(os.path.join(model_root, 'stock_scorer_regression.joblib')):
+        models.append(_model_record(model_root, "global"))
+
+    for entry in sorted(os.listdir(model_root)):
+        model_dir = os.path.join(model_root, entry)
+        if os.path.isdir(model_dir) and os.path.exists(os.path.join(model_dir, 'stock_scorer_regression.joblib')):
+            models.append(_model_record(model_dir, "ticker", entry))
+
+    return {
+        "models": models,
+        "count": len(models),
+        "storage": {
+            "path": model_root,
+            "exists": True,
+            "backend_only": True,
+        },
+    }
+
+
 def _calculate_buy_hold_benchmarks(tickers, start_date, end_date):
     """Calculate passive benchmarks for the exact backtest window."""
     ticker_returns = []
@@ -269,6 +366,11 @@ def api_market_data_status():
     return jsonify(_sanitize(_market_data_status()))
 
 
+@app.route('/api/models/trained')
+def api_trained_models():
+    return jsonify(_sanitize(_trained_models()))
+
+
 @app.route('/api/live/snapshot')
 def api_live_snapshot():
     symbols = _parse_symbols(request.args.get('symbols', ''))
@@ -278,6 +380,7 @@ def api_live_snapshot():
 
 
 LIVE_STREAM_MAX_DURATION_SEC = 300
+MAX_QUANT_TICKERS = 3
 
 
 @app.route('/api/live/stream')
@@ -947,6 +1050,10 @@ def api_run_backtest():
     tickers = data.get('tickers', [])
     if not tickers:
         return jsonify({"error": "No tickers provided"}), 400
+    if len(tickers) > MAX_QUANT_TICKERS:
+        return jsonify({
+            "error": "3 tickers is the max for now. Log in to run larger universes because they are computationally heavy."
+        }), 403
 
     strategy = data.get('strategy', 'Combined Strategy')
     start_date = data.get('start_date', '')
@@ -1389,6 +1496,10 @@ def api_run_integrated():
     tickers = data.get('tickers', [])
     if not tickers:
         return jsonify({"error": "No tickers provided"}), 400
+    if len(tickers) > MAX_QUANT_TICKERS:
+        return jsonify({
+            "error": "3 tickers is the max for now. Log in to run larger universes because they are computationally heavy."
+        }), 403
 
     use_ml = bool(data.get('use_ml', True))
     execute_trades = bool(data.get('execute_trades', False))

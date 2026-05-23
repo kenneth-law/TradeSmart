@@ -51,12 +51,12 @@ type ExitPhase = 'idle' | 'transition-crossfade' | 'homepage-fade'
 
 function StepRail({ activeIndex }: { activeIndex: number }) {
   return (
-    <nav className="flex gap-1 overflow-x-auto border-b border-white/10 px-5 py-3 md:flex-col md:border-b-0 md:border-r md:px-0 md:py-0" aria-label="Onboarding steps">
+    <nav className="flex min-h-0 gap-1 overflow-x-auto border-b border-white/10 px-5 py-3 md:flex-col md:overflow-y-auto md:border-b-0 md:border-r md:px-0 md:py-0" aria-label="Onboarding steps">
       {STEPS.map((step, index) => (
         <div
           key={step.id}
           className={[
-            'flex min-w-28 items-center gap-3 px-4 py-3 text-left text-2xs transition-colors',
+            'flex min-w-28 items-center gap-3 px-4 py-3 text-left text-2xs transition-colors md:min-w-0',
             activeIndex === index ? 'bg-white/[0.08] text-white' : index < activeIndex ? 'text-text' : 'text-muted',
           ].join(' ')}
         >
@@ -772,7 +772,7 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
   return (
     <div
       className={[
-        'fixed inset-0 isolate z-[90] overflow-hidden bg-black text-text transition-opacity duration-700',
+        'fixed inset-0 isolate z-[90] overflow-y-auto bg-black text-text transition-opacity duration-700',
         exitPhase === 'homepage-fade' ? 'pointer-events-none opacity-0' : 'opacity-100',
       ].join(' ')}
     >
@@ -787,7 +787,7 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
 
       <main
         className={[
-          'relative z-[2] mx-auto flex min-h-full w-full max-w-6xl items-center px-4 py-6 transition-opacity duration-700 sm:px-6',
+          'relative z-[2] mx-auto flex min-h-dvh w-full max-w-6xl items-start px-4 py-4 transition-opacity duration-700 sm:px-6 md:items-center md:py-6',
           showSplash || isExiting ? 'pointer-events-none opacity-0' : 'opacity-100',
         ].join(' ')}
         role="dialog"
@@ -795,11 +795,11 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
         aria-labelledby="onboarding-title"
         aria-hidden={showSplash || isExiting}
       >
-        <section className="grid w-full overflow-hidden border border-white/15 bg-black/68 shadow-2xl shadow-black/35 backdrop-blur-xl md:grid-cols-[220px_minmax(0,1fr)]">
+        <section className="grid max-h-[calc(100dvh-2rem)] w-full min-h-0 overflow-hidden border border-white/15 bg-black/68 shadow-2xl shadow-black/35 backdrop-blur-xl md:max-h-[calc(100dvh-3rem)] md:grid-cols-[minmax(160px,220px)_minmax(0,1fr)]">
           <StepRail activeIndex={activeIndex} />
 
-          <div className="flex min-h-[620px] flex-col p-5 sm:p-8">
-            <div className="mb-8 flex items-start justify-between gap-6 border-b border-white/10 pb-5">
+          <div className="flex min-h-0 flex-col p-5 sm:p-8">
+            <div className="mb-5 flex shrink-0 items-start justify-between gap-6 border-b border-white/10 pb-5">
               <div>
                 <p className="text-2xs font-medium uppercase tracking-[0.28em] text-muted">First run</p>
                 <h1 id="onboarding-title" className="mt-2 text-xl font-semibold text-white">TradeSmart setup</h1>
@@ -809,7 +809,7 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
               </div>
             </div>
 
-            <div className="flex-1">
+            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
               {activeStep === 'overview' && (
                 <div className="grid gap-9 lg:grid-cols-[minmax(0,1.05fr)_minmax(260px,0.95fr)]">
                 <div>
@@ -1069,7 +1069,7 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
               )}
             </div>
 
-            <div className="mt-8 flex items-center justify-between gap-3 border-t border-white/10 pt-5">
+            <div className="sticky bottom-0 z-10 mt-5 flex shrink-0 items-center justify-between gap-3 border-t border-white/10 bg-black/90 pt-5 backdrop-blur-xl">
               <button
                 type="button"
                 onClick={goBack}

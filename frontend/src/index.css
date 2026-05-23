@@ -16,8 +16,8 @@ html {
   --selection-rgb: 232, 155, 44;
   --app-font-family: 'Lato', sans-serif;
   --app-font-size: 17px;
-  --topbar-height: 44px;
-  --statusbar-height: 30px;
+  --topbar-height: max(44px, 2.75rem);
+  --statusbar-height: max(30px, 1.875rem);
   --chrome-bg: rgba(0, 0, 0, 0.72);
   --chrome-border: rgba(255, 255, 255, 0.08);
   --chrome-hover: rgba(255, 255, 255, 0.03);
@@ -76,8 +76,8 @@ html[data-contrast='high'][data-theme='light'] {
 }
 
 html[data-density='compact'] {
-  --topbar-height: 40px;
-  --statusbar-height: 26px;
+  --topbar-height: max(40px, 2.5rem);
+  --statusbar-height: max(26px, 1.625rem);
 }
 
 *, *::before, *::after { box-sizing: border-box; }

@@ -45,7 +45,7 @@ export default function Shell({ children }: { children: ReactNode }) {
   const isHome = !showDashboardBackground
 
   return (
-    <div className="relative flex flex-col overflow-hidden bg-bg" style={{ height: '100vh' }}>
+    <div className="relative flex flex-col overflow-hidden bg-bg" style={{ height: '100dvh' }}>
       {/* Always mounted so it never remounts/resizes on route change */}
       <img
         src={heroImage}

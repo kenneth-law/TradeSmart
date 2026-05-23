@@ -18,7 +18,7 @@ export default function TopBar({ onCommandPalette }: { onCommandPalette: () => v
 
   return (
     <header
-      className="app-chrome fixed top-0 left-0 right-0 z-50 flex items-center border-b"
+      className="app-chrome fixed top-0 left-0 right-0 z-50 flex min-w-0 items-center overflow-x-auto overflow-y-hidden border-b"
       style={{ height: 'var(--topbar-height)' }}
     >
       {/* Brand */}
@@ -48,7 +48,7 @@ export default function TopBar({ onCommandPalette }: { onCommandPalette: () => v
       )}
 
       {/* Nav */}
-      <nav className="flex items-center h-full ml-auto" role="navigation" aria-label="Main navigation">
+      <nav className="ml-auto flex h-full min-w-max items-center" role="navigation" aria-label="Main navigation">
         {NAV.map(({ to, label, hint }) => (
           <NavLink
             key={to}

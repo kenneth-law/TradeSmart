@@ -112,7 +112,7 @@ export default function StatusBar() {
 
   return (
     <footer
-      className="app-chrome app-chrome-border-t fixed bottom-0 left-0 right-0 z-50 flex items-center gap-3 border-t px-3 select-none"
+      className="app-chrome app-chrome-border-t fixed bottom-0 left-0 right-0 z-50 flex items-center gap-3 overflow-x-auto overflow-y-hidden border-t px-3 select-none"
       style={{ height: 'var(--statusbar-height)' }}
       aria-label="Legal disclaimer and status"
     >

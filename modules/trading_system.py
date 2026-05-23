@@ -55,7 +55,7 @@ class TradingSystem:
         self.execution_manager = ExecutionManager()
 
         # System state
-        self.is_model_trained = False
+        self.is_model_trained = self.ml_scorer.model is not None
         self.last_backtest_result = None
         self.last_training_data_summary = {}
         self.watchlist = []
@@ -600,8 +600,9 @@ class TradingSystem:
                 market_neutral=state.get('market_neutral', True)
             )
 
-            # Restore state
-            system.is_model_trained = state.get('is_model_trained', False)
+            # Model artifacts are loaded by MLScorer during __init__; the JSON state
+            # only records workflow state and can be stale.
+            system.is_model_trained = system.ml_scorer.model is not None
 
             # Load portfolio
             portfolio_path = state.get('portfolio_path')

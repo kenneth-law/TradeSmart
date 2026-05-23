@@ -73,6 +73,9 @@ export const api = {
     reentry_cooldown_days?: number
     min_reentry_discount_pct?: number
     allow_pyramiding?: boolean
+    training_lookback_days?: number
+    max_position_pct?: number
+    initial_capital?: number
   }) => post<{ backtest_id: string }>('/api/run_backtest', params),
 
   getBacktestResults: (backtestId: string) =>

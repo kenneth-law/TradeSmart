@@ -1,6 +1,7 @@
 import { BrainCircuit, Database, Radio, Server } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useMarketDataStatus } from '../../hooks/useMarketDataStatus'
 import { useAppStore } from '../../store/useAppStore'
 
@@ -58,6 +59,8 @@ export default function StatusBar() {
   const { lastUpdated, analysisResult, openaiKey } = useAppStore()
   const [open, setOpen] = useState(false)
   const panelRef = useRef<HTMLDivElement>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const [anchor, setAnchor] = useState<{ left: number; bottom: number } | null>(null)
   const { data, loading } = useMarketDataStatus(openaiKey)
 
   const dotColor = { live: 'bg-up', delayed: 'bg-warn', offline: 'bg-down' }[data.state]
@@ -94,17 +97,32 @@ export default function StatusBar() {
   useEffect(() => {
     if (!open) return
 
+    function updateAnchor() {
+      const rect = buttonRef.current?.getBoundingClientRect()
+      if (!rect) return
+      setAnchor({ left: rect.left, bottom: window.innerHeight - rect.top })
+    }
+
+    updateAnchor()
+
     function onPointerDown(event: MouseEvent) {
-      if (!panelRef.current?.contains(event.target as Node)) setOpen(false)
+      const target = event.target as Node
+      if (panelRef.current?.contains(target)) return
+      if (buttonRef.current?.contains(target)) return
+      setOpen(false)
     }
 
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') setOpen(false)
     }
 
+    window.addEventListener('resize', updateAnchor)
+    window.addEventListener('scroll', updateAnchor, true)
     document.addEventListener('mousedown', onPointerDown)
     document.addEventListener('keydown', onKeyDown)
     return () => {
+      window.removeEventListener('resize', updateAnchor)
+      window.removeEventListener('scroll', updateAnchor, true)
       document.removeEventListener('mousedown', onPointerDown)
       document.removeEventListener('keydown', onKeyDown)
     }
@@ -116,8 +134,9 @@ export default function StatusBar() {
       style={{ height: 'var(--statusbar-height)' }}
       aria-label="Legal disclaimer and status"
     >
-      <div ref={panelRef} className="relative flex shrink-0 items-center">
+      <div className="relative flex shrink-0 items-center">
         <button
+          ref={buttonRef}
           type="button"
           onClick={() => setOpen(value => !value)}
           className="app-chrome-hover -ml-1 flex h-6 items-center gap-1 rounded-sm px-1.5 text-2xs focus-visible:outline focus-visible:outline-1 focus-visible:outline-accent"
@@ -132,10 +151,12 @@ export default function StatusBar() {
           </span>
         </button>
 
-        {open && (
+        {open && anchor && createPortal(
           <div
+            ref={panelRef}
             id="market-data-status-panel"
-            className="app-chrome absolute bottom-full left-0 mb-2 w-[min(92vw,380px)] overflow-hidden rounded-[8px] border border-border-strong"
+            className="app-chrome fixed z-[60] w-[min(92vw,380px)] overflow-hidden rounded-[8px] border border-border-strong"
+            style={{ left: anchor.left, bottom: anchor.bottom + 8 }}
             role="dialog"
             aria-label="Market data streams"
           >
@@ -171,7 +192,8 @@ export default function StatusBar() {
               detail={backendDetail}
               tone={backend.reachable ? 'online' : 'offline'}
             />
-          </div>
+          </div>,
+          document.body,
         )}
       </div>
 

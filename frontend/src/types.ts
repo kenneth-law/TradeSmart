@@ -168,6 +168,7 @@ export interface BacktestTrainingContext {
   max_label_date?: string
   training_end_date_exclusive?: string
   prediction_horizon_days?: number
+  training_lookback_days?: number
   positive_samples?: number
   negative_samples?: number
   label_balance?: Record<string, number>

@@ -21,7 +21,7 @@ export default function LandingPage() {
             Market research in sharpe focus.
           </h1>
           <p className="hero-copy mx-auto mt-6 max-w-3xl text-base leading-7 sm:text-md">
-            Screen equities, test strategy ideas, and review portfolio context from one private research terminal.
+            Screen equities, test strategy ideas, and review portfolio context from one AI-native private research terminal.
           </p>
         </div>
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { hasSystemSettingsCookie } from '../../store/useAppStore'
@@ -20,6 +20,8 @@ export default function Shell({ children }: { children: ReactNode }) {
   const [cmdOpen, setCmdOpen] = useState(false)
   const [onboardingOpen, setOnboardingOpen] = useState(() => !hasSystemSettingsCookie())
   const [appIntroOpen, setAppIntroOpen] = useState(() => hasSystemSettingsCookie())
+  const handleOnboardingComplete = useCallback(() => setOnboardingOpen(false), [])
+  const handleAppIntroComplete = useCallback(() => setAppIntroOpen(false), [])
   const showDashboardBackground = location.pathname !== '/'
 
   useEffect(() => {
@@ -69,10 +71,10 @@ export default function Shell({ children }: { children: ReactNode }) {
       </main>
       <StatusBar />
       {onboardingOpen && (
-        <Onboarding onComplete={() => setOnboardingOpen(false)} />
+        <Onboarding onComplete={handleOnboardingComplete} />
       )}
       {appIntroOpen && !onboardingOpen && (
-        <AppIntroOverlay onComplete={() => setAppIntroOpen(false)} />
+        <AppIntroOverlay onComplete={handleAppIntroComplete} />
       )}
       <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} />
     </div>

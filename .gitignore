@@ -52,3 +52,4 @@ static/dist/
 
 # Cache and temporary data
 cache/
+.claude/plans/PLAN.md

@@ -17,7 +17,7 @@ from threading import Thread
 from queue import Queue
 
 # Import integrated trading system
-from modules.trading_system import TradingSystem
+from modules.trading_system import BACKTEST_TRAINING_LOOKBACK_DAYS, TradingSystem
 
 # Import necessary modules
 from modules.utils import set_message_handler, log_message
@@ -738,7 +738,9 @@ def run_backtest_with_updates(tickers, strategy, start_date, end_date, days, cus
                               transaction_cost_type, backtest_id, message_queue, session_id,
                               buy_threshold=50, sell_threshold=40, partial_exit_fraction=0.25,
                               exit_sizing_mode='fixed_tranche', reentry_cooldown_days=10,
-                              min_reentry_discount_pct=1.0, allow_pyramiding=False):
+                              min_reentry_discount_pct=1.0, allow_pyramiding=False,
+                              training_lookback_days=None, max_position_pct=None,
+                              initial_capital=100000.0):
     """Run a backtest with progress updates sent to the client"""
     try:
         # Define a custom message handler for this backtest
@@ -760,7 +762,7 @@ def run_backtest_with_updates(tickers, strategy, start_date, end_date, days, cus
         })
 
         # Initialize the backtester
-        system = TradingSystem(initial_capital=100000.0)
+        system = TradingSystem(initial_capital=initial_capital)
 
         message_queue.put({
             "progress": 10,
@@ -784,6 +786,8 @@ def run_backtest_with_updates(tickers, strategy, start_date, end_date, days, cus
             reentry_cooldown_days=reentry_cooldown_days,
             min_reentry_discount_pct=min_reentry_discount_pct,
             allow_pyramiding=allow_pyramiding,
+            training_lookback_days=training_lookback_days,
+            max_position_pct=max_position_pct,
         )
 
         technical_baseline_result = None
@@ -1095,6 +1099,24 @@ def api_run_backtest():
         min_reentry_discount_pct = 1.0
     min_reentry_discount_pct = max(0.0, min_reentry_discount_pct)
     allow_pyramiding = bool(data.get('allow_pyramiding', False))
+    try:
+        training_lookback_days = int(data.get('training_lookback_days', BACKTEST_TRAINING_LOOKBACK_DAYS))
+    except (ValueError, TypeError):
+        training_lookback_days = BACKTEST_TRAINING_LOOKBACK_DAYS
+    training_lookback_days = min(max(training_lookback_days, 180), 3650)
+    max_position_pct = data.get('max_position_pct')
+    if max_position_pct is not None:
+        try:
+            max_position_pct = float(max_position_pct)
+        except (ValueError, TypeError):
+            max_position_pct = None
+    if max_position_pct is not None:
+        max_position_pct = min(max(max_position_pct, 0.01), 1.0)
+    try:
+        initial_capital = float(data.get('initial_capital', 100000.0))
+    except (ValueError, TypeError):
+        initial_capital = 100000.0
+    initial_capital = min(max(initial_capital, 1000.0), 100_000_000.0)
 
     backtest_id = f"backtest_{int(time.time())}"
     session_id = datetime.now().strftime('%Y%m%d%H%M%S')
@@ -1108,7 +1130,8 @@ def api_run_backtest():
             tickers, strategy, start_date, end_date, days, custom_transaction_cost,
             transaction_cost_type, backtest_id, message_queue, session_id,
             buy_threshold, sell_threshold, partial_exit_fraction, exit_sizing_mode,
-            reentry_cooldown_days, min_reentry_discount_pct, allow_pyramiding
+            reentry_cooldown_days, min_reentry_discount_pct, allow_pyramiding,
+            training_lookback_days, max_position_pct, initial_capital
         )
     )
     backtest_thread.daemon = True

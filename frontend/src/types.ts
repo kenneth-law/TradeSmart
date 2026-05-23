@@ -285,6 +285,56 @@ export interface LiveMarketPayload {
   quotes: Record<string, LiveQuote | null>
 }
 
+export interface LiveMarketStatus {
+  provider: string
+  configured: boolean
+  connected: boolean
+  authenticated: boolean
+  feed: string
+  missing?: string[]
+  error?: string | null
+}
+
+export type MarketDataProvider = 'alpaca' | 'delayed' | 'none'
+export type MarketDataState = 'live' | 'delayed' | 'offline'
+
+export interface YFinanceStatus {
+  provider: 'yfinance'
+  reachable: boolean
+  delayed: boolean
+  latency_ms?: number | null
+  checked_at?: string
+  error?: string | null
+}
+
+export interface ClientStreamStatus {
+  provider: 'openai'
+  status: string
+  configured: boolean | null
+  checked_at?: string
+}
+
+export interface BackendStreamStatus {
+  provider: 'tradesmart_backend'
+  reachable: boolean
+  status: string
+  checked_at?: string
+  error?: string | null
+}
+
+export interface MarketDataStatus {
+  provider: MarketDataProvider
+  label: string
+  state: MarketDataState
+  timestamp: string
+  streams: {
+    alpaca: LiveMarketStatus
+    yfinance: YFinanceStatus
+    openai: ClientStreamStatus
+    tradesmart_backend: BackendStreamStatus
+  }
+}
+
 export interface FinancialsStatement {
   periods: string[]
   rows: Record<string, Record<string, number | null>>

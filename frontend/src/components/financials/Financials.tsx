@@ -47,7 +47,7 @@ export default function Financials({ ticker }: Props) {
       </div>
 
       <div className="flex-1 min-h-0 overflow-auto">
-        <div className="flex divide-x divide-border min-w-full">
+        <div className="flex divide-x divide-border" style={{ minWidth: 'max-content', width: '100%' }}>
           <FinancialsTable title="Income Statement" data={data?.income_statement} />
           <FinancialsTable title="Balance Sheet" data={data?.balance_sheet} />
           <FinancialsTable title="Cash Flow" data={data?.cash_flow} />

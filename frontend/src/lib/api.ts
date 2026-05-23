@@ -49,6 +49,12 @@ export const api = {
   getLiveSnapshot: (symbols: string[]) =>
     get<import('../types').LiveMarketPayload>(`/api/live/snapshot?symbols=${encodeURIComponent(symbols.join(','))}`),
 
+  getLiveStatus: () =>
+    get<import('../types').LiveMarketStatus>('/api/live/status'),
+
+  getMarketDataStatus: () =>
+    get<import('../types').MarketDataStatus>('/api/market_data/status'),
+
   runBacktest: (params: {
     tickers: string[]
     strategy: string

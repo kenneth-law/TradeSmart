@@ -123,7 +123,7 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
   financialsDepth: 'concise',
 }
 
-const SETTINGS_COOKIE = 'tradesmart_system_settings'
+export const SETTINGS_COOKIE = 'tradesmart_system_settings'
 const OPENAI_KEY_STORAGE = 'tradesmart_openai_key'
 const PAPER_ACCOUNT_STORAGE = 'tradesmart_paper_account'
 const DEFAULT_PAPER_CASH = 100000
@@ -167,6 +167,10 @@ function readCookie(name: string) {
     .split('; ')
     .find(cookie => cookie.startsWith(`${name}=`))
   return found ? decodeURIComponent(found.split('=').slice(1).join('=')) : null
+}
+
+export function hasSystemSettingsCookie() {
+  return Boolean(readCookie(SETTINGS_COOKIE))
 }
 
 function writeCookie(name: string, value: string) {

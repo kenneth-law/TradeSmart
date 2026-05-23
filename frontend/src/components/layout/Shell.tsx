@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { AlertTriangle, X } from 'lucide-react'
+import { hasSystemSettingsCookie } from '../../store/useAppStore'
 import TopBar from './TopBar'
 import StatusBar from './StatusBar'
 import CommandPalette from './CommandPalette'
+import Onboarding from '../onboarding/Onboarding'
 import heroImage from '../../assets/landing-hero.jpg'
 
 const SHORTCUTS: Record<string, string> = {
@@ -18,10 +20,15 @@ export default function Shell({ children }: { children: ReactNode }) {
   const location = useLocation()
   const [cmdOpen, setCmdOpen] = useState(false)
   const [legalNoticeOpen, setLegalNoticeOpen] = useState(true)
+  const [onboardingOpen, setOnboardingOpen] = useState(() => !hasSystemSettingsCookie())
   const showDashboardBackground = location.pathname !== '/'
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      if (onboardingOpen) {
+        setCmdOpen(false)
+        return
+      }
       if (e.altKey && SHORTCUTS[e.key]) {
         e.preventDefault()
         navigate(SHORTCUTS[e.key])
@@ -34,7 +41,7 @@ export default function Shell({ children }: { children: ReactNode }) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [navigate])
+  }, [navigate, onboardingOpen])
 
   const isHome = !showDashboardBackground
 
@@ -62,7 +69,7 @@ export default function Shell({ children }: { children: ReactNode }) {
         {children}
       </main>
       <StatusBar />
-      {legalNoticeOpen && (
+      {legalNoticeOpen && !onboardingOpen && (
         <div
           className="fixed inset-0 z-[70] flex items-center justify-center bg-black/65 px-4 backdrop-blur-sm"
           role="presentation"
@@ -107,6 +114,9 @@ export default function Shell({ children }: { children: ReactNode }) {
             </div>
           </section>
         </div>
+      )}
+      {onboardingOpen && (
+        <Onboarding onComplete={() => setOnboardingOpen(false)} />
       )}
       <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} />
     </div>

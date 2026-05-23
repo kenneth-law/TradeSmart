@@ -18,7 +18,7 @@ export default function LandingPage() {
       <section className="relative z-10 flex h-full min-h-0 flex-col items-center px-6 py-6 sm:px-10 lg:px-16">
         <div className="mt-[7vh] w-full max-w-6xl text-center">
           <h1 className="hero-title mx-auto max-w-5xl text-4xl font-semibold sm:text-5xl lg:max-w-none lg:whitespace-nowrap lg:text-[3.65rem] xl:text-[3.95rem]">
-            Market research in full focus.
+            Market research in sharpe focus.
           </h1>
           <p className="hero-copy mx-auto mt-6 max-w-3xl text-base leading-7 sm:text-md">
             Screen equities, test strategy ideas, and review portfolio context from one private research terminal.

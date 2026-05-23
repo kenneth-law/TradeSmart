@@ -335,6 +335,37 @@ export interface MarketDataStatus {
   }
 }
 
+export interface ModelArtifactStatus {
+  exists: boolean
+  size_bytes: number
+  modified_at?: string | null
+}
+
+export interface TrainedModelRecord {
+  id: string
+  name: string
+  scope: 'global' | 'ticker'
+  ticker?: string | null
+  model_type: string
+  trained_at?: string | null
+  sample_count?: number | null
+  feature_count: number
+  feature_names: string[]
+  ready: boolean
+  metadata: Record<string, unknown>
+  artifacts: Record<string, ModelArtifactStatus>
+}
+
+export interface TrainedModelsResponse {
+  models: TrainedModelRecord[]
+  count: number
+  storage: {
+    path: string
+    exists: boolean
+    backend_only?: boolean
+  }
+}
+
 export interface FinancialsStatement {
   periods: string[]
   rows: Record<string, Record<string, number | null>>

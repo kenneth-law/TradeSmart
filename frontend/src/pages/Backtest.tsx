@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { useLocation } from 'react-router-dom'
 import { Activity, Database, Download, FileJson, Table2 } from 'lucide-react'
 import { api } from '../lib/api'
 import { useSSE } from '../hooks/useSSE'
@@ -14,7 +13,7 @@ import EquityChart from '../components/charts/EquityChart'
 import type { PriceOverlay } from '../components/charts/EquityChart'
 import SignalBadge from '../components/data/SignalBadge'
 import ScoreBar from '../components/data/ScoreBar'
-import type { AlphaVerdict, BacktestBenchmark, PositionRoundTrip, PriceHistory, StockResult, Trade } from '../types'
+import type { AlphaVerdict, BacktestBenchmark, PositionRoundTrip, PriceHistory, StockResult, Trade, TrainedModelRecord } from '../types'
 
 const STRATEGIES = [
   { label: 'ML Strategy', value: 'ml' },
@@ -23,8 +22,7 @@ const STRATEGIES = [
 
 const DEFAULT_BUY_THRESHOLD = '50'
 const DEFAULT_SELL_THRESHOLD = '40'
-
-const ASX200 = 'CBA.AX, BHP.AX, CSL.AX, NAB.AX, WBC.AX, WES.AX, ANZ.AX, MQG.AX, GMG.AX, TLS.AX, FMG.AX, RIO.AX, TCL.AX, WDS.AX, ALL.AX, WOW.AX, QBE.AX, REA.AX, WTC.AX, BXB.AX'
+const MAX_FREE_TICKERS = 3
 
 const TRADE_COLUMNS: Column<Trade & Record<string, unknown>>[] = [
   { key: 'date',       label: 'DATE',       width: 100 },
@@ -495,6 +493,114 @@ function backtestLookbackDays(startDate?: string, endDate?: string) {
   return Math.ceil(diffMs / 86_400_000) + 10
 }
 
+function parseTickerInput(value: string) {
+  return value
+    .split(',')
+    .map(ticker => ticker.trim())
+    .filter(Boolean)
+}
+
+function fmtModelDate(value?: string | null) {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '—'
+  return `${date.toLocaleDateString()} ${date.toLocaleTimeString().slice(0, 5)}`
+}
+
+function fmtBytes(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return '—'
+  if (value < 1024) return `${value} B`
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`
+  return `${(value / 1024 / 1024).toFixed(1)} MB`
+}
+
+function artifactSummary(model: TrainedModelRecord) {
+  const entries = Object.entries(model.artifacts)
+  const present = entries.filter(([, artifact]) => artifact.exists).length
+  return `${present}/${entries.length} artifacts`
+}
+
+function ModelRegistryPanel() {
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ['trained-models'],
+    queryFn: () => api.getTrainedModels(),
+    staleTime: 60_000,
+  })
+
+  const models = data?.models ?? []
+  const activeModel = models.find(model => model.ready) ?? models[0]
+  const modelSize = activeModel
+    ? Object.values(activeModel.artifacts).reduce((total, artifact) => total + (artifact.exists ? artifact.size_bytes : 0), 0)
+    : 0
+
+  return (
+    <div className="border border-border bg-s1">
+      <div className="flex items-center gap-3 border-b border-border px-3 py-2">
+        <div>
+          <h2 className="text-2xs font-medium text-text">Model Registry</h2>
+        </div>
+        <button
+          type="button"
+          onClick={() => refetch()}
+          className="ml-auto border border-border-strong px-2 py-1 text-2xs text-muted hover:text-text"
+        >
+          Refresh
+        </button>
+      </div>
+
+      {isLoading ? (
+        <p className="p-3 text-2xs text-muted">Loading trained models...</p>
+      ) : error ? (
+        <p className="p-3 text-2xs text-down">Failed to load trained models.</p>
+      ) : !models.length ? (
+        <div className="p-3">
+          <p className="text-2xs text-warn">No trained model artifacts found.</p>
+          <p className="mt-1 text-2xs text-dim">Run ML training to create files under cache/models.</p>
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-3 gap-px bg-border">
+            <MetricTile label="Models" value={data?.count ?? models.length} size="sm" />
+            <MetricTile label="Ready" value={models.filter(model => model.ready).length} color={models.some(model => model.ready) ? 'up' : 'warn'} size="sm" />
+            <MetricTile label="Storage" value={fmtBytes(modelSize)} color="muted" size="sm" />
+          </div>
+
+          <div className="divide-y divide-border">
+            {models.map(model => (
+              <div key={model.id} className="px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <span className={`h-1.5 w-1.5 rounded-full ${model.ready ? 'bg-up' : 'bg-warn'}`} aria-hidden="true" />
+                  <span className="min-w-0 truncate text-2xs font-medium text-text">{model.name}</span>
+                  <span className="ml-auto shrink-0 text-2xs text-muted">{model.ready ? 'ready' : 'incomplete'}</span>
+                </div>
+                <div className="mt-1 grid grid-cols-2 gap-x-4 gap-y-1 text-2xs text-dim">
+                  <span className="truncate">Type <span className="text-muted">{model.model_type}</span></span>
+                  <span className="truncate">Scope <span className="text-muted">{model.scope}</span></span>
+                  <span className="truncate">Trained <span className="text-muted">{fmtModelDate(model.trained_at)}</span></span>
+                  <span className="truncate">Samples <span className="text-muted tabnum">{model.sample_count ?? '—'}</span></span>
+                  <span className="truncate">Features <span className="text-muted tabnum">{model.feature_count}</span></span>
+                  <span className="truncate">{artifactSummary(model)}</span>
+                </div>
+                {model.feature_names.length > 0 && (
+                  <p className="mt-1 truncate text-2xs text-dim" title={model.feature_names.join(', ')}>
+                    {model.feature_names.join(', ')}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="border-t border-border px-3 py-2">
+            <p className="text-2xs text-dim">
+              Stored at <span className="tabnum text-muted">{data?.storage.path ?? 'cache/models'}</span>. Model binaries stay server-side;
+            </p>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 function buildPriceOverlay(
   ticker: string,
   color: string,
@@ -522,8 +628,7 @@ function buildPriceOverlay(
 }
 
 export default function Backtest() {
-  const location = useLocation()
-  const initialMode: RunMode = location.pathname.includes('integrated') ? 'workflow' : 'simulation'
+  const initialMode: RunMode = 'simulation'
   const [phase, setPhase] = useState<Phase>('config')
   const [runMode, setRunMode] = useState<RunMode>(initialMode)
   const [resultMode, setResultMode] = useState<RunMode>(initialMode)
@@ -548,6 +653,8 @@ export default function Backtest() {
   const [systemId, setSystemId] = useState<string | null>(null)
   const [sseUrl, setSseUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const tickersForRun = parseTickerInput(tickerInput)
+  const overTickerLimit = tickersForRun.length > MAX_FREE_TICKERS
   const [selectedOverlayTickers, setSelectedOverlayTickers] = useState<string[]>([])
   const [activeResultTab, setActiveResultTab] = useState<ResultTab>('trades')
 
@@ -599,14 +706,17 @@ export default function Backtest() {
   }
 
   async function startRun() {
-    const tickers = tickerInput.trim()
-    if (!tickers) return
+    const tickerList = parseTickerInput(tickerInput)
+    if (!tickerList.length) return
+    if (tickerList.length > MAX_FREE_TICKERS) {
+      setError('3 tickers is the max for now. Log in to run larger universes because they are computationally heavy.')
+      return
+    }
     setError(null)
     setSelectedOverlayTickers([])
     setActiveResultTab('trades')
     setPhase('running')
     try {
-      const tickerList = tickers.split(',').map(t => t.trim()).filter(Boolean)
       if (runMode === 'workflow') {
         const resp = await api.runIntegrated({
           tickers: tickerList,
@@ -664,38 +774,52 @@ export default function Backtest() {
 
   if (phase === 'config') {
     return (
-      <div className="p-4 max-w-4xl mx-auto">
-        <h1 className="text-sm text-text font-medium mb-1">Quant Trading</h1>
-        <p className="mb-4 text-2xs text-dim">
-          Experimental research tool only; not financial advice.
-        </p>
+      <div className="mx-auto grid max-w-6xl gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <div>
+          <h1 className="text-sm text-text font-medium mb-1">Quant Trading</h1>
+          <p className="mb-4 text-2xs text-dim">
+            Experimental research tool only; not financial advice.
+          </p>
 
-        <div className="flex gap-px mb-3 border border-border bg-border">
-          {([
-            ['simulation', 'Simulation'],
-            ['workflow', 'Integrated'],
-          ] as Array<[RunMode, string]>).map(([mode, label]) => (
-            <button
-              key={mode}
-              onClick={() => setRunMode(mode)}
-              className={[
-                'flex-1 bg-s1 px-3 py-2 text-sm',
-                runMode === mode ? 'text-accent' : 'text-muted hover:text-text',
-              ].join(' ')}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+          <div className="flex gap-px mb-3 border border-border bg-border">
+            {([
+              ['simulation', 'Simulation'],
+              ['workflow', 'Integrated'],
+            ] as Array<[RunMode, string]>).map(([mode, label]) => (
+              <button
+                key={mode}
+                onClick={() => {
+                  if (mode === 'workflow') return
+                  setRunMode(mode)
+                }}
+                disabled={mode === 'workflow'}
+                title={mode === 'workflow' ? 'Integrated system is disabled for now.' : undefined}
+                aria-disabled={mode === 'workflow'}
+                className={[
+                  'flex-1 bg-s1 px-3 py-2 text-sm',
+                  mode === 'workflow'
+                    ? 'cursor-not-allowed text-dim opacity-45'
+                    : runMode === mode
+                      ? 'text-accent'
+                      : 'text-muted hover:text-text',
+                ].join(' ')}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
 
-        <div className="border border-border bg-s1">
+          <div className="border border-border bg-s1">
           {/* Tickers */}
           <div className="flex items-start gap-2 p-2 border-b border-border">
             <span className="text-muted text-sm pt-px select-none shrink-0">{'>'}</span>
             <textarea
               value={tickerInput}
-              onChange={e => setTickerInput(e.target.value)}
-              placeholder="AAPL, MSFT, GOOGL  —  comma separated"
+              onChange={e => {
+                setTickerInput(e.target.value)
+                if (error) setError(null)
+              }}
+              placeholder="AAPL, MSFT, GOOGL  —  max 3"
               rows={3}
               className="flex-1 bg-transparent text-text text-sm placeholder:text-dim resize-none outline-none"
               aria-label="Ticker symbols"
@@ -914,12 +1038,9 @@ export default function Backtest() {
 
           {/* Toolbar */}
           <div className="flex items-center gap-2 px-2 py-1.5">
-            <button
-              onClick={() => setTickerInput(ASX200)}
-              className="text-2xs text-muted border border-border-strong px-2 py-1 hover:text-text"
-            >
-              Load ASX sample
-            </button>
+            <span className={`text-2xs tabnum ${overTickerLimit ? 'text-warn' : 'text-dim'}`}>
+              {tickersForRun.length}/{MAX_FREE_TICKERS} tickers
+            </span>
             <button
               onClick={startRun}
               disabled={!tickerInput.trim() || (runMode === 'simulation' && !simulateTrading)}
@@ -931,6 +1052,11 @@ export default function Backtest() {
         </div>
 
         {error && <p className="mt-2 text-2xs text-down" role="alert">{error}</p>}
+        </div>
+
+        <div className="lg:pt-14">
+          <ModelRegistryPanel />
+        </div>
       </div>
     )
   }

@@ -21,7 +21,7 @@ export default function App() {
         <Route path="/stock/:ticker" element={<StockDetail />} />
         <Route path="/system"      element={<System />} />
         <Route path="/backtest"    element={<System />} />
-        <Route path="/integrated"  element={<System />} />
+        <Route path="/integrated"  element={<Navigate to="/system" replace />} />
         <Route path="/market"      element={<Research />} />
         <Route path="/research"    element={<Navigate to="/market" replace />} />
         <Route path="/daily-lineup" element={<DailyLineup />} />

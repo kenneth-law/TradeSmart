@@ -55,6 +55,9 @@ export const api = {
   getMarketDataStatus: () =>
     get<import('../types').MarketDataStatus>('/api/market_data/status'),
 
+  getTrainedModels: () =>
+    get<import('../types').TrainedModelsResponse>('/api/models/trained'),
+
   runBacktest: (params: {
     tickers: string[]
     strategy: string

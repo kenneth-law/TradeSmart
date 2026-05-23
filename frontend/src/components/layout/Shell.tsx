@@ -5,7 +5,7 @@ import { hasSystemSettingsCookie } from '../../store/useAppStore'
 import TopBar from './TopBar'
 import StatusBar from './StatusBar'
 import CommandPalette from './CommandPalette'
-import Onboarding from '../onboarding/Onboarding'
+import Onboarding, { AppIntroOverlay } from '../onboarding/Onboarding'
 import heroImage from '../../assets/landing-hero.jpg'
 
 const SHORTCUTS: Record<string, string> = {
@@ -19,11 +19,12 @@ export default function Shell({ children }: { children: ReactNode }) {
   const location = useLocation()
   const [cmdOpen, setCmdOpen] = useState(false)
   const [onboardingOpen, setOnboardingOpen] = useState(() => !hasSystemSettingsCookie())
+  const [appIntroOpen, setAppIntroOpen] = useState(() => hasSystemSettingsCookie())
   const showDashboardBackground = location.pathname !== '/'
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (onboardingOpen) {
+      if (onboardingOpen || appIntroOpen) {
         setCmdOpen(false)
         return
       }
@@ -39,7 +40,7 @@ export default function Shell({ children }: { children: ReactNode }) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [navigate, onboardingOpen])
+  }, [appIntroOpen, navigate, onboardingOpen])
 
   const isHome = !showDashboardBackground
 
@@ -69,6 +70,9 @@ export default function Shell({ children }: { children: ReactNode }) {
       <StatusBar />
       {onboardingOpen && (
         <Onboarding onComplete={() => setOnboardingOpen(false)} />
+      )}
+      {appIntroOpen && !onboardingOpen && (
+        <AppIntroOverlay onComplete={() => setAppIntroOpen(false)} />
       )}
       <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} />
     </div>

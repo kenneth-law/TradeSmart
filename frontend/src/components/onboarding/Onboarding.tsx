@@ -32,7 +32,6 @@ const SYSTEM_POINTS = [
 const inputClassName = 'min-h-[44px] w-full rounded-[8px] border border-border bg-black px-4 py-3 text-sm text-text outline-none transition-colors placeholder:text-dim focus-visible:border-white'
 const fieldLabelClassName = 'block text-2xs font-medium uppercase leading-none tracking-[0.2em] text-muted'
 const formGroupClassName = 'space-y-3'
-const ASCII_FRAME_MS = 500
 const ASCII_VIDEO_PLAYBACK_RATE = 0.45
 const ASCII_CELL_WIDTH_MOBILE = 8
 const ASCII_CELL_WIDTH_DESKTOP = 16
@@ -179,7 +178,7 @@ function AsciiVideoBackground({ ariaLabel }: { ariaLabel?: string }) {
     fallbackImageRef.current = fallbackImage
 
     let stopped = false
-    let intervalId: number | null = null
+    let animationFrameId: number | null = null
     let fadeActive = false
     let smoothedPixels: Float32Array | null = null
     let hasSmoothedFrame = false
@@ -372,14 +371,27 @@ function AsciiVideoBackground({ ariaLabel }: { ariaLabel?: string }) {
       }
     }
 
+    const renderLoop = () => {
+      render()
+      if (!stopped && !document.hidden) {
+        animationFrameId = window.requestAnimationFrame(renderLoop)
+      }
+    }
+
     const start = () => {
       video.playbackRate = ASCII_VIDEO_PLAYBACK_RATE
       void video.play().catch(() => undefined)
-      render()
+      if (animationFrameId == null) {
+        animationFrameId = window.requestAnimationFrame(renderLoop)
+      }
     }
 
     const handleVisibilityChange = () => {
       if (document.hidden) {
+        if (animationFrameId != null) {
+          window.cancelAnimationFrame(animationFrameId)
+          animationFrameId = null
+        }
         video.pause()
         fadeVideo.pause()
         return
@@ -387,7 +399,9 @@ function AsciiVideoBackground({ ariaLabel }: { ariaLabel?: string }) {
 
       video.playbackRate = ASCII_VIDEO_PLAYBACK_RATE
       void video.play().catch(() => undefined)
-      render()
+      if (animationFrameId == null) {
+        animationFrameId = window.requestAnimationFrame(renderLoop)
+      }
     }
 
     fallbackImage.addEventListener('load', start)
@@ -395,7 +409,6 @@ function AsciiVideoBackground({ ariaLabel }: { ariaLabel?: string }) {
     video.addEventListener('loadeddata', start)
     video.addEventListener('canplay', start)
     document.addEventListener('visibilitychange', handleVisibilityChange)
-    intervalId = window.setInterval(render, ASCII_FRAME_MS)
     start()
 
     return () => {
@@ -408,7 +421,7 @@ function AsciiVideoBackground({ ariaLabel }: { ariaLabel?: string }) {
       video.removeEventListener('loadeddata', start)
       video.removeEventListener('canplay', start)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
-      if (intervalId != null) window.clearInterval(intervalId)
+      if (animationFrameId != null) window.cancelAnimationFrame(animationFrameId)
     }
   }, [])
 

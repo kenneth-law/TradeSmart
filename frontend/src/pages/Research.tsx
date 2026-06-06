@@ -40,10 +40,10 @@ export default function Research() {
 
       {/* Header */}
       <div className="w-full max-w-lg text-center">
-        <p className="mb-3 text-2xs font-medium uppercase tracking-[0.32em] text-accent">Markets</p>
-        <h2 className="mb-1 text-3xl font-medium text-text">Market lookup</h2>
+        <p className="mb-3 text-2xs font-medium uppercase tracking-[0.32em] text-accent">Research</p>
+        <h2 className="mb-1 text-3xl font-medium text-text">Look up a stock</h2>
         <p className="mb-10 text-sm text-dim">
-          Search any ticker to inspect market data, analysis, charts, and signals.
+          Enter a ticker symbol to view analysis, charts, and signals.
         </p>
 
         {/* Search bar */}
@@ -84,7 +84,7 @@ export default function Research() {
             <section>
               <div className="mb-4 flex items-center gap-2">
                 <Bookmark size={12} className="text-accent" />
-                <span className="text-2xs font-medium uppercase tracking-[0.24em] text-accent">Market Watchlist</span>
+                <span className="text-2xs font-medium uppercase tracking-[0.24em] text-accent">Watchlist</span>
               </div>
               <div className="flex flex-wrap gap-2">
                 {watchlist.map(t => (
@@ -131,7 +131,7 @@ export default function Research() {
         </div>
       ) : (
         <p className="mt-12 text-2xs text-dim">
-          Your market watchlist and recent ticker searches will appear here.
+          Your watchlist and recent searches will appear here.
         </p>
       )}
 

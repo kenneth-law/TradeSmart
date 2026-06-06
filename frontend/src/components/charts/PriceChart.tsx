@@ -1,13 +1,16 @@
-import { useState, useEffect, useRef, useLayoutEffect } from 'react'
+import { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react'
 import { useQuery, useQueries } from '@tanstack/react-query'
 import { createChart, CandlestickSeries, LineSeries, HistogramSeries } from 'lightweight-charts'
 import type { IChartApi, Time } from 'lightweight-charts'
 import { api } from '../../lib/api'
 import type { PriceHistory } from '../../types'
+import { quotePrice, useLiveQuotes } from '../../hooks/useLiveQuotes'
+import { aggregateIntradayHistory, floorToScale, formatChartTime, INTRADAY_SCALES, type IntradayScale } from './intradayScales'
 
 type ChartType = 'candlestick' | 'line'
 
 const PERIODS = [
+  { days: 1,   label: '1D' },
   { days: 30,  label: '1M' },
   { days: 90,  label: '3M' },
   { days: 180, label: '6M' },
@@ -28,10 +31,17 @@ function isFiniteNumber(v: unknown): v is number {
 export default function PriceChart({ ticker, overlayPeers = [] }: PriceChartProps) {
   const containerRef       = useRef<HTMLDivElement>(null)
   const chartRef           = useRef<IChartApi | null>(null)
+  const candleSeriesRef    = useRef<any>(null)
+  const volumeSeriesRef    = useRef<any>(null)
+  const liveCandleRef      = useRef<{ time: number; open: number; high: number; low: number; close: number } | null>(null)
+  const latestSeriesTimeRef = useRef<number | null>(null)
   const [chartType, setChartType]           = useState<ChartType>('candlestick')
   const [days, setDays]                     = useState(90)
+  const [intradayScale, setIntradayScale]   = useState<IntradayScale>(5)
   const [selectedOverlays, setSelectedOverlays] = useState<string[]>([])
   const [overlayInput, setOverlayInput]     = useState('')
+  const isIntraday = days === 1
+  const live = useLiveQuotes([ticker], isIntraday && chartType === 'candlestick' && !!ticker)
 
   const { data, isLoading } = useQuery<PriceHistory>({
     queryKey:  ['priceChart', ticker, days],
@@ -39,6 +49,10 @@ export default function PriceChart({ ticker, overlayPeers = [] }: PriceChartProp
     enabled:   !!ticker,
     staleTime: 60_000,
   })
+  const chartData = useMemo(
+    () => isIntraday ? aggregateIntradayHistory(data, intradayScale) : data,
+    [data, intradayScale, isIntraday]
+  )
 
   const overlayQueries = useQueries({
     queries: selectedOverlays.map(t => ({
@@ -60,8 +74,15 @@ export default function PriceChart({ ticker, overlayPeers = [] }: PriceChartProp
 
   useEffect(() => {
     const el = containerRef.current
-    if (chartRef.current) { chartRef.current.remove(); chartRef.current = null }
-    if (!el || !data?.dates?.length) return
+    if (chartRef.current) {
+      chartRef.current.remove()
+      chartRef.current = null
+      candleSeriesRef.current = null
+      volumeSeriesRef.current = null
+      liveCandleRef.current = null
+      latestSeriesTimeRef.current = null
+    }
+    if (!el || !chartData?.dates?.length) return
 
     const hasOverlays = selectedOverlays.length > 0
 
@@ -75,12 +96,21 @@ export default function PriceChart({ ticker, overlayPeers = [] }: PriceChartProp
       },
       rightPriceScale: { borderColor: '#1F1F23' },
       leftPriceScale:  { borderColor: '#1F1F23', visible: hasOverlays },
-      timeScale:       { borderColor: '#1F1F23', timeVisible: true },
+      localization: {
+        timeFormatter: time => formatChartTime(time, isIntraday, intradayScale),
+      },
+      timeScale: {
+        borderColor: '#1F1F23',
+        timeVisible: isIntraday,
+        secondsVisible: isIntraday && intradayScale < 60,
+        tickMarkFormatter: time => formatChartTime(time, isIntraday, intradayScale),
+      },
     })
     chartRef.current = chart
 
-    const times = data.dates as Time[]
-    const vols  = data.volumes ?? data.volume ?? []
+    const times = chartData.dates as Time[]
+    latestSeriesTimeRef.current = typeof chartData.dates.at(-1) === 'number' ? chartData.dates.at(-1) as number : null
+    const vols  = chartData.volumes ?? chartData.volume ?? []
 
     // Volume histogram on bottom 25%
     if (vols.length) {
@@ -89,13 +119,14 @@ export default function PriceChart({ ticker, overlayPeers = [] }: PriceChartProp
         priceFormat:  { type: 'volume' },
         priceScaleId: 'volume',
       })
+      volumeSeriesRef.current = volSeries
       chart.priceScale('volume').applyOptions({ scaleMargins: { top: 0.76, bottom: 0 }, visible: false })
       volSeries.setData(
         times
           .map((t, i) => ({
             time:  t,
             value: vols[i],
-            color: i > 0 && (data.close[i] ?? 0) >= (data.close[i - 1] ?? 0) ? '#1F4A35' : '#4A1F24',
+            color: i > 0 && (chartData.close[i] ?? 0) >= (chartData.close[i - 1] ?? 0) ? '#1F4A35' : '#4A1F24',
           }))
           .filter(r => isFiniteNumber(r.value))
       )
@@ -112,24 +143,25 @@ export default function PriceChart({ ticker, overlayPeers = [] }: PriceChartProp
         borderUpColor:   '#1FBF75', borderDownColor: '#E5484D',
         wickUpColor:     '#1FBF75', wickDownColor:   '#E5484D',
       })
+      candleSeriesRef.current = cs
       cs.setData(
         times
-          .map((t, i) => ({ time: t, open: data.open?.[i], high: data.high?.[i], low: data.low?.[i], close: data.close?.[i] }))
+          .map((t, i) => ({ time: t, open: chartData.open?.[i], high: chartData.high?.[i], low: chartData.low?.[i], close: chartData.close?.[i] }))
           .filter(r => isFiniteNumber(r.open) && isFiniteNumber(r.high) && isFiniteNumber(r.low) && isFiniteNumber(r.close))
       )
     } else {
       chart.addSeries(LineSeries, { color: '#E89B2C', lineWidth: 1 })
-        .setData(times.map((t, i) => ({ time: t, value: data.close?.[i] })).filter(r => isFiniteNumber(r.value) && (r.value as number) > 0))
+        .setData(times.map((t, i) => ({ time: t, value: chartData.close?.[i] })).filter(r => isFiniteNumber(r.value) && (r.value as number) > 0))
     }
 
     // Moving averages
-    if (data.ma5?.length) {
+    if (chartData.ma5?.length) {
       chart.addSeries(LineSeries, { color: '#C47A0A', lineWidth: 1, title: 'MA5' })
-        .setData(times.map((t, i) => ({ time: t, value: data.ma5![i] })).filter(r => isFiniteNumber(r.value) && (r.value as number) > 0))
+        .setData(times.map((t, i) => ({ time: t, value: chartData.ma5![i] })).filter(r => isFiniteNumber(r.value) && (r.value as number) > 0))
     }
-    if (data.ma20?.length) {
+    if (chartData.ma20?.length) {
       chart.addSeries(LineSeries, { color: '#3B82F6', lineWidth: 1, title: 'MA20' })
-        .setData(times.map((t, i) => ({ time: t, value: data.ma20![i] })).filter(r => isFiniteNumber(r.value) && (r.value as number) > 0))
+        .setData(times.map((t, i) => ({ time: t, value: chartData.ma20![i] })).filter(r => isFiniteNumber(r.value) && (r.value as number) > 0))
     }
 
     // Overlays on secondary scale
@@ -153,9 +185,69 @@ export default function PriceChart({ ticker, overlayPeers = [] }: PriceChartProp
 
     chart.timeScale().fitContent()
 
-    return () => { chart.remove(); chartRef.current = null }
+    return () => {
+      chart.remove()
+      chartRef.current = null
+      candleSeriesRef.current = null
+      volumeSeriesRef.current = null
+      liveCandleRef.current = null
+      latestSeriesTimeRef.current = null
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, chartType, selectedOverlays, overlayDataKey])
+  }, [chartData, chartType, selectedOverlays, overlayDataKey])
+
+  useEffect(() => {
+    liveCandleRef.current = null
+  }, [ticker, days, chartData?.dates?.at(-1), intradayScale])
+
+  useEffect(() => {
+    if (!isIntraday || chartType !== 'candlestick' || !candleSeriesRef.current) return
+    if (!chartData?.dates?.length || !chartData.dates.every(time => typeof time === 'number')) return
+    const quote = live.quotes[ticker.toUpperCase()]
+    const price = quotePrice(quote)
+    if (price == null) return
+    const parsedTime = quote?.timestamp ? Date.parse(quote.timestamp) : NaN
+    const second = Number.isFinite(parsedTime) ? Math.floor(parsedTime / 1000) : Math.floor(Date.now() / 1000)
+    const candleTime = floorToScale(second, intradayScale)
+    const lastHistoricalTime = typeof chartData?.dates?.at(-1) === 'number' ? chartData.dates.at(-1) as number : 0
+    const latestSeriesTime = latestSeriesTimeRef.current ?? lastHistoricalTime
+    if (latestSeriesTime && candleTime < latestSeriesTime) return
+
+    const previous = liveCandleRef.current
+    const lastIndex = chartData.dates.length - 1
+    const sameAsLoadedBar = !previous && candleTime === lastHistoricalTime
+    const baseOpen = sameAsLoadedBar && isFiniteNumber(chartData.open?.[lastIndex]) ? chartData.open[lastIndex] : price
+    const baseHigh = sameAsLoadedBar && isFiniteNumber(chartData.high?.[lastIndex]) ? chartData.high[lastIndex] : price
+    const baseLow = sameAsLoadedBar && isFiniteNumber(chartData.low?.[lastIndex]) ? chartData.low[lastIndex] : price
+    const candle = previous && previous.time === candleTime
+      ? {
+          ...previous,
+          high: Math.max(previous.high, price),
+          low: Math.min(previous.low, price),
+          close: price,
+        }
+      : {
+          time: candleTime,
+          open: baseOpen,
+          high: Math.max(baseHigh, price),
+          low: Math.min(baseLow, price),
+          close: price,
+        }
+    liveCandleRef.current = candle
+    try {
+      candleSeriesRef.current.update(candle)
+      latestSeriesTimeRef.current = Math.max(latestSeriesTime ?? candleTime, candleTime)
+    } catch {
+      return
+    }
+    if (volumeSeriesRef.current) {
+      volumeSeriesRef.current.update({
+        time: candleTime,
+        value: quote?.last_size ?? 0,
+        color: candle.close >= candle.open ? '#1F4A35' : '#4A1F24',
+      })
+    }
+  }, [chartData?.dates, chartType, intradayScale, isIntraday, live.quotes, ticker])
 
   function addOverlay(raw: string) {
     const t = raw.trim().toUpperCase()
@@ -192,12 +284,31 @@ export default function PriceChart({ ticker, overlayPeers = [] }: PriceChartProp
         {PERIODS.map(p => (
           <button
             key={p.days}
-            onClick={() => setDays(p.days)}
+            onClick={() => {
+              setDays(p.days)
+              if (p.days === 1) setChartType('candlestick')
+            }}
             className={`text-2xs px-2 py-0.5 border transition-colors ${days === p.days ? 'border-accent text-accent' : 'border-border text-muted hover:text-text'}`}
           >
             {p.label}
           </button>
         ))}
+
+        {isIntraday && (
+          <>
+            <span className="text-border">|</span>
+            {INTRADAY_SCALES.map(scale => (
+              <button
+                key={scale.seconds}
+                onClick={() => setIntradayScale(scale.seconds)}
+                className={`text-2xs px-2 py-0.5 border transition-colors ${intradayScale === scale.seconds ? 'border-accent text-accent' : 'border-border text-muted hover:text-text'}`}
+                aria-pressed={intradayScale === scale.seconds}
+              >
+                {scale.label}
+              </button>
+            ))}
+          </>
+        )}
 
         <span className="text-border">|</span>
         <span className="text-2xs text-dim">Compare</span>
@@ -262,6 +373,11 @@ export default function PriceChart({ ticker, overlayPeers = [] }: PriceChartProp
         </div>
 
         {overlayLoading && <span className="text-2xs text-dim animate-pulse">loading...</span>}
+        {isIntraday && (
+          <span className={`text-2xs tabnum ${live.configured ? 'text-accent' : 'text-muted'}`}>
+            {live.configured ? `${INTRADAY_SCALES.find(scale => scale.seconds === intradayScale)?.label ?? '5s'} live` : '1m base'}
+          </span>
+        )}
         {isLoading && <span className="ml-auto text-2xs text-dim animate-pulse">Loading...</span>}
       </div>
 

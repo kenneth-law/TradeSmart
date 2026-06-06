@@ -4,10 +4,10 @@ import logoImage from '../../assets/TradeSmartLogowhite.png'
 
 const NAV = [
   { to: '/',           label: 'HOME',       hint: '1' },
-  { to: '/technical',  label: 'TECHNICAL',  hint: '2' },
-  { to: '/system',     label: 'SYSTEM',     hint: '3' },
-  { to: '/market',     label: 'MARKET',     hint: '4' },
-  { to: '/research',   label: 'RESEARCH',   hint: '5' },
+  { to: '/market',     label: 'MARKETS',    hint: '2' },
+  { to: '/system',     label: 'QUANT',      hint: '3' },
+  { to: '/technical',  label: 'TECHNICAL',  hint: '4' },
+  { to: '/daily-lineup', label: 'LINEUP',    hint: '5' },
   { to: '/portfolio',  label: 'PORTFOLIO',  hint: '6' },
   { to: '/docs',       label: 'DOCS',       hint: '7' },
   { to: '/settings',   label: 'SETTINGS',   hint: '8' },
@@ -18,7 +18,7 @@ export default function TopBar({ onCommandPalette }: { onCommandPalette: () => v
 
   return (
     <header
-      className="app-chrome fixed top-0 left-0 right-0 z-50 flex items-center border-b"
+      className="app-chrome fixed top-0 left-0 right-0 z-50 flex min-w-0 items-center overflow-x-auto overflow-y-hidden border-b"
       style={{ height: 'var(--topbar-height)' }}
     >
       {/* Brand */}
@@ -48,7 +48,7 @@ export default function TopBar({ onCommandPalette }: { onCommandPalette: () => v
       )}
 
       {/* Nav */}
-      <nav className="flex items-center h-full ml-auto" role="navigation" aria-label="Main navigation">
+      <nav className="ml-auto flex h-full min-w-max items-center" role="navigation" aria-label="Main navigation">
         {NAV.map(({ to, label, hint }) => (
           <NavLink
             key={to}

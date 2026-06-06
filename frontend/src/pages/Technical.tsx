@@ -9,10 +9,11 @@ import ProgressBar from '../components/terminal/ProgressBar'
 const ASX200 = 'CBA.AX, BHP.AX, CSL.AX, NAB.AX, WBC.AX, WES.AX, ANZ.AX, MQG.AX, GMG.AX, TLS.AX, FMG.AX, RIO.AX, TCL.AX, WDS.AX, ALL.AX, WOW.AX, QBE.AX, REA.AX, WTC.AX, BXB.AX, PME.AX, COL.AX, XRO.AX, NST.AX, CPU.AX, RMD.AX, SUN.AX, STO.AX, IAG.AX, COH.AX, JHX.AX, EVN.AX, QAN.AX, CAR.AX, S32.AX, SGP.AX, MPL.AX, SHL.AX, JBH.AX, TNE.AX, APA.AX, REH.AX, BSL.AX, TPG.AX, AMC.AX, ORI.AX, GPT.AX, LYC.AX, AGL.AX, TWE.AX, WOR.AX, BEN.AX, GQG.AX, HVN.AX, HUB.AX, ALD.AX, CWY.AX, A2M.AX'
 
 const QUICK_NAV = [
-  { label: 'System',          to: '/system',    key: '3' },
-  { label: 'Market Overview', to: '/market',    key: '4' },
-  { label: 'Portfolio',       to: '/portfolio', key: '5' },
-  { label: 'Docs',            to: '/docs',      key: '6' },
+  { label: 'Markets',        to: '/market',       key: '2' },
+  { label: 'Quant Trading',  to: '/system',       key: '3' },
+  { label: 'Daily Lineup',   to: '/daily-lineup', key: '5' },
+  { label: 'Portfolio',      to: '/portfolio',    key: '6' },
+  { label: 'Docs',           to: '/docs',         key: '7' },
 ]
 
 export default function Technical() {

@@ -2,12 +2,12 @@ import { Link } from 'react-router-dom'
 import { ArrowRight } from 'lucide-react'
 
 const ENTRY_POINTS = [
-  { label: 'Trading System', to: '/system' },
+  { label: 'Markets', to: '/market' },
+  { label: 'Quant Trading', to: '/system' },
   { label: 'Technical Ranking', to: '/technical' },
-  { label: 'Market', to: '/market' },
-  { label: 'Research', to: '/research' },
+  { label: 'Daily Lineup', to: '/daily-lineup' },
   { label: 'Portfolio', to: '/portfolio' },
-  { label: 'Docs', to: '/docs' },
+  { label: 'Settings', to: '/settings' },
 ]
 
 export default function LandingPage() {
@@ -18,10 +18,10 @@ export default function LandingPage() {
       <section className="relative z-10 flex h-full min-h-0 flex-col items-center px-6 py-6 sm:px-10 lg:px-16">
         <div className="mt-[7vh] w-full max-w-6xl text-center">
           <h1 className="hero-title mx-auto max-w-5xl text-4xl font-semibold sm:text-5xl lg:max-w-none lg:whitespace-nowrap lg:text-[3.65rem] xl:text-[3.95rem]">
-            Market research in full focus.
+            Market research in sharpe focus.
           </h1>
           <p className="hero-copy mx-auto mt-6 max-w-3xl text-base leading-7 sm:text-md">
-            Screen equities, test strategy ideas, and review portfolio context from one private research terminal.
+            Screen equities, test strategy ideas, and review portfolio context from one AI-native private research terminal.
           </p>
         </div>
 
@@ -31,7 +31,7 @@ export default function LandingPage() {
           </p>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {ENTRY_POINTS.map(item => {
-              const highlighted = item.to === '/system'
+              const highlighted = item.to === '/market'
 
               return (
                 <Link
@@ -60,10 +60,6 @@ export default function LandingPage() {
             })}
           </div>
         </div>
-
-        <footer className="absolute bottom-4 left-1/2 -translate-x-1/2 text-2xs text-white/42 sm:left-10 lg:left-16">
-          © Kenneth Law 2026
-        </footer>
       </section>
     </div>
   )

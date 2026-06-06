@@ -28,6 +28,9 @@ from modules.data_retrieval import get_stock_history, get_stock_info
 # Create cache directory for the trading system if it doesn't exist
 os.makedirs('cache/trading_system', exist_ok=True)
 
+PRODUCTION_TRAINING_LOOKBACK_DAYS = 180
+BACKTEST_TRAINING_LOOKBACK_DAYS = 1825
+
 class TradingSystem:
     """
     Integrated trading system that combines ML scoring, backtesting,
@@ -55,20 +58,25 @@ class TradingSystem:
         self.execution_manager = ExecutionManager()
 
         # System state
-        self.is_model_trained = False
+        self.is_model_trained = self.ml_scorer.model is not None
         self.last_backtest_result = None
+        self.last_training_data_summary = {}
         self.watchlist = []
         self.market_data = {}
 
         log_message("Trading system initialized")
 
-    def train_ml_model(self, tickers=None, force=False):
+    def train_ml_model(self, tickers=None, force=False, training_end_date=None, persist=True,
+                       lookback_days=PRODUCTION_TRAINING_LOOKBACK_DAYS):
         """
         Train the ML model using historical data.
 
         Parameters:
             tickers (list): List of ticker symbols to use for training
             force (bool): Force retraining even if interval hasn't elapsed
+            training_end_date (str/datetime): Exclusive cutoff for label availability.
+            persist (bool): Save model artifacts to disk. Backtests keep this False.
+            lookback_days (int): Calendar days of pre-cutoff history to collect.
 
         Returns:
             bool: True if training was successful
@@ -77,18 +85,91 @@ class TradingSystem:
             # Default to a list of major stocks if none provided
             tickers = ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA", "NVDA", "JPM", "V", "WMT"]
 
-        log_message(f"Training ML model with {len(tickers)} tickers")
+        cutoff_msg = f" before {training_end_date}" if training_end_date else ""
+        log_message(
+            f"Training ML model with {len(tickers)} tickers{cutoff_msg} "
+            f"using {lookback_days} lookback days"
+        )
 
         # Collect training data
-        training_data = collect_training_data(tickers, lookback_days=180, prediction_horizon=5)
+        prediction_horizon = 5
+        training_data = collect_training_data(
+            tickers,
+            lookback_days=lookback_days,
+            prediction_horizon=prediction_horizon,
+            end_date=training_end_date
+        )
 
         if not training_data:
             log_message("No training data collected")
+            self.last_training_data_summary = {
+                'sample_count': 0,
+                'tickers': tickers,
+                'training_end_date_exclusive': str(training_end_date)[:10] if training_end_date else None,
+                'prediction_horizon_days': prediction_horizon,
+                'training_lookback_days': lookback_days,
+                'training_context': 'backtest' if not persist else 'production',
+            }
             return False
 
+        feature_dates = [str(item.get('date'))[:10] for item in training_data if item.get('date')]
+        label_dates = [str(item.get('label_date', item.get('date')))[:10] for item in training_data if item.get('label_date', item.get('date'))]
+        positive_samples = sum(1 for item in training_data if item.get('future_signal') == 1)
+        negative_samples = len(training_data) - positive_samples
+
+        def training_preview_row(item):
+            stock_data = item.get('stock_data', {}) or {}
+            return {
+                'ticker': item.get('ticker'),
+                'feature_date': str(item.get('date'))[:10],
+                'label_date': str(item.get('label_date'))[:10],
+                'prediction_horizon_days': prediction_horizon,
+                'future_return_pct': item.get('future_return'),
+                'future_signal': item.get('future_signal'),
+                'features': {
+                    'current_price': stock_data.get('current_price'),
+                    'return_1d': stock_data.get('return_1d'),
+                    'return_3d': stock_data.get('return_3d'),
+                    'return_5d': stock_data.get('return_5d'),
+                    'rsi7': stock_data.get('rsi7'),
+                    'rsi14': stock_data.get('rsi14'),
+                    'atr_pct': stock_data.get('atr_pct'),
+                    'volume_ratio': stock_data.get('volume_ratio'),
+                    'macd_trend': stock_data.get('macd_trend'),
+                    'news_sentiment_score': stock_data.get('news_sentiment_score'),
+                    'day_trading_score': stock_data.get('day_trading_score'),
+                }
+            }
+
+        metadata = {
+            'training_end_date_exclusive': str(training_end_date)[:10] if training_end_date else None,
+            'prediction_horizon_days': prediction_horizon,
+            'training_lookback_days': lookback_days,
+            'training_context': 'backtest' if not persist else 'production',
+            'training_tickers': tickers,
+            'positive_samples': positive_samples,
+            'negative_samples': negative_samples,
+        }
+
         # Train the model
-        success = self.ml_scorer.train(training_data, force=force)
+        success = self.ml_scorer.train(training_data, force=force, persist=persist, metadata=metadata)
         self.is_model_trained = success
+        self.last_training_data_summary = {
+            **metadata,
+            'model_trained': bool(success),
+            'sample_count': len(training_data),
+            'min_feature_date': min(feature_dates) if feature_dates else None,
+            'max_feature_date': max(feature_dates) if feature_dates else None,
+            'min_label_date': min(label_dates) if label_dates else None,
+            'max_label_date': max(label_dates) if label_dates else None,
+            'label_balance': {
+                'positive': positive_samples,
+                'negative': negative_samples,
+                'positive_pct': (positive_samples / len(training_data) * 100) if training_data else 0,
+            },
+            'feature_importance': self.ml_scorer.get_feature_importance() if success else {},
+            'preview_rows': [training_preview_row(item) for item in training_data[:25]],
+        }
 
         return success
 
@@ -183,7 +264,11 @@ class TradingSystem:
         return ranked_stocks, failed_tickers
 
     def run_backtest(self, tickers, strategy='ml', start_date=None, end_date=None, days=180,
-                     custom_transaction_cost=None, custom_transaction_cost_type='per_share'):
+                     custom_transaction_cost=None, custom_transaction_cost_type='per_share',
+                     buy_threshold=50, sell_threshold=40, partial_exit_fraction=0.25,
+                     exit_sizing_mode='fixed_tranche', reentry_cooldown_days=10,
+                     min_reentry_discount_pct=1.0, allow_pyramiding=False,
+                     training_lookback_days=None, max_position_pct=None):
         """
         Run a backtest on the specified tickers and strategy.
 
@@ -195,6 +280,15 @@ class TradingSystem:
             days (int): Number of days to backtest if start_date not provided
             custom_transaction_cost (float): Optional custom transaction cost value
             custom_transaction_cost_type (str): 'fixed', 'percent', or legacy 'per_share'
+            buy_threshold (int): ML score needed to open a position
+            sell_threshold (int): ML score that forces full exit
+            partial_exit_fraction (float): Original-position tranche size for partial exits
+            exit_sizing_mode (str): 'fixed_tranche' or legacy 'remaining_fraction'
+            reentry_cooldown_days (int): Days to block re-entry after a sell
+            min_reentry_discount_pct (float): Discount needed to override cooldown
+            allow_pyramiding (bool): Whether repeated buys can add to positions
+            training_lookback_days (int): Calendar days of pre-start data used to train ML backtests
+            max_position_pct (float): Optional per-ticker exposure cap. Defaults to equal-weight slot.
 
         Returns:
             BacktestResult: Object containing backtest results
@@ -208,12 +302,33 @@ class TradingSystem:
 
         log_message(f"Running {strategy} strategy backtest from {start_date} to {end_date}")
 
-        # Train ML model if using ML strategy and model is not trained
-        if strategy == 'ml' and not self.is_model_trained:
-            log_message("ML model not trained. Training model before running backtest...")
-            self.train_ml_model(tickers)
-            if not self.is_model_trained:
-                log_message("Warning: ML model training failed. Backtest may use fallback scoring.")
+        # Train an isolated point-in-time ML model for backtests. It is fitted only on
+        # labels available before the backtest starts and is not saved over production artifacts.
+        if strategy == 'ml':
+            if training_lookback_days is None:
+                training_lookback_days = BACKTEST_TRAINING_LOOKBACK_DAYS
+            log_message("Training isolated point-in-time ML model for backtest...")
+            self.ml_scorer = MLScorer(model_type='regression')
+            self.is_model_trained = False
+            self.train_ml_model(
+                tickers,
+                force=True,
+                training_end_date=start_date,
+                persist=False,
+                lookback_days=training_lookback_days
+            )
+            if self.is_model_trained:
+                max_label_date = self.ml_scorer.training_metadata.get('max_label_date')
+                if max_label_date and max_label_date >= start_date:
+                    raise ValueError(
+                        f"ML training label date {max_label_date} overlaps backtest start {start_date}"
+                    )
+                log_message(
+                    "Backtest ML model trained with max label date "
+                    f"{max_label_date or 'unknown'} before start date {start_date}"
+                )
+            else:
+                log_message("Warning: ML model training failed. Backtest will use point-in-time heuristic scoring.")
 
         # Select strategy function
         if strategy == 'ml':
@@ -229,8 +344,42 @@ class TradingSystem:
             end_date=end_date,
             ml_scorer=self.ml_scorer if strategy == 'ml' and self.is_model_trained else None,
             custom_transaction_cost=custom_transaction_cost,
-            custom_transaction_cost_type=custom_transaction_cost_type
+            custom_transaction_cost_type=custom_transaction_cost_type,
+            buy_threshold=buy_threshold,
+            sell_threshold=sell_threshold,
+            partial_exit_fraction=partial_exit_fraction,
+            exit_sizing_mode=exit_sizing_mode,
+            reentry_cooldown_days=reentry_cooldown_days,
+            min_reentry_discount_pct=min_reentry_discount_pct,
+            allow_pyramiding=allow_pyramiding,
+            max_position_pct=max_position_pct,
         )
+        result.run_metadata = {
+            'tickers': tickers,
+            'strategy': strategy,
+            'start_date': start_date,
+            'end_date': end_date,
+            'days': days,
+            'initial_capital': self.initial_capital,
+            'transaction_cost': custom_transaction_cost,
+            'transaction_cost_type': custom_transaction_cost_type,
+            'point_in_time_training': strategy == 'ml',
+            'model_trained': bool(self.is_model_trained) if strategy == 'ml' else False,
+            'buy_threshold': buy_threshold,
+            'sell_threshold': sell_threshold,
+            'partial_exit_fraction': partial_exit_fraction,
+            'exit_sizing_mode': exit_sizing_mode,
+            'reentry_cooldown_days': reentry_cooldown_days,
+            'min_reentry_discount_pct': min_reentry_discount_pct,
+            'allow_pyramiding': allow_pyramiding,
+            'training_lookback_days': training_lookback_days if strategy == 'ml' else None,
+            'max_position_pct': max_position_pct,
+        }
+        result.training_context = self.last_training_data_summary if strategy == 'ml' else {
+            'training_context': 'not_applicable',
+            'model_trained': False,
+            'sample_count': 0,
+        }
 
         self.last_backtest_result = result
 
@@ -470,8 +619,9 @@ class TradingSystem:
                 market_neutral=state.get('market_neutral', True)
             )
 
-            # Restore state
-            system.is_model_trained = state.get('is_model_trained', False)
+            # Model artifacts are loaded by MLScorer during __init__; the JSON state
+            # only records workflow state and can be stale.
+            system.is_model_trained = system.ml_scorer.model is not None
 
             # Load portfolio
             portfolio_path = state.get('portfolio_path')

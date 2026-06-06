@@ -1,6 +1,22 @@
 {
   "$schema": "https://schema.railpack.com",
+  "packages": {
+    "node": "20"
+  },
+  "steps": {
+    "build-frontend": {
+      "inputs": [{ "step": "build" }],
+      "commands": [
+        "cd frontend && npm ci",
+        "cd frontend && npm run build"
+      ]
+    }
+  },
   "deploy": {
-    "aptPackages": ["libgomp1"]
+    "aptPackages": ["libgomp1"],
+    "inputs": [
+      "...",
+      { "step": "build-frontend", "include": ["static/dist"] }
+    ]
   }
 }

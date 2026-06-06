@@ -1,5 +1,7 @@
 import { useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import type { ReactNode } from 'react'
+import { useAppStore } from '../store/useAppStore'
+import { Activity, Database, Download, FileJson, Table2 } from 'lucide-react'
 import { api } from '../lib/api'
 import { useSSE } from '../hooks/useSSE'
 import { useQueries, useQuery } from '@tanstack/react-query'
@@ -12,14 +14,17 @@ import EquityChart from '../components/charts/EquityChart'
 import type { PriceOverlay } from '../components/charts/EquityChart'
 import SignalBadge from '../components/data/SignalBadge'
 import ScoreBar from '../components/data/ScoreBar'
-import type { PriceHistory, StockResult, Trade } from '../types'
+import type { AlphaVerdict, BacktestBenchmark, PositionRoundTrip, PriceHistory, StockResult, Trade, TrainedModelRecord } from '../types'
 
 const STRATEGIES = [
   { label: 'ML Strategy', value: 'ml' },
   { label: 'Technical Strategy', value: 'technical' },
 ]
 
-const ASX200 = 'CBA.AX, BHP.AX, CSL.AX, NAB.AX, WBC.AX, WES.AX, ANZ.AX, MQG.AX, GMG.AX, TLS.AX, FMG.AX, RIO.AX, TCL.AX, WDS.AX, ALL.AX, WOW.AX, QBE.AX, REA.AX, WTC.AX, BXB.AX'
+const DEFAULT_BUY_THRESHOLD = '50'
+const DEFAULT_SELL_THRESHOLD = '40'
+const DEFAULT_TRAINING_LOOKBACK_DAYS = 1825
+const MAX_FREE_TICKERS = 3
 
 const TRADE_COLUMNS: Column<Trade & Record<string, unknown>>[] = [
   { key: 'date',       label: 'DATE',       width: 100 },
@@ -32,17 +37,145 @@ const TRADE_COLUMNS: Column<Trade & Record<string, unknown>>[] = [
     )
   },
   { key: 'price',      label: 'PRICE',      width: 80, align: 'right',
-    render: r => <span className="tabnum">{(r.price as number).toFixed(2)}</span>
+    render: r => {
+      const v = Number(r.price)
+      return Number.isFinite(v) ? <span className="tabnum">{v.toFixed(2)}</span> : <span className="text-dim">—</span>
+    }
   },
   { key: 'shares',     label: 'SHARES',     width: 72, align: 'right',
     render: r => <span className="tabnum">{r.shares !== undefined ? String(r.shares) : '—'}</span>
   },
+  { key: 'cost',       label: 'COST',       width: 80, align: 'right',
+    render: r => {
+      const v = Number(r.cost)
+      return Number.isFinite(v) ? <span className="tabnum">${v.toFixed(2)}</span> : <span className="text-dim">—</span>
+    }
+  },
+  { key: 'pnl',        label: 'P&L',        width: 86, align: 'right',
+    render: r => {
+      if (r.pnl == null) return <span className="text-dim">OPEN</span>
+      const v = Number(r.pnl)
+      if (!Number.isFinite(v)) return <span className="text-dim">—</span>
+      return <span className={`tabnum ${v >= 0 ? 'text-up' : 'text-down'}`}>{v >= 0 ? '+' : ''}${v.toFixed(2)}</span>
+    }
+  },
   { key: 'return_pct', label: 'RETURN%',    width: 80, align: 'right',
     render: r => {
-      const v = r.return_pct as number | undefined
-      if (v === undefined) return <span className="text-dim">—</span>
+      if (r.return_pct == null) return <span className="text-dim">OPEN</span>
+      const v = Number(r.return_pct)
+      if (!Number.isFinite(v)) return <span className="text-dim">—</span>
       return <span className={`tabnum ${v >= 0 ? 'text-up' : 'text-down'}`}>{v >= 0 ? '+' : ''}{v.toFixed(2)}%</span>
     }
+  },
+]
+
+const ROUND_TRIP_COLUMNS: Column<RoundTripRow & Record<string, unknown>>[] = [
+  { key: 'ticker',      label: 'TICKER', width: 82 },
+  { key: 'entry_date',  label: 'ENTRY',  width: 104 },
+  { key: 'exit_date',   label: 'EXIT',   width: 104 },
+  { key: 'entry_price', label: 'IN',     width: 76, align: 'right',
+    render: r => <span className="tabnum">{Number(r.entry_price ?? 0).toFixed(2)}</span>
+  },
+  { key: 'exit_price',  label: 'OUT',    width: 76, align: 'right',
+    render: r => <span className="tabnum">{Number(r.exit_price ?? 0).toFixed(2)}</span>
+  },
+  { key: 'shares',      label: 'QTY',    width: 64, align: 'right' },
+  { key: 'pnl',         label: 'P&L',    width: 86, align: 'right',
+    render: r => {
+      const v = Number(r.pnl ?? 0)
+      return <span className={`tabnum ${v >= 0 ? 'text-up' : 'text-down'}`}>{v >= 0 ? '+' : ''}${v.toFixed(2)}</span>
+    }
+  },
+  { key: 'return_pct',  label: 'RET%',   width: 78, align: 'right',
+    render: r => {
+      const v = Number(r.return_pct ?? 0)
+      return <span className={`tabnum ${v >= 0 ? 'text-up' : 'text-down'}`}>{v >= 0 ? '+' : ''}{v.toFixed(2)}%</span>
+    }
+  },
+]
+
+const POSITION_COLUMNS: Column<PositionRoundTrip & Record<string, unknown>>[] = [
+  { key: 'ticker', label: 'TICKER', width: 82 },
+  { key: 'entry_date', label: 'ENTRY', width: 104 },
+  { key: 'last_exit_date', label: 'LAST EXIT', width: 104 },
+  { key: 'entry_price', label: 'IN', width: 76, align: 'right',
+    render: r => <span className="tabnum">{Number(r.entry_price ?? 0).toFixed(2)}</span>
+  },
+  { key: 'shares_sold', label: 'SOLD', width: 64, align: 'right' },
+  { key: 'exit_count', label: 'EXITS', width: 64, align: 'right' },
+  { key: 'pnl', label: 'P&L', width: 86, align: 'right',
+    render: r => {
+      const v = Number(r.pnl ?? 0)
+      return <span className={`tabnum ${v >= 0 ? 'text-up' : 'text-down'}`}>{v >= 0 ? '+' : ''}${v.toFixed(2)}</span>
+    }
+  },
+  { key: 'return_pct', label: 'RET%', width: 78, align: 'right',
+    render: r => {
+      const v = Number(r.return_pct ?? 0)
+      return <span className={`tabnum ${v >= 0 ? 'text-up' : 'text-down'}`}>{v >= 0 ? '+' : ''}{v.toFixed(2)}%</span>
+    }
+  },
+]
+
+type BenchmarkRow = {
+  name: string
+  return_pct: number
+  delta?: number
+}
+
+const BENCHMARK_COLUMNS: Column<BenchmarkRow & Record<string, unknown>>[] = [
+  { key: 'name', label: 'BENCHMARK', width: 180 },
+  { key: 'return_pct', label: 'RETURN', width: 90, align: 'right',
+    render: r => {
+      const v = Number(r.return_pct ?? 0)
+      return <span className={`tabnum ${v >= 0 ? 'text-up' : 'text-down'}`}>{v >= 0 ? '+' : ''}{v.toFixed(2)}%</span>
+    }
+  },
+  { key: 'delta', label: 'DELTA', width: 90, align: 'right',
+    render: r => {
+      if (r.delta == null) return <span className="text-dim">—</span>
+      const v = Number(r.delta)
+      return <span className={`tabnum ${v >= 0 ? 'text-up' : 'text-down'}`}>{v >= 0 ? '+' : ''}{v.toFixed(2)} pp</span>
+    }
+  },
+]
+
+type TickerPnlRow = {
+  ticker: string
+  pnl: number
+}
+
+const TICKER_PNL_COLUMNS: Column<TickerPnlRow & Record<string, unknown>>[] = [
+  { key: 'ticker', label: 'TICKER', width: 100 },
+  { key: 'pnl', label: 'REALIZED P&L', width: 130, align: 'right',
+    render: r => {
+      const v = Number(r.pnl ?? 0)
+      return <span className={`tabnum ${v >= 0 ? 'text-up' : 'text-down'}`}>{v >= 0 ? '+' : ''}${v.toFixed(2)}</span>
+    }
+  },
+]
+
+const TRAINING_COLUMNS: Column<TrainingPreviewRow & Record<string, unknown>>[] = [
+  { key: 'ticker', label: 'TICKER', width: 82 },
+  { key: 'feature_date', label: 'FEATURE DATE', width: 120 },
+  { key: 'label_date', label: 'LABEL DATE', width: 110 },
+  { key: 'future_return_pct', label: 'FWD RET%', width: 92, align: 'right',
+    render: r => {
+      const v = Number(r.future_return_pct ?? 0)
+      return <span className={`tabnum ${v >= 0 ? 'text-up' : 'text-down'}`}>{v >= 0 ? '+' : ''}{v.toFixed(2)}%</span>
+    }
+  },
+  { key: 'future_signal', label: 'LABEL', width: 72, align: 'right',
+    render: r => <span className={Number(r.future_signal ?? 0) === 1 ? 'text-up' : 'text-down'}>{Number(r.future_signal ?? 0) === 1 ? 'UP' : 'DOWN'}</span>
+  },
+  { key: 'rsi14', label: 'RSI14', width: 72, align: 'right',
+    render: r => <span className="tabnum">{Number(r.features?.rsi14 ?? 0).toFixed(1)}</span>
+  },
+  { key: 'atr_pct', label: 'ATR%', width: 72, align: 'right',
+    render: r => <span className="tabnum">{Number(r.features?.atr_pct ?? 0).toFixed(2)}</span>
+  },
+  { key: 'volume_ratio', label: 'VOL R', width: 76, align: 'right',
+    render: r => <span className="tabnum">{Number(r.features?.volume_ratio ?? 0).toFixed(2)}</span>
   },
 ]
 
@@ -74,6 +207,8 @@ const SIGNAL_COLUMNS: Column<StockResult & Record<string, unknown>>[] = [
 type Phase = 'config' | 'running' | 'results'
 type RunMode = 'simulation' | 'workflow'
 type TransactionCostType = 'fixed' | 'percent'
+type ResultTab = 'trades' | 'research' | 'training' | 'export'
+type ExitSizingMode = 'fixed_tranche' | 'remaining_fraction'
 
 type RawTrade = Omit<Trade, 'type'> & {
   action?: 'BUY' | 'SELL'
@@ -84,6 +219,38 @@ type RawEquityPoint = {
   date: string
   value?: number
   equity?: number
+}
+
+type KeyValue = {
+  label: string
+  value: string | number
+  color?: 'up' | 'down' | 'accent' | 'warn' | 'muted' | 'text'
+}
+
+type TrainingPreviewRow = {
+  ticker?: string
+  feature_date?: string
+  label_date?: string
+  prediction_horizon_days?: number
+  future_return_pct?: number
+  future_signal?: number
+  features?: Record<string, unknown>
+}
+
+type RoundTripRow = {
+  ticker?: string
+  entry_date?: string
+  exit_date?: string
+  entry_price?: number
+  exit_price?: number
+  shares?: number
+  pnl?: number
+  return_pct?: number
+}
+
+type DrawdownPoint = {
+  date: string
+  drawdown: number
 }
 
 const OVERLAY_COLORS = ['#E89B2C', '#3B82F6', '#A78BFA', '#14B8A6', '#F472B6', '#FACC15', '#94A3B8']
@@ -102,6 +269,221 @@ function normalizeEquityPoint(point: RawEquityPoint) {
   }
 }
 
+function formatMoney(value: unknown, digits = 0) {
+  const number = Number(value ?? 0)
+  return `$${number.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits })}`
+}
+
+function formatPct(value: unknown, digits = 2) {
+  const number = Number(value ?? 0)
+  return `${number >= 0 ? '+' : ''}${number.toFixed(digits)}%`
+}
+
+function formatNumber(value: unknown, digits = 2) {
+  return Number(value ?? 0).toFixed(digits)
+}
+
+function numberOrFallback(value: unknown, fallback: number) {
+  const number = Number(value)
+  return Number.isFinite(number) && number !== 0 ? number : fallback
+}
+
+function metricColor(value: unknown): KeyValue['color'] {
+  return value === 'up' || value === 'down' || value === 'accent' || value === 'warn' || value === 'muted' || value === 'text'
+    ? value
+    : 'text'
+}
+
+function downloadJson(payload: unknown, filename: string) {
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
+function buildFineTuningPayload(
+  raw: Record<string, unknown>,
+  metrics: Record<string, unknown>,
+  trades: Trade[],
+  equityCurve: Array<{ date: string; value: number }>,
+) {
+  const training = (raw.training_context ?? {}) as Record<string, unknown>
+  const runMetadata = (raw.run_metadata ?? {}) as Record<string, unknown>
+  const previewRows = (training.preview_rows ?? []) as TrainingPreviewRow[]
+  const roundTrips = (raw.round_trips ?? []) as RoundTripRow[]
+
+  return {
+    schema_version: 'tradesmart.backtest.finetune.v1',
+    generated_at: new Date().toISOString(),
+    task: 'trade_strategy_research_and_model_fine_tuning',
+    run: {
+      backtest_id: runMetadata.backtest_id,
+      strategy: raw.strategy,
+      tickers: raw.tickers,
+      start_date: raw.start_date,
+      end_date: raw.end_date,
+      metadata: runMetadata,
+    },
+    model_training: training,
+    performance: metrics,
+    alpha_verdict: raw.alpha_verdict ?? {},
+    benchmarks: raw.benchmarks ?? {},
+    position_diagnostics: raw.position_diagnostics ?? {},
+    concentration: raw.concentration ?? {},
+    risk_summary: raw.risk_summary ?? {},
+    supervised_examples: previewRows.map(row => ({
+      input: {
+        ticker: row.ticker,
+        as_of_date: row.feature_date,
+        prediction_horizon_days: row.prediction_horizon_days,
+        features: row.features,
+      },
+      output: {
+        future_return_pct: row.future_return_pct,
+        future_signal: row.future_signal,
+        label_date: row.label_date,
+      },
+    })),
+    trade_outcomes: roundTrips.map(trade => ({
+      input: {
+        ticker: trade.ticker,
+        entry_date: trade.entry_date,
+        entry_price: trade.entry_price,
+        shares: trade.shares,
+        strategy: raw.strategy,
+      },
+      output: {
+        exit_date: trade.exit_date,
+        exit_price: trade.exit_price,
+        pnl: trade.pnl,
+        return_pct: trade.return_pct,
+      },
+    })),
+    raw: {
+      trades,
+      equity_curve: equityCurve,
+      drawdown_curve: raw.drawdown_curve ?? [],
+      daily_returns: raw.daily_returns ?? [],
+    },
+  }
+}
+
+function buildRoundTripsFromTrades(trades: Trade[]): RoundTripRow[] {
+  const lots = new Map<string, Array<{ price: number; shares: number; remaining: number; cost: number; date: string }>>()
+  const roundTrips: RoundTripRow[] = []
+
+  for (const trade of trades) {
+    const shares = Number(trade.shares ?? 0)
+    const price = Number(trade.price ?? 0)
+    const cost = Number(trade.cost ?? 0)
+    if (!shares || !price) continue
+
+    if (trade.type === 'BUY') {
+      const tickerLots = lots.get(trade.ticker) ?? []
+      tickerLots.push({ price, shares, remaining: shares, cost, date: trade.date })
+      lots.set(trade.ticker, tickerLots)
+      continue
+    }
+
+    let sharesLeft = shares
+    const tickerLots = lots.get(trade.ticker) ?? []
+    while (sharesLeft > 0 && tickerLots.length) {
+      const lot = tickerLots[0]
+      const matched = Math.min(sharesLeft, lot.remaining)
+      const buyCost = lot.cost * (matched / lot.shares)
+      const sellCost = cost * (matched / shares)
+      const grossBuy = lot.price * matched
+      const pnl = (price - lot.price) * matched - buyCost - sellCost
+      roundTrips.push({
+        ticker: trade.ticker,
+        entry_date: lot.date,
+        exit_date: trade.date,
+        entry_price: lot.price,
+        exit_price: price,
+        shares: matched,
+        pnl,
+        return_pct: grossBuy ? (pnl / grossBuy) * 100 : 0,
+      })
+      lot.remaining -= matched
+      sharesLeft -= matched
+      if (lot.remaining <= 0) tickerLots.shift()
+    }
+  }
+
+  return roundTrips
+}
+
+function StatStrip({ items }: { items: KeyValue[] }) {
+  const colors = {
+    up: 'text-up',
+    down: 'text-down',
+    accent: 'text-accent',
+    warn: 'text-warn',
+    muted: 'text-muted',
+    text: 'text-text',
+  }
+
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 border-b border-border bg-s1">
+      {items.map(item => (
+        <div key={item.label} className="border-r border-border px-3 py-2 last:border-r-0">
+          <p className="text-2xs text-dim">{item.label}</p>
+          <p className={`tabnum text-sm font-medium ${colors[item.color ?? 'text']}`}>{item.value}</p>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function ResearchPanel({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="border-b border-border">
+      <div className="flex items-center justify-between bg-s1 px-3 py-2 border-b border-border">
+        <h2 className="text-2xs text-dim font-medium uppercase tracking-[0.18em]">{title}</h2>
+      </div>
+      {children}
+    </section>
+  )
+}
+
+function AlphaVerdictPanel({ verdict }: { verdict: AlphaVerdict }) {
+  const colors = {
+    up: 'text-up border-up/40',
+    down: 'text-down border-down/40',
+    accent: 'text-accent border-accent/40',
+    warn: 'text-warn border-warn/40',
+    muted: 'text-muted border-border',
+    text: 'text-text border-border',
+  }
+  const color = metricColor(verdict.color)
+  const warnings = verdict.warnings ?? []
+
+  return (
+    <section className="border-b border-border bg-s1">
+      <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr]">
+        <div className={`border-b border-r border-border px-4 py-3 lg:border-b-0 ${colors[color]}`}>
+          <p className="text-2xs text-dim">Alpha Verdict</p>
+          <p className={`mt-1 text-xl font-medium ${colors[color].split(' ')[0]}`}>{verdict.label || 'Needs Validation'}</p>
+          <p className="mt-1 text-2xs text-muted tabnum">Score {Number(verdict.score ?? 0)}</p>
+        </div>
+        <div className="px-4 py-3">
+          <p className="text-sm text-text">{verdict.summary || 'No verdict returned for this run.'}</p>
+          {warnings.length > 0 && (
+            <div className="mt-3 grid gap-1">
+              {warnings.map(warning => (
+                <p key={warning} className="text-2xs text-warn">{warning}</p>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  )
+}
+
 function backtestLookbackDays(startDate?: string, endDate?: string) {
   if (!startDate || !endDate) return 365
 
@@ -111,6 +493,114 @@ function backtestLookbackDays(startDate?: string, endDate?: string) {
 
   if (!Number.isFinite(diffMs) || diffMs <= 0) return 365
   return Math.ceil(diffMs / 86_400_000) + 10
+}
+
+function parseTickerInput(value: string) {
+  return value
+    .split(',')
+    .map(ticker => ticker.trim())
+    .filter(Boolean)
+}
+
+function fmtModelDate(value?: string | null) {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '—'
+  return `${date.toLocaleDateString()} ${date.toLocaleTimeString().slice(0, 5)}`
+}
+
+function fmtBytes(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return '—'
+  if (value < 1024) return `${value} B`
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`
+  return `${(value / 1024 / 1024).toFixed(1)} MB`
+}
+
+function artifactSummary(model: TrainedModelRecord) {
+  const entries = Object.entries(model.artifacts)
+  const present = entries.filter(([, artifact]) => artifact.exists).length
+  return `${present}/${entries.length} artifacts`
+}
+
+function ModelRegistryPanel() {
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ['trained-models'],
+    queryFn: () => api.getTrainedModels(),
+    staleTime: 60_000,
+  })
+
+  const models = data?.models ?? []
+  const activeModel = models.find(model => model.ready) ?? models[0]
+  const modelSize = activeModel
+    ? Object.values(activeModel.artifacts).reduce((total, artifact) => total + (artifact.exists ? artifact.size_bytes : 0), 0)
+    : 0
+
+  return (
+    <div className="border border-border bg-s1">
+      <div className="flex items-center gap-3 border-b border-border px-3 py-2">
+        <div>
+          <h2 className="text-2xs font-medium text-text">Model Registry</h2>
+        </div>
+        <button
+          type="button"
+          onClick={() => refetch()}
+          className="ml-auto border border-border-strong px-2 py-1 text-2xs text-muted hover:text-text"
+        >
+          Refresh
+        </button>
+      </div>
+
+      {isLoading ? (
+        <p className="p-3 text-2xs text-muted">Loading trained models...</p>
+      ) : error ? (
+        <p className="p-3 text-2xs text-down">Failed to load trained models.</p>
+      ) : !models.length ? (
+        <div className="p-3">
+          <p className="text-2xs text-warn">No trained model artifacts found.</p>
+          <p className="mt-1 text-2xs text-dim">Run ML training to create files under cache/models.</p>
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-3 gap-px bg-border">
+            <MetricTile label="Models" value={data?.count ?? models.length} size="sm" />
+            <MetricTile label="Ready" value={models.filter(model => model.ready).length} color={models.some(model => model.ready) ? 'up' : 'warn'} size="sm" />
+            <MetricTile label="Storage" value={fmtBytes(modelSize)} color="muted" size="sm" />
+          </div>
+
+          <div className="divide-y divide-border">
+            {models.map(model => (
+              <div key={model.id} className="px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <span className={`h-1.5 w-1.5 rounded-full ${model.ready ? 'bg-up' : 'bg-warn'}`} aria-hidden="true" />
+                  <span className="min-w-0 truncate text-2xs font-medium text-text">{model.name}</span>
+                  <span className="ml-auto shrink-0 text-2xs text-muted">{model.ready ? 'ready' : 'incomplete'}</span>
+                </div>
+                <div className="mt-1 grid grid-cols-2 gap-x-4 gap-y-1 text-2xs text-dim">
+                  <span className="truncate">Type <span className="text-muted">{model.model_type}</span></span>
+                  <span className="truncate">Scope <span className="text-muted">{model.scope}</span></span>
+                  <span className="truncate">Trained <span className="text-muted">{fmtModelDate(model.trained_at)}</span></span>
+                  <span className="truncate">Samples <span className="text-muted tabnum">{model.sample_count ?? '—'}</span></span>
+                  <span className="truncate">Features <span className="text-muted tabnum">{model.feature_count}</span></span>
+                  <span className="truncate">{artifactSummary(model)}</span>
+                </div>
+                {model.feature_names.length > 0 && (
+                  <p className="mt-1 truncate text-2xs text-dim" title={model.feature_names.join(', ')}>
+                    {model.feature_names.join(', ')}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="border-t border-border px-3 py-2">
+            <p className="text-2xs text-dim">
+              Stored at <span className="tabnum text-muted">{data?.storage.path ?? 'cache/models'}</span>. Model binaries stay server-side;
+            </p>
+          </div>
+        </>
+      )}
+    </div>
+  )
 }
 
 function buildPriceOverlay(
@@ -124,7 +614,7 @@ function buildPriceOverlay(
 
   const points = history.dates
     .map((date, i) => ({
-      date,
+      date: String(date),
       value: Number(history.close?.[i] ?? history.prices?.[i]),
     }))
     .filter(point => (
@@ -140,8 +630,9 @@ function buildPriceOverlay(
 }
 
 export default function Backtest() {
-  const location = useLocation()
-  const initialMode: RunMode = location.pathname.includes('integrated') ? 'workflow' : 'simulation'
+  const defaultTxCost = useAppStore(s => s.settings.backtestTxCost)
+  const defaultTxCostType = useAppStore(s => s.settings.backtestTxCostType)
+  const initialMode: RunMode = 'simulation'
   const [phase, setPhase] = useState<Phase>('config')
   const [runMode, setRunMode] = useState<RunMode>(initialMode)
   const [resultMode, setResultMode] = useState<RunMode>(initialMode)
@@ -150,8 +641,16 @@ export default function Backtest() {
   const [days, setDays] = useState('365')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
-  const [txCostType, setTxCostType] = useState<TransactionCostType>('percent')
-  const [txCost, setTxCost] = useState('0.10')
+  const [txCostType, setTxCostType] = useState<TransactionCostType>(defaultTxCostType)
+  const [txCost, setTxCost] = useState(defaultTxCost)
+  const [initialCapital, setInitialCapital] = useState('100000')
+  const [buyThreshold, setBuyThreshold] = useState(DEFAULT_BUY_THRESHOLD)
+  const [sellThreshold, setSellThreshold] = useState(DEFAULT_SELL_THRESHOLD)
+  const [partialExitPct, setPartialExitPct] = useState('25')
+  const [exitSizingMode, setExitSizingMode] = useState<ExitSizingMode>('fixed_tranche')
+  const [reentryCooldownDays, setReentryCooldownDays] = useState('10')
+  const [reentryDiscountPct, setReentryDiscountPct] = useState('1.0')
+  const [allowPyramiding, setAllowPyramiding] = useState(false)
   const [simulateTrading, setSimulateTrading] = useState(true)
   const [useMl, setUseMl] = useState(true)
   const [executeTrades, setExecuteTrades] = useState(false)
@@ -159,7 +658,10 @@ export default function Backtest() {
   const [systemId, setSystemId] = useState<string | null>(null)
   const [sseUrl, setSseUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const tickersForRun = parseTickerInput(tickerInput)
+  const overTickerLimit = tickersForRun.length > MAX_FREE_TICKERS
   const [selectedOverlayTickers, setSelectedOverlayTickers] = useState<string[]>([])
+  const [activeResultTab, setActiveResultTab] = useState<ResultTab>('trades')
 
   const { messages, progress, status, lastMessage } = useSSE(sseUrl)
 
@@ -203,19 +705,23 @@ export default function Backtest() {
   }
 
   if (status === 'error' && phase === 'running') {
-    setError('System run failed. Check the log above.')
+    setError('Quant trading run failed. Check the log above.')
     setPhase('config')
     setSseUrl(null)
   }
 
   async function startRun() {
-    const tickers = tickerInput.trim()
-    if (!tickers) return
+    const tickerList = parseTickerInput(tickerInput)
+    if (!tickerList.length) return
+    if (tickerList.length > MAX_FREE_TICKERS) {
+      setError('3 tickers is the max for now. Log in to run larger universes because they are computationally heavy.')
+      return
+    }
     setError(null)
     setSelectedOverlayTickers([])
+    setActiveResultTab('trades')
     setPhase('running')
     try {
-      const tickerList = tickers.split(',').map(t => t.trim()).filter(Boolean)
       if (runMode === 'workflow') {
         const resp = await api.runIntegrated({
           tickers: tickerList,
@@ -236,12 +742,21 @@ export default function Backtest() {
         days: parseInt(days) || 365,
         custom_transaction_cost: Number.isFinite(parseFloat(txCost)) ? parseFloat(txCost) : undefined,
         transaction_cost_type: txCostType,
+        buy_threshold: parseInt(buyThreshold) || Number(DEFAULT_BUY_THRESHOLD),
+        sell_threshold: parseInt(sellThreshold) || Number(DEFAULT_SELL_THRESHOLD),
+        partial_exit_fraction: (parseFloat(partialExitPct) || 25) / 100,
+        exit_sizing_mode: exitSizingMode,
+        reentry_cooldown_days: parseInt(reentryCooldownDays) || 0,
+        min_reentry_discount_pct: Number.isFinite(parseFloat(reentryDiscountPct)) ? parseFloat(reentryDiscountPct) : 1,
+        allow_pyramiding: allowPyramiding,
+        training_lookback_days: DEFAULT_TRAINING_LOOKBACK_DAYS,
+        initial_capital: parseFloat(initialCapital) > 0 ? parseFloat(initialCapital) : undefined,
       })
       setBacktestId(resp.backtest_id)
       setSystemId(null)
       setSseUrl(`/backtest_progress_stream?backtest_id=${resp.backtest_id}`)
     } catch (e: unknown) {
-      setError(`Failed to start system run: ${e instanceof Error ? e.message : String(e)}`)
+      setError(`Failed to start quant trading run: ${e instanceof Error ? e.message : String(e)}`)
       setPhase('config')
     }
   }
@@ -253,6 +768,7 @@ export default function Backtest() {
     setSseUrl(null)
     setError(null)
     setSelectedOverlayTickers([])
+    setActiveResultTab('trades')
   }
 
   function toggleOverlayTicker(ticker: string) {
@@ -265,35 +781,52 @@ export default function Backtest() {
 
   if (phase === 'config') {
     return (
-      <div className="p-4 max-w-4xl mx-auto">
-        <h1 className="text-sm text-text font-medium mb-4">System</h1>
+      <div className="mx-auto grid max-w-6xl gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <div>
+          <h1 className="text-sm text-text font-medium mb-1">Quant Trading</h1>
+          <p className="mb-4 text-2xs text-dim">
+            Experimental research tool only; not financial advice.
+          </p>
 
-        <div className="flex gap-px mb-3 border border-border bg-border">
-          {([
-            ['simulation', 'Simulation'],
-            ['workflow', 'Integrated'],
-          ] as Array<[RunMode, string]>).map(([mode, label]) => (
-            <button
-              key={mode}
-              onClick={() => setRunMode(mode)}
-              className={[
-                'flex-1 bg-s1 px-3 py-2 text-sm',
-                runMode === mode ? 'text-accent' : 'text-muted hover:text-text',
-              ].join(' ')}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+          <div className="flex gap-px mb-3 border border-border bg-border">
+            {([
+              ['simulation', 'Simulation'],
+              ['workflow', 'Integrated (Live)'],
+            ] as Array<[RunMode, string]>).map(([mode, label]) => (
+              <button
+                key={mode}
+                onClick={() => {
+                  if (mode === 'workflow') return
+                  setRunMode(mode)
+                }}
+                disabled={mode === 'workflow'}
+                title={mode === 'workflow' ? 'Integrated system is disabled for now.' : undefined}
+                aria-disabled={mode === 'workflow'}
+                className={[
+                  'flex-1 bg-s1 px-3 py-2 text-sm',
+                  mode === 'workflow'
+                    ? 'cursor-not-allowed text-dim opacity-45'
+                    : runMode === mode
+                      ? 'text-accent'
+                      : 'text-muted hover:text-text',
+                ].join(' ')}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
 
-        <div className="border border-border bg-s1">
+          <div className="border border-border bg-s1">
           {/* Tickers */}
           <div className="flex items-start gap-2 p-2 border-b border-border">
             <span className="text-muted text-sm pt-px select-none shrink-0">{'>'}</span>
             <textarea
               value={tickerInput}
-              onChange={e => setTickerInput(e.target.value)}
-              placeholder="AAPL, MSFT, GOOGL  —  comma separated"
+              onChange={e => {
+                setTickerInput(e.target.value)
+                if (error) setError(null)
+              }}
+              placeholder="AAPL, MSFT, GOOGL  —  max 3"
               rows={3}
               className="flex-1 bg-transparent text-text text-sm placeholder:text-dim resize-none outline-none"
               aria-label="Ticker symbols"
@@ -375,6 +908,97 @@ export default function Backtest() {
                 ))}
               </div>
             </div>
+            <div className="bg-s1 p-2">
+              <label className="text-2xs text-dim block mb-1">Buy Threshold</label>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                value={buyThreshold}
+                onChange={e => setBuyThreshold(e.target.value)}
+                disabled={runMode !== 'simulation' || strategy !== 'ml'}
+                className="w-full bg-s2 text-text text-sm border border-border px-2 py-1 outline-none focus:border-accent tabnum"
+              />
+            </div>
+            <div className="bg-s1 p-2">
+              <label className="text-2xs text-dim block mb-1">Sell Threshold</label>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                value={sellThreshold}
+                onChange={e => setSellThreshold(e.target.value)}
+                disabled={runMode !== 'simulation' || strategy !== 'ml'}
+                className="w-full bg-s2 text-text text-sm border border-border px-2 py-1 outline-none focus:border-accent tabnum"
+              />
+            </div>
+            <div className="bg-s1 p-2">
+              <label className="text-2xs text-dim block mb-1">Partial Exit %</label>
+              <input
+                type="number"
+                min="5"
+                max="100"
+                step="5"
+                value={partialExitPct}
+                onChange={e => setPartialExitPct(e.target.value)}
+                disabled={runMode !== 'simulation'}
+                className="w-full bg-s2 text-text text-sm border border-border px-2 py-1 outline-none focus:border-accent tabnum"
+              />
+            </div>
+            <div className="bg-s1 p-2">
+              <label className="text-2xs text-dim block mb-1">Exit Sizing</label>
+              <div className="flex gap-px border border-border bg-border">
+                {([
+                  ['fixed_tranche', 'Fixed Tranche'],
+                  ['remaining_fraction', 'Half-Life'],
+                ] as Array<[ExitSizingMode, string]>).map(([mode, label]) => (
+                  <button
+                    key={mode}
+                    onClick={() => setExitSizingMode(mode)}
+                    disabled={runMode !== 'simulation'}
+                    className={[
+                      'flex-1 bg-s2 px-2 py-1 text-2xs',
+                      exitSizingMode === mode ? 'text-accent' : 'text-muted hover:text-text',
+                    ].join(' ')}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="bg-s1 p-2">
+              <label className="text-2xs text-dim block mb-1">Re-entry Cooldown</label>
+              <input
+                type="number"
+                min="0"
+                value={reentryCooldownDays}
+                onChange={e => setReentryCooldownDays(e.target.value)}
+                disabled={runMode !== 'simulation'}
+                className="w-full bg-s2 text-text text-sm border border-border px-2 py-1 outline-none focus:border-accent tabnum"
+              />
+            </div>
+            <div className="bg-s1 p-2">
+              <label className="text-2xs text-dim block mb-1">Re-entry Discount %</label>
+              <input
+                type="number"
+                min="0"
+                step="0.25"
+                value={reentryDiscountPct}
+                onChange={e => setReentryDiscountPct(e.target.value)}
+                disabled={runMode !== 'simulation'}
+                className="w-full bg-s2 text-text text-sm border border-border px-2 py-1 outline-none focus:border-accent tabnum"
+              />
+            </div>
+            <div className="bg-s1 p-2 flex items-center justify-between">
+              <label className="text-2xs text-dim">Allow Pyramiding</label>
+              <button
+                onClick={() => setAllowPyramiding(v => !v)}
+                disabled={runMode !== 'simulation'}
+                className={`text-2xs px-2 py-1 border ${allowPyramiding ? 'border-warn text-warn' : 'border-border text-muted hover:text-text'}`}
+              >
+                {allowPyramiding ? 'ON' : 'OFF'}
+              </button>
+            </div>
             <div className="bg-s1 p-2 flex items-center justify-between">
               <label className="text-2xs text-dim">Simulate Trading</label>
               <button
@@ -407,6 +1031,19 @@ export default function Backtest() {
             </div>
           </div>
 
+           </div>
+            <div className="bg-s1 p-2">
+              <label className="text-2xs text-dim block mb-1">Initial Capital ($)</label>
+              <input
+                type="number"
+                min="1000"
+                step="1000"
+                value={initialCapital}
+                onChange={e => setInitialCapital(e.target.value)}
+                disabled={runMode !== 'simulation'}
+                className="w-full bg-s2 text-text text-sm border border-border px-2 py-1 outline-none focus:border-accent tabnum"
+              />
+
           {runMode === 'simulation' && !simulateTrading && (
             <div className="px-3 py-2 border-t border-border bg-s2">
               <p className="text-2xs text-warn">Simulation trading is off. Turn it on to run a trade-level backtest.</p>
@@ -421,12 +1058,9 @@ export default function Backtest() {
 
           {/* Toolbar */}
           <div className="flex items-center gap-2 px-2 py-1.5">
-            <button
-              onClick={() => setTickerInput(ASX200)}
-              className="text-2xs text-muted border border-border-strong px-2 py-1 hover:text-text"
-            >
-              Load ASX sample
-            </button>
+            <span className={`text-2xs tabnum ${overTickerLimit ? 'text-warn' : 'text-dim'}`}>
+              {tickersForRun.length}/{MAX_FREE_TICKERS} tickers
+            </span>
             <button
               onClick={startRun}
               disabled={!tickerInput.trim() || (runMode === 'simulation' && !simulateTrading)}
@@ -438,6 +1072,11 @@ export default function Backtest() {
         </div>
 
         {error && <p className="mt-2 text-2xs text-down" role="alert">{error}</p>}
+        </div>
+
+        <div className="lg:pt-14">
+          <ModelRegistryPanel />
+        </div>
       </div>
     )
   }
@@ -446,7 +1085,7 @@ export default function Backtest() {
     return (
       <div className="p-4 max-w-2xl mx-auto">
         <div className="flex items-center justify-between mb-3">
-          <span className="text-sm text-text font-medium">System running…</span>
+          <span className="text-sm text-text font-medium">Quant trading running...</span>
           <span className="text-2xs text-dim tabnum">{progress}%</span>
         </div>
         <ProgressBar value={progress} />
@@ -478,7 +1117,7 @@ export default function Backtest() {
     return (
       <div className="flex flex-col h-full">
         <div className="flex items-center gap-3 px-4 py-2 border-b border-border bg-s1 shrink-0">
-          <button onClick={reset} className="text-2xs text-dim hover:text-text">← New system run</button>
+          <button onClick={reset} className="text-2xs text-dim hover:text-text">← New quant run</button>
           <span className="text-border">|</span>
           <span className="text-2xs text-muted tabnum">Integrated · {tickers.length} tickers processed</span>
         </div>
@@ -517,19 +1156,38 @@ export default function Backtest() {
   }
 
   const raw = results
+  const trades = ((raw.trades ?? []) as RawTrade[]).map(normalizeTrade)
+  const equity_curve = ((raw.equity_curve ?? []) as RawEquityPoint[])
+    .map(normalizeEquityPoint)
+    .filter(point => point.date && Number.isFinite(point.value))
+  const inferredInitialCapital = equity_curve[0]?.value ?? 0
+  const inferredFinalCapital = equity_curve[equity_curve.length - 1]?.value ?? inferredInitialCapital
+  const inferredTradeValue = trades.reduce((sum, trade) => sum + Number(trade.value ?? (trade.price * (trade.shares ?? 0)) ?? 0), 0)
+  const inferredCosts = trades.reduce((sum, trade) => sum + Number(trade.cost ?? 0), 0)
+  const inferredBuyCount = trades.filter(trade => trade.type === 'BUY').length
+  const inferredSellCount = trades.filter(trade => trade.type === 'SELL').length
   const metrics = {
     total_return:      Number(raw.metrics?.total_return      ?? 0),
     annualized_return: raw.metrics?.annualized_return != null ? Number(raw.metrics.annualized_return) : undefined,
     sharpe_ratio:      Number(raw.metrics?.sharpe_ratio      ?? 0),
     max_drawdown:      Number(raw.metrics?.max_drawdown      ?? 0),
     win_rate:          Number(raw.metrics?.win_rate          ?? 0),
-    num_trades:        Number(raw.metrics?.num_trades        ?? 0),
+    num_trades:        numberOrFallback(raw.metrics?.num_trades, trades.length),
     profit_factor:     raw.metrics?.profit_factor != null ? Number(raw.metrics.profit_factor) : undefined,
+    initial_capital:   numberOrFallback(raw.metrics?.initial_capital, inferredInitialCapital),
+    final_capital:     numberOrFallback(raw.metrics?.final_capital, inferredFinalCapital),
+    total_transaction_costs: numberOrFallback(raw.metrics?.total_transaction_costs, inferredCosts),
+    transaction_cost_percentage: Number(raw.metrics?.transaction_cost_percentage ?? 0),
+    total_trade_value: numberOrFallback(raw.metrics?.total_trade_value, inferredTradeValue),
+    avg_trade_value:   numberOrFallback(raw.metrics?.avg_trade_value, trades.length ? inferredTradeValue / trades.length : 0),
+    buy_count:         numberOrFallback(raw.metrics?.buy_count, inferredBuyCount),
+    sell_count:        numberOrFallback(raw.metrics?.sell_count, inferredSellCount),
+    avg_daily_return:  Number(raw.metrics?.avg_daily_return  ?? 0),
+    daily_volatility:  Number(raw.metrics?.daily_volatility  ?? 0),
+    annualized_volatility: Number(raw.metrics?.annualized_volatility ?? 0),
+    best_day:          Number(raw.metrics?.best_day          ?? 0),
+    worst_day:         Number(raw.metrics?.worst_day         ?? 0),
   }
-  const trades = ((raw.trades ?? []) as RawTrade[]).map(normalizeTrade)
-  const equity_curve = ((raw.equity_curve ?? []) as RawEquityPoint[])
-    .map(normalizeEquityPoint)
-    .filter(point => point.date && Number.isFinite(point.value))
   const tradeData = (trades as unknown as Array<Trade & Record<string, unknown>>)
   const overlayTickers = raw.tickers.map(ticker => ticker.toUpperCase())
   const overlayLoading = overlayQueries.some(q => q.isLoading || q.isFetching)
@@ -542,21 +1200,114 @@ export default function Backtest() {
       raw.end_date,
     ))
     .filter((overlay): overlay is PriceOverlay => overlay !== null)
+  const resultRecord = raw as unknown as Record<string, unknown>
+  const trainingContext = (resultRecord.training_context ?? {}) as Record<string, unknown>
+  const riskSummaryRaw = (resultRecord.risk_summary ?? {}) as Record<string, unknown>
+  const runMetadata = (resultRecord.run_metadata ?? {}) as Record<string, unknown>
+  const alphaVerdict = (resultRecord.alpha_verdict ?? {
+    label: 'Needs Validation',
+    color: 'warn',
+    score: 0,
+    summary: 'No alpha verdict was returned for this run.',
+    warnings: [],
+  }) as AlphaVerdict
+  const benchmarks = (resultRecord.benchmarks ?? {}) as BacktestBenchmark
+  const positionDiagnostics = (resultRecord.position_diagnostics ?? {}) as Record<string, unknown>
+  const concentration = (resultRecord.concentration ?? {}) as Record<string, unknown>
+  const trainingRows = ((trainingContext.preview_rows ?? []) as TrainingPreviewRow[])
+    .map(row => ({ ...row, ...row.features }))
+  const featureImportance = Object.entries((trainingContext.feature_importance ?? {}) as Record<string, number>)
+    .slice(0, 12)
+  const apiRoundTrips = ((resultRecord.round_trips ?? []) as RoundTripRow[])
+    .map(row => ({ ...row }))
+  const roundTrips = apiRoundTrips.length ? apiRoundTrips : buildRoundTripsFromTrades(trades)
+  const positionRoundTrips = ((positionDiagnostics.position_round_trips ?? []) as PositionRoundTrip[])
+    .map(row => ({ ...row }))
+  const tickerPnl = ((concentration.ticker_pnl ?? []) as TickerPnlRow[])
+    .map(row => ({ ...row }))
+  const benchmarkRows: BenchmarkRow[] = [
+    {
+      name: 'Equal-weight basket',
+      return_pct: Number(benchmarks.equal_weight_return ?? 0),
+      delta: Number(benchmarks.strategy_vs_equal_weight ?? metrics.total_return - Number(benchmarks.equal_weight_return ?? 0)),
+    },
+    {
+      name: 'Cash',
+      return_pct: Number(benchmarks.cash_return ?? 0),
+      delta: Number(benchmarks.strategy_vs_cash ?? metrics.total_return),
+    },
+  ]
+  if (benchmarks.technical_rule) {
+    benchmarkRows.push({
+      name: 'Simple technical rule',
+      return_pct: Number(benchmarks.technical_rule.return ?? 0),
+      delta: Number(benchmarks.strategy_vs_technical ?? metrics.total_return - Number(benchmarks.technical_rule.return ?? 0)),
+    })
+  }
+  if (benchmarks.best_ticker?.ticker) {
+    benchmarkRows.push({
+      name: `Best constituent: ${benchmarks.best_ticker.ticker}`,
+      return_pct: Number(benchmarks.best_ticker.return_pct ?? 0),
+      delta: metrics.total_return - Number(benchmarks.best_ticker.return_pct ?? 0),
+    })
+  }
+  if (benchmarks.worst_ticker?.ticker) {
+    benchmarkRows.push({
+      name: `Worst constituent: ${benchmarks.worst_ticker.ticker}`,
+      return_pct: Number(benchmarks.worst_ticker.return_pct ?? 0),
+      delta: metrics.total_return - Number(benchmarks.worst_ticker.return_pct ?? 0),
+    })
+  }
+  const riskSummary: Record<string, unknown> = {
+    ...riskSummaryRaw,
+    completed_round_trips: numberOrFallback(riskSummaryRaw.completed_round_trips, roundTrips.length),
+    winning_round_trips: numberOrFallback(riskSummaryRaw.winning_round_trips, roundTrips.filter(trade => Number(trade.pnl ?? 0) > 0).length),
+    losing_round_trips: numberOrFallback(riskSummaryRaw.losing_round_trips, roundTrips.filter(trade => Number(trade.pnl ?? 0) <= 0).length),
+    turnover_to_initial_capital: numberOrFallback(riskSummaryRaw.turnover_to_initial_capital, metrics.initial_capital ? metrics.total_trade_value / metrics.initial_capital : 0),
+    average_transaction_cost: numberOrFallback(riskSummaryRaw.average_transaction_cost, trades.length ? metrics.total_transaction_costs / trades.length : 0),
+  }
+  const completedRoundTrips = Number(riskSummary.completed_round_trips ?? 0)
+  const drawdownCurve = ((resultRecord.drawdown_curve ?? []) as DrawdownPoint[])
+  const fineTuningPayload = buildFineTuningPayload(resultRecord, metrics, trades, equity_curve)
+  const exportFilename = `tradesmart-backtest-${raw.strategy || 'strategy'}-${raw.start_date || 'start'}-${raw.end_date || 'end'}.json`
+  const topStats: KeyValue[] = [
+    { label: 'Total Return', value: formatPct(metrics.total_return), color: metrics.total_return >= 0 ? 'up' : 'down' },
+    { label: 'Final Equity', value: formatMoney(metrics.final_capital), color: metrics.final_capital >= metrics.initial_capital ? 'up' : 'down' },
+    { label: 'Sharpe', value: formatNumber(metrics.sharpe_ratio), color: metrics.sharpe_ratio >= 1 ? 'up' : metrics.sharpe_ratio >= 0 ? 'warn' : 'down' },
+    { label: 'Max Drawdown', value: formatPct(-Math.abs(metrics.max_drawdown)), color: 'down' },
+    { label: 'Trades', value: metrics.num_trades, color: 'text' },
+    { label: 'Training Samples', value: Number(trainingContext.sample_count ?? 0).toLocaleString(), color: Number(trainingContext.sample_count ?? 0) > 0 ? 'accent' : 'muted' },
+  ]
+
+  const resultTabs: Array<{ key: ResultTab; label: string; icon: typeof Table2 }> = [
+    { key: 'trades', label: 'Trades', icon: Table2 },
+    { key: 'research', label: 'Research', icon: Activity },
+    { key: 'training', label: 'Training Data', icon: Database },
+    { key: 'export', label: 'Fine-Tune JSON', icon: FileJson },
+  ]
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-2 border-b border-border bg-s1 shrink-0">
+      <div className="flex flex-wrap items-center gap-3 px-4 py-2 border-b border-border bg-s1 shrink-0">
         <button onClick={reset} className="text-2xs text-dim hover:text-text">
-          ← New system run
+          ← New quant run
         </button>
         <span className="text-border">|</span>
         <span className="text-2xs text-muted tabnum">
           Simulation · {results.strategy} · {results.tickers.length} tickers · {results.start_date} → {results.end_date}
         </span>
+        <button
+          onClick={() => downloadJson(fineTuningPayload, exportFilename)}
+          className="ml-auto inline-flex items-center gap-1.5 border border-accent bg-accent px-2.5 py-1 text-2xs font-medium text-bg hover:opacity-90"
+        >
+          <Download size={13} aria-hidden="true" />
+          Export JSON
+        </button>
       </div>
 
-      {/* Equity curve with trade markers */}
+      <StatStrip items={topStats} />
+      <AlphaVerdictPanel verdict={alphaVerdict} />
+
       {equity_curve && equity_curve.length > 0 && (
         <div className="shrink-0 border-b border-border">
           <div className="flex items-center gap-2 px-3 py-1 bg-s1 border-b border-border">
@@ -597,46 +1348,241 @@ export default function Backtest() {
               </>
             )}
           </div>
-          <EquityChart equityCurve={equity_curve} trades={trades} overlays={overlays} height={240} />
+          <EquityChart equityCurve={equity_curve} trades={trades} overlays={overlays} height={220} />
         </div>
       )}
 
+      <div className="flex items-center gap-px border-b border-border bg-border shrink-0">
+        {resultTabs.map(tab => {
+          const Icon = tab.icon
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setActiveResultTab(tab.key)}
+              className={[
+                'inline-flex items-center gap-1.5 bg-s1 px-3 py-2 text-2xs',
+                activeResultTab === tab.key ? 'text-accent' : 'text-muted hover:text-text',
+              ].join(' ')}
+            >
+              <Icon size={13} aria-hidden="true" />
+              {tab.label}
+            </button>
+          )
+        })}
+      </div>
+
       <div className="flex flex-1 overflow-hidden">
-        {/* Trades table */}
         <div className="flex-1 overflow-auto">
-          <DataTable
-            columns={TRADE_COLUMNS}
-            data={tradeData}
-            rowKey={r => `${r.date}-${r.ticker}-${r.type}`}
-            emptyMessage="No trades recorded."
-          />
+          {activeResultTab === 'trades' && (
+            <DataTable
+              columns={TRADE_COLUMNS}
+              data={tradeData}
+              rowKey={r => `${r.date}-${r.ticker}-${r.type}-${r.price}-${r.shares}`}
+              emptyMessage="No trades recorded."
+            />
+          )}
+
+          {activeResultTab === 'research' && (
+            <div>
+              <ResearchPanel title="Execution Diagnostics">
+                <div className="grid grid-cols-2 md:grid-cols-4">
+                  <MetricTile label="Initial Capital" value={formatMoney(metrics.initial_capital)} size="sm" />
+                  <MetricTile label="Final Capital" value={formatMoney(metrics.final_capital)} color={metrics.final_capital >= metrics.initial_capital ? 'up' : 'down'} size="sm" />
+                  <MetricTile label="Total Notional" value={formatMoney(metrics.total_trade_value)} size="sm" />
+                  <MetricTile label="Avg Trade" value={formatMoney(metrics.avg_trade_value)} size="sm" />
+                  <MetricTile label="Buys" value={metrics.buy_count} color="up" size="sm" />
+                  <MetricTile label="Sells" value={metrics.sell_count} color="down" size="sm" />
+                  <MetricTile label="Round Trips" value={Number(riskSummary.completed_round_trips ?? 0)} size="sm" />
+                  <MetricTile label="Open Lots" value={Number(riskSummary.open_positions_estimate ?? 0)} color="warn" size="sm" />
+                </div>
+              </ResearchPanel>
+
+              <ResearchPanel title="Benchmark Comparison">
+                <div className="grid grid-cols-2 md:grid-cols-4">
+                  <MetricTile
+                    label="Vs Equal Weight"
+                    value={`${Number(benchmarks.strategy_vs_equal_weight ?? 0) >= 0 ? '+' : ''}${Number(benchmarks.strategy_vs_equal_weight ?? 0).toFixed(2)}`}
+                    unit="pp"
+                    color={Number(benchmarks.strategy_vs_equal_weight ?? 0) >= 0 ? 'up' : 'down'}
+                    size="sm"
+                  />
+                  <MetricTile
+                    label="Vs Technical"
+                    value={`${Number(benchmarks.strategy_vs_technical ?? 0) >= 0 ? '+' : ''}${Number(benchmarks.strategy_vs_technical ?? 0).toFixed(2)}`}
+                    unit="pp"
+                    color={Number(benchmarks.strategy_vs_technical ?? 0) >= 0 ? 'up' : 'down'}
+                    size="sm"
+                  />
+                  <MetricTile label="Best Constituent" value={benchmarks.best_ticker?.ticker ?? '—'} color="up" size="sm" />
+                  <MetricTile label="Worst Constituent" value={benchmarks.worst_ticker?.ticker ?? '—'} color="down" size="sm" />
+                </div>
+                <DataTable
+                  columns={BENCHMARK_COLUMNS}
+                  data={benchmarkRows as Array<BenchmarkRow & Record<string, unknown>>}
+                  rowKey={r => r.name}
+                  emptyMessage="No benchmark data returned."
+                />
+              </ResearchPanel>
+
+              <ResearchPanel title="Position-Level Diagnostics">
+                <div className="grid grid-cols-2 md:grid-cols-4">
+                  <MetricTile label="Completed Positions" value={Number(positionDiagnostics.completed_positions ?? 0)} size="sm" />
+                  <MetricTile label="Position Win Rate" value={`${(Number(positionDiagnostics.position_win_rate ?? 0) * 100).toFixed(1)}`} unit="%" color={Number(positionDiagnostics.position_win_rate ?? 0) >= 0.5 ? 'up' : 'down'} size="sm" />
+                  <MetricTile label="Position PF" value={Number(positionDiagnostics.position_profit_factor ?? 0).toFixed(2)} color={Number(positionDiagnostics.position_profit_factor ?? 0) >= 1 ? 'up' : 'down'} size="sm" />
+                  <MetricTile label="Gross Loss" value={formatMoney(positionDiagnostics.gross_position_loss, 2)} color={Number(positionDiagnostics.gross_position_loss ?? 0) > 0 ? 'down' : 'warn'} size="sm" />
+                </div>
+                <DataTable
+                  columns={POSITION_COLUMNS}
+                  data={positionRoundTrips as Array<PositionRoundTrip & Record<string, unknown>>}
+                  rowKey={r => `${r.ticker}-${r.entry_date}-${r.entry_price}`}
+                  emptyMessage="No position-level exits returned."
+                />
+              </ResearchPanel>
+
+              <ResearchPanel title="Concentration Stress">
+                <div className="grid grid-cols-2 md:grid-cols-4">
+                  <MetricTile label="Realized P&L" value={formatMoney(concentration.realized_pnl, 2)} color={Number(concentration.realized_pnl ?? 0) >= 0 ? 'up' : 'down'} size="sm" />
+                  <MetricTile label="Top Ticker" value={String(concentration.top_ticker ?? '—')} color="accent" size="sm" />
+                  <MetricTile label="Top Profit Share" value={`${(Number(concentration.top_ticker_profit_share ?? 0) * 100).toFixed(1)}`} unit="%" color={Number(concentration.top_ticker_profit_share ?? 0) > 0.4 ? 'warn' : 'text'} size="sm" />
+                  <MetricTile label="Without Best Trade" value={formatPct(concentration.return_without_best_trade)} color={Number(concentration.return_without_best_trade ?? 0) >= 0 ? 'up' : 'down'} size="sm" />
+                </div>
+                <DataTable
+                  columns={TICKER_PNL_COLUMNS}
+                  data={tickerPnl as Array<TickerPnlRow & Record<string, unknown>>}
+                  rowKey={r => r.ticker}
+                  emptyMessage="No realized ticker contribution yet."
+                />
+              </ResearchPanel>
+
+              <ResearchPanel title="Risk And Costs">
+                <div className="grid grid-cols-2 md:grid-cols-4">
+                  <MetricTile label="Avg Daily Return" value={formatPct(metrics.avg_daily_return)} color={metrics.avg_daily_return >= 0 ? 'up' : 'down'} size="sm" />
+                  <MetricTile label="Daily Vol" value={formatNumber(metrics.daily_volatility)} unit="%" color="warn" size="sm" />
+                  <MetricTile label="Ann. Vol" value={formatNumber(metrics.annualized_volatility)} unit="%" color="warn" size="sm" />
+                  <MetricTile label="Best Day" value={formatPct(metrics.best_day)} color="up" size="sm" />
+                  <MetricTile label="Worst Day" value={formatPct(metrics.worst_day)} color="down" size="sm" />
+                  <MetricTile label="Total Costs" value={formatMoney(metrics.total_transaction_costs, 2)} color="warn" size="sm" />
+                  <MetricTile label="Cost Drag" value={formatNumber(metrics.transaction_cost_percentage)} unit="%" color="warn" size="sm" />
+                  <MetricTile label="Turnover" value={formatNumber(Number(riskSummary.turnover_to_initial_capital ?? 0))} unit="x" size="sm" />
+                </div>
+              </ResearchPanel>
+
+              <ResearchPanel title="Completed Round Trips">
+                <DataTable
+                  columns={ROUND_TRIP_COLUMNS}
+                  data={roundTrips as Array<RoundTripRow & Record<string, unknown>>}
+                  rowKey={r => `${r.ticker}-${r.entry_date}-${r.exit_date}-${r.shares}`}
+                  emptyMessage="No completed round trips yet."
+                />
+              </ResearchPanel>
+
+              <ResearchPanel title="Drawdown Tail">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
+                  {drawdownCurve.slice(-12).map(point => (
+                    <div key={`${point.date}-${point.drawdown}`} className="flex items-center justify-between border-b border-r border-border px-3 py-2">
+                      <span className="text-2xs text-muted tabnum">{point.date}</span>
+                      <span className="text-2xs text-down tabnum">-{Math.abs(Number(point.drawdown ?? 0)).toFixed(2)}%</span>
+                    </div>
+                  ))}
+                  {!drawdownCurve.length && <p className="p-4 text-sm text-muted">No drawdown series returned.</p>}
+                </div>
+              </ResearchPanel>
+            </div>
+          )}
+
+          {activeResultTab === 'training' && (
+            <div>
+              <ResearchPanel title="Point-In-Time Training Context">
+                <div className="grid grid-cols-2 md:grid-cols-4">
+                  <MetricTile label="Model Trained" value={trainingContext.model_trained ? 'Yes' : 'No'} color={trainingContext.model_trained ? 'up' : 'warn'} size="sm" />
+                  <MetricTile label="Samples" value={Number(trainingContext.sample_count ?? 0).toLocaleString()} color="accent" size="sm" />
+                  <MetricTile label="Feature Window" value={`${trainingContext.min_feature_date ?? '—'} → ${trainingContext.max_feature_date ?? '—'}`} size="sm" />
+                  <MetricTile label="Label Cutoff" value={String(trainingContext.training_end_date_exclusive ?? '—')} color="warn" size="sm" />
+                  <MetricTile label="Horizon" value={Number(trainingContext.prediction_horizon_days ?? 0)} unit="days" size="sm" />
+                  <MetricTile label="Lookback" value={Number(trainingContext.training_lookback_days ?? 0).toLocaleString()} unit="days" size="sm" />
+                  <MetricTile label="Positive Labels" value={Number(trainingContext.positive_samples ?? 0).toLocaleString()} color="up" size="sm" />
+                  <MetricTile label="Negative Labels" value={Number(trainingContext.negative_samples ?? 0).toLocaleString()} color="down" size="sm" />
+                  <MetricTile label="Persisted" value={runMetadata.model_trained ? 'Memory' : 'None'} color="muted" size="sm" />
+                </div>
+              </ResearchPanel>
+
+              <ResearchPanel title="Feature Importance">
+                <div className="grid grid-cols-1 md:grid-cols-2">
+                  {featureImportance.map(([feature, importance]) => (
+                    <div key={feature} className="flex items-center gap-3 border-b border-r border-border px-3 py-2">
+                      <span className="w-44 truncate text-2xs text-muted">{feature}</span>
+                      <div className="h-1.5 flex-1 bg-s2">
+                        <div className="h-full bg-accent" style={{ width: `${Math.min(100, Number(importance ?? 0) * 100)}%` }} />
+                      </div>
+                      <span className="w-14 text-right text-2xs tabnum text-text">{Number(importance ?? 0).toFixed(3)}</span>
+                    </div>
+                  ))}
+                  {!featureImportance.length && <p className="p-4 text-sm text-muted">Feature importance is only available when the ML model trains successfully.</p>}
+                </div>
+              </ResearchPanel>
+
+              <ResearchPanel title="Training Rows Preview">
+                <DataTable
+                  columns={TRAINING_COLUMNS}
+                  data={trainingRows as Array<TrainingPreviewRow & Record<string, unknown>>}
+                  rowKey={r => `${r.ticker}-${r.feature_date}-${r.label_date}`}
+                  emptyMessage="No training rows were captured for this run."
+                />
+              </ResearchPanel>
+            </div>
+          )}
+
+          {activeResultTab === 'export' && (
+            <div className="h-full overflow-auto">
+              <ResearchPanel title="Fine-Tuning Export">
+                <div className="flex flex-wrap items-center gap-2 px-3 py-3 border-b border-border">
+                  <button
+                    onClick={() => downloadJson(fineTuningPayload, exportFilename)}
+                    className="inline-flex items-center gap-1.5 bg-accent px-3 py-1.5 text-2xs font-medium text-bg hover:opacity-90"
+                  >
+                    <Download size={13} aria-hidden="true" />
+                    Download JSON
+                  </button>
+                  <span className="text-2xs text-muted tabnum">{exportFilename}</span>
+                </div>
+                <pre className="m-0 max-h-[520px] overflow-auto bg-bg p-3 text-2xs leading-5 text-muted tabnum">
+                  {JSON.stringify(fineTuningPayload, null, 2)}
+                </pre>
+              </ResearchPanel>
+            </div>
+          )}
         </div>
 
-        {/* Metrics sidebar */}
-        <div className="w-52 shrink-0 border-l border-border overflow-y-auto">
+        <div className="w-56 shrink-0 border-l border-border overflow-y-auto">
           <div className="px-3 py-2 border-b border-border">
-            <p className="text-2xs text-dim mb-1">Performance</p>
+            <p className="text-2xs text-dim mb-1">Performance Stack</p>
           </div>
-          <MetricTile
-            label="Total Return"
-            value={`${metrics.total_return >= 0 ? '+' : ''}${metrics.total_return.toFixed(2)}`}
-            unit="%"
-            color={metrics.total_return >= 0 ? 'up' : 'down'}
-          />
+          <MetricTile label="Total Return" value={formatPct(metrics.total_return)} color={metrics.total_return >= 0 ? 'up' : 'down'} />
           {metrics.annualized_return !== undefined && (
-            <MetricTile
-              label="Ann. Return"
-              value={`${metrics.annualized_return >= 0 ? '+' : ''}${metrics.annualized_return.toFixed(2)}`}
-              unit="%"
-              color={metrics.annualized_return >= 0 ? 'up' : 'down'}
-            />
+            <MetricTile label="Ann. Return" value={formatPct(metrics.annualized_return)} color={metrics.annualized_return >= 0 ? 'up' : 'down'} />
           )}
           <MetricTile label="Sharpe" value={metrics.sharpe_ratio.toFixed(2)} color={metrics.sharpe_ratio >= 1 ? 'up' : metrics.sharpe_ratio >= 0 ? 'warn' : 'down'} />
           <MetricTile label="Max Drawdown" value={metrics.max_drawdown.toFixed(2)} unit="%" color="down" />
-          <MetricTile label="Win Rate" value={`${(metrics.win_rate * 100).toFixed(1)}`} unit="%" color={metrics.win_rate >= 0.5 ? 'up' : 'down'} />
+          <MetricTile label="Vs Equal Weight" value={`${Number(benchmarks.strategy_vs_equal_weight ?? 0) >= 0 ? '+' : ''}${Number(benchmarks.strategy_vs_equal_weight ?? 0).toFixed(2)}`} unit="pp" color={Number(benchmarks.strategy_vs_equal_weight ?? 0) >= 0 ? 'up' : 'down'} />
+          {benchmarks.technical_rule && (
+            <MetricTile label="Vs Technical" value={`${Number(benchmarks.strategy_vs_technical ?? 0) >= 0 ? '+' : ''}${Number(benchmarks.strategy_vs_technical ?? 0).toFixed(2)}`} unit="pp" color={Number(benchmarks.strategy_vs_technical ?? 0) >= 0 ? 'up' : 'down'} />
+          )}
+          <MetricTile
+            label="Win Rate"
+            value={completedRoundTrips > 0 ? `${(metrics.win_rate * 100).toFixed(1)}` : '—'}
+            unit={completedRoundTrips > 0 ? '%' : undefined}
+            color={completedRoundTrips > 0 ? (metrics.win_rate >= 0.5 ? 'up' : 'down') : 'muted'}
+          />
+          <MetricTile
+            label="Position Win"
+            value={positionRoundTrips.length > 0 ? `${(Number(positionDiagnostics.position_win_rate ?? 0) * 100).toFixed(1)}` : '—'}
+            unit={positionRoundTrips.length > 0 ? '%' : undefined}
+            color={positionRoundTrips.length > 0 ? (Number(positionDiagnostics.position_win_rate ?? 0) >= 0.5 ? 'up' : 'down') : 'muted'}
+          />
           <MetricTile label="Trades" value={metrics.num_trades} />
+          <MetricTile label="Training Rows" value={Number(trainingContext.sample_count ?? 0).toLocaleString()} color="accent" />
           {metrics.profit_factor !== undefined && (
-            <MetricTile label="Profit Factor" value={metrics.profit_factor.toFixed(2)} color={metrics.profit_factor >= 1 ? 'up' : 'down'} />
+            <MetricTile label="Profit Factor" value={completedRoundTrips > 0 ? metrics.profit_factor.toFixed(2) : '—'} color={completedRoundTrips > 0 ? (metrics.profit_factor >= 1 ? 'up' : 'down') : 'muted'} />
           )}
         </div>
       </div>

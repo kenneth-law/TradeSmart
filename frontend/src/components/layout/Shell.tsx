@@ -11,7 +11,7 @@ import heroImage from '../../assets/landing-hero.jpg'
 const SHORTCUTS: Record<string, string> = {
   '1': '/', '2': '/market', '3': '/system',
   '4': '/technical', '5': '/daily-lineup', '6': '/portfolio',
-  '7': '/docs', '8': '/settings',
+  '7': '/hirevue', '8': '/vibeos', '9': '/docs', '0': '/settings',
 }
 
 export default function Shell({ children }: { children: ReactNode }) {
@@ -23,6 +23,7 @@ export default function Shell({ children }: { children: ReactNode }) {
   const handleOnboardingComplete = useCallback(() => setOnboardingOpen(false), [])
   const handleAppIntroComplete = useCallback(() => setAppIntroOpen(false), [])
   const showDashboardBackground = location.pathname !== '/'
+  const isVibeOS = location.pathname === '/vibeos'
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -62,14 +63,14 @@ export default function Shell({ children }: { children: ReactNode }) {
         'pointer-events-none absolute inset-0',
         isHome ? 'landing-hero-overlay' : 'dashboard-hero-overlay',
       ].join(' ')} />
-      <TopBar onCommandPalette={() => setCmdOpen(true)} />
+      {!isVibeOS && <TopBar onCommandPalette={() => setCmdOpen(true)} />}
       <main
         className="relative z-10 flex-1 overflow-auto"
-        style={{ marginTop: 'var(--topbar-height)', marginBottom: 'var(--statusbar-height)' }}
+        style={isVibeOS ? undefined : { marginTop: 'var(--topbar-height)', marginBottom: 'var(--statusbar-height)' }}
       >
         {children}
       </main>
-      <StatusBar />
+      {!isVibeOS && <StatusBar />}
       {onboardingOpen && (
         <Onboarding onComplete={handleOnboardingComplete} />
       )}

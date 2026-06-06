@@ -8,8 +8,10 @@ const COMMANDS = [
   { label: 'Technical Ranking',  shortcut: 'Alt+4', action: '/technical' },
   { label: 'Daily Lineup',       shortcut: 'Alt+5', action: '/daily-lineup' },
   { label: 'Portfolio',          shortcut: 'Alt+6', action: '/portfolio' },
-  { label: 'Documentation',      shortcut: 'Alt+7', action: '/docs' },
-  { label: 'Settings',           shortcut: 'Alt+8', action: '/settings' },
+  { label: 'HireVue Prep',        shortcut: 'Alt+7', action: '/hirevue' },
+  { label: 'VibeOS',             shortcut: 'Alt+8', action: '/vibeos' },
+  { label: 'Documentation',      shortcut: 'Alt+9', action: '/docs' },
+  { label: 'Settings',           shortcut: 'Alt+0', action: '/settings' },
 ]
 
 interface CommandPaletteProps {

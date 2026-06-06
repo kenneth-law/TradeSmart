@@ -5,7 +5,7 @@ export type ThemeMode = 'dark' | 'light'
 export type FontFamily = 'lato' | 'ibm-plex' | 'inter' | 'system' | 'mono'
 export type AccentColor = 'amber' | 'blue' | 'green' | 'rose' | 'custom'
 export type InterfaceDensity = 'standard' | 'compact'
-export type OpenAIModel = 'gpt-4.1-mini' | 'gpt-4.1' | 'gpt-5.5'
+export type OpenAIModel = 'gpt-5.4-nano' | 'gpt-5.4-mini' | 'gpt-4.1' | 'gpt-5.5'
 export type PaperInstrumentKind = 'stock' | 'option'
 export type PaperOptionType = 'call' | 'put'
 export type PaperOrderAction = 'BUY' | 'SELL' | 'BUY_OPTION' | 'SELL_OPTION'
@@ -85,13 +85,15 @@ export function isReasoningModel(model: string): boolean {
 }
 
 export const OPENAI_MODEL_OPTIONS: Array<{ value: OpenAIModel; label: string }> = [
-  { value: 'gpt-4.1-mini', label: 'gpt-4.1-mini (fast, cheap)' },
+  { value: 'gpt-5.4-nano', label: 'gpt-5.4-nano (fastest)' },
+  { value: 'gpt-5.4-mini', label: 'gpt-5.4-mini (fast, cheap)' },
   { value: 'gpt-4.1', label: 'gpt-4.1 (stronger)' },
   { value: 'gpt-5.5', label: 'gpt-5.5 (reasoning)' },
 ]
 
 const LEGACY_MODEL_MIGRATION: Record<string, OpenAIModel> = {
-  'gpt-4o-mini': 'gpt-4.1-mini',
+  'gpt-4.1-mini': 'gpt-5.4-mini',
+  'gpt-4o-mini': 'gpt-5.4-mini',
   'gpt-4o': 'gpt-4.1',
   'gpt-4-turbo': 'gpt-4.1',
 }
@@ -120,7 +122,7 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
   reduceMotion: false,
   density: 'standard',
   marketRefreshSeconds: 300,
-  openaiModel: 'gpt-4.1-mini',
+  openaiModel: 'gpt-5.4-nano',
   briefWebSearch: false,
   fastPaperRefresh: false,
   openaiTemperature: 0.4,

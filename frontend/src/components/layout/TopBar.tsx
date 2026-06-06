@@ -9,8 +9,10 @@ const NAV = [
   { to: '/technical',  label: 'TECHNICAL',  hint: '4' },
   { to: '/daily-lineup', label: 'LINEUP',    hint: '5' },
   { to: '/portfolio',  label: 'PORTFOLIO',  hint: '6' },
-  { to: '/docs',       label: 'DOCS',       hint: '7' },
-  { to: '/settings',   label: 'SETTINGS',   hint: '8' },
+  { to: '/hirevue',    label: 'INTERVIEW',  hint: '7' },
+  { to: '/vibeos',     label: 'VIBEOS',     hint: '8' },
+  { to: '/docs',       label: 'DOCS',       hint: '9' },
+  { to: '/settings',   label: 'SETTINGS',   hint: '0' },
 ]
 
 export default function TopBar({ onCommandPalette }: { onCommandPalette: () => void }) {

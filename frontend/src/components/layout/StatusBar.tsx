@@ -217,7 +217,7 @@ export default function StatusBar() {
       </span>
 
       <span className="hidden shrink-0 text-2xs text-dim sm:inline">
-        <kbd className="text-dim">Ctrl+K</kbd> command · <kbd className="text-dim">Alt+1-8</kbd> nav
+        <kbd className="text-dim">Ctrl+K</kbd> command · <kbd className="text-dim">Alt+0-9</kbd> nav
       </span>
 
       <span className="hidden shrink-0 text-border sm:inline">|</span>

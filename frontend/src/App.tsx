@@ -10,6 +10,8 @@ import Research from './pages/Research'
 import DailyLineup from './pages/DailyLineup'
 import Documentation from './pages/Documentation'
 import Settings from './pages/Settings'
+import HireVuePrep from './pages/HireVuePrep'
+import VibeOS from './pages/VibeOS'
 
 export default function App() {
   return (
@@ -26,6 +28,8 @@ export default function App() {
         <Route path="/research"    element={<Navigate to="/market" replace />} />
         <Route path="/daily-lineup" element={<DailyLineup />} />
         <Route path="/portfolio"   element={<Portfolio />} />
+        <Route path="/hirevue"     element={<HireVuePrep />} />
+        <Route path="/vibeos"      element={<VibeOS />} />
         <Route path="/docs"        element={<Documentation />} />
         <Route path="/docs/:type"  element={<Documentation />} />
         <Route path="/settings"    element={<Settings />} />

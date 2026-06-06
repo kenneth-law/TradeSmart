@@ -36,14 +36,12 @@ class TransactionCostModel:
     Costs are adjusted based on stock liquidity, volatility, and time of day.
     """
 
-    def __init__(self, custom_transaction_cost=None, custom_transaction_cost_type='per_share'):
+    def __init__(self, custom_transaction_cost=None):
         """
         Initialize the transaction cost model with a flat rate commission or custom value.
 
         Parameters:
-            custom_transaction_cost (float): Optional custom transaction cost value
-            custom_transaction_cost_type (str): 'fixed' dollars per trade, 'percent' of notional,
-                                                or legacy 'per_share' dollars per share
+            custom_transaction_cost (float): Optional fixed transaction cost value
         """
         """
          def __init__(self, base_commission=0.0035, min_commission=0.5):
@@ -59,7 +57,6 @@ class TransactionCostModel:
         """
 
         self.custom_transaction_cost = custom_transaction_cost
-        self.custom_transaction_cost_type = custom_transaction_cost_type
         self.flat_commission = 10.0  # Default flat rate of $10 per transaction if no custom value
 
     def estimate_spread(self, price, volume, volatility):
@@ -135,15 +132,9 @@ class TransactionCostModel:
         Returns:
             tuple: (total_cost_dollars, total_cost_percentage)
         """
-        # If custom transaction cost is provided, apply the selected custom mode.
+        # If custom transaction cost is provided, use it as a per-share cost
         if self.custom_transaction_cost is not None:
-            notional = price * shares
-            if self.custom_transaction_cost_type == 'fixed':
-                total_cost_dollars = self.custom_transaction_cost
-            elif self.custom_transaction_cost_type == 'percent':
-                total_cost_dollars = notional * (self.custom_transaction_cost / 100)
-            else:
-                total_cost_dollars = self.custom_transaction_cost * shares
+            total_cost_dollars = self.custom_transaction_cost * shares
         else:
             # Estimate spread
             spread_pct = self.estimate_spread(price, volume, volatility)
@@ -359,7 +350,7 @@ class Backtester:
     Backtesting engine for stock trading strategies.
     """
 
-    def __init__(self, initial_capital=100000.0, custom_transaction_cost=None, custom_transaction_cost_type='per_share'):
+    def __init__(self, initial_capital=100000.0, custom_transaction_cost=None):
         """
         Initialize the backtester.
 
@@ -368,12 +359,11 @@ class Backtester:
             custom_transaction_cost (float): Optional fixed transaction cost value
         """
         self.initial_capital = initial_capital
-        self.transaction_cost_model = TransactionCostModel(custom_transaction_cost, custom_transaction_cost_type)
+        self.transaction_cost_model = TransactionCostModel(custom_transaction_cost)
 
     def run_backtest(self, strategy, tickers, start_date, end_date, 
                      use_point_in_time_universe=True, include_delisted=True, ml_scorer=None,
-                     custom_transaction_cost=None, custom_transaction_cost_type='per_share',
-                     buy_threshold=60, sell_threshold=40):
+                     custom_transaction_cost=None, buy_threshold=60, sell_threshold=40):
         """
         Run a backtest for the given strategy and parameters.
 
@@ -385,8 +375,7 @@ class Backtester:
             use_point_in_time_universe (bool): Whether to use point-in-time universe
             include_delisted (bool): Whether to include delisted tickers
             ml_scorer (MLScorer): Optional pre-initialized ML scorer for ML strategies
-            custom_transaction_cost (float): Optional custom transaction cost value
-            custom_transaction_cost_type (str): 'fixed', 'percent', or legacy 'per_share'
+            custom_transaction_cost (float): Optional per-share transaction cost value
             buy_threshold (int): Score threshold for buy signals in ML strategy (default: 60)
             sell_threshold (int): Score threshold for sell signals in ML strategy (default: 40)
 
@@ -397,7 +386,7 @@ class Backtester:
 
         # If custom transaction cost is provided, update the transaction cost model
         if custom_transaction_cost is not None:
-            self.transaction_cost_model = TransactionCostModel(custom_transaction_cost, custom_transaction_cost_type)
+            self.transaction_cost_model = TransactionCostModel(custom_transaction_cost)
 
         # Initialize result object
         result = BacktestResult(

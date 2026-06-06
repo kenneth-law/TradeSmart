@@ -182,8 +182,7 @@ class TradingSystem:
 
         return ranked_stocks, failed_tickers
 
-    def run_backtest(self, tickers, strategy='ml', start_date=None, end_date=None, days=180,
-                     custom_transaction_cost=None, custom_transaction_cost_type='per_share'):
+    def run_backtest(self, tickers, strategy='ml', start_date=None, end_date=None, days=180, custom_transaction_cost=None):
         """
         Run a backtest on the specified tickers and strategy.
 
@@ -193,8 +192,7 @@ class TradingSystem:
             start_date (str): Start date in 'YYYY-MM-DD' format
             end_date (str): End date in 'YYYY-MM-DD' format
             days (int): Number of days to backtest if start_date not provided
-            custom_transaction_cost (float): Optional custom transaction cost value
-            custom_transaction_cost_type (str): 'fixed', 'percent', or legacy 'per_share'
+            custom_transaction_cost (float): Optional fixed transaction cost value
 
         Returns:
             BacktestResult: Object containing backtest results
@@ -228,8 +226,7 @@ class TradingSystem:
             start_date=start_date,
             end_date=end_date,
             ml_scorer=self.ml_scorer if strategy == 'ml' and self.is_model_trained else None,
-            custom_transaction_cost=custom_transaction_cost,
-            custom_transaction_cost_type=custom_transaction_cost_type
+            custom_transaction_cost=custom_transaction_cost
         )
 
         self.last_backtest_result = result

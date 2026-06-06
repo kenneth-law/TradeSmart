@@ -6,7 +6,6 @@ import plotly.express as px
 import json
 from datetime import datetime, timedelta
 import os
-import math
 from curl_cffi import requests
 import markdown
 import re
@@ -34,28 +33,6 @@ import yfinance.data as _data
 
 
 app = Flask(__name__)
-
-
-def _sanitize(obj):
-    """Recursively convert numpy / pandas types to plain Python for jsonify."""
-    try:
-        import numpy as _np
-        if isinstance(obj, _np.integer):  return int(obj)
-        if isinstance(obj, _np.floating):
-            value = float(obj)
-            return value if math.isfinite(value) else None
-        if isinstance(obj, _np.bool_):    return bool(obj)
-        if isinstance(obj, _np.ndarray):  return [_sanitize(v) for v in obj.tolist()]
-    except ImportError:
-        pass
-    if isinstance(obj, float):
-        return obj if math.isfinite(obj) else None
-    if isinstance(obj, dict):  return {k: _sanitize(v) for k, v in obj.items()}
-    if isinstance(obj, list):  return [_sanitize(v) for v in obj]
-    if isinstance(obj, tuple): return [_sanitize(v) for v in obj]
-    if hasattr(obj, 'isoformat'): return obj.isoformat()
-    if hasattr(obj, 'item'):      return obj.item()   # generic numpy scalar
-    return obj
 
 
 analysis_progress = {}
@@ -219,9 +196,6 @@ def run_analysis_with_updates(tickers, analysis_id, message_queue):
 
 @app.route('/')
 def index():
-    spa = _spa_index()
-    if spa:
-        return spa
     return render_template('index.html')
 
 @app.route('/analyze', methods=['POST'])
@@ -315,12 +289,12 @@ def stock_detail(ticker):
 
 @app.route('/api/stock_price_history/<ticker>')
 def api_price_history(ticker):
+
     """API endpoint to get price history for charts"""
-    days = request.args.get('days', 30, type=int)
-    chart_data = prepare_price_chart_data(ticker, days=days)
-    if not chart_data or "error" in chart_data:
+    chart_data = prepare_price_chart_data(ticker)
+    if not chart_data:
         return jsonify({"error": "Failed to retrieve price history"}), 404
-    return jsonify(_sanitize(chart_data))
+    return jsonify(chart_data)
 
 @app.route('/api/industry_peers/<ticker>')
 def api_industry_peers(ticker):
@@ -380,7 +354,7 @@ def api_industry_peers(ticker):
         # Sort by score
         peers.sort(key=lambda x: x["day_trading_score"], reverse=True)
 
-        return jsonify(_sanitize(peers))
+        return jsonify(peers)
     except Exception as e:
         return jsonify({"error": f"Error getting peer data: {str(e)}"}), 500
 
@@ -511,7 +485,6 @@ def run_integrated_system_with_updates(tickers, use_ml, execute_trades, system_i
             "progress": 100,
             "message": "Integrated system processing complete!",
             "status": "complete",
-            "system_id": system_id,
             "redirect_url": f"/integrated_results?system_id={system_id}"
         })
 
@@ -617,8 +590,7 @@ def backtest_progress_stream():
 
     return Response(generate(), mimetype="text/event-stream")
 
-def run_backtest_with_updates(tickers, strategy, start_date, end_date, days, custom_transaction_cost,
-                              transaction_cost_type, backtest_id, message_queue, session_id):
+def run_backtest_with_updates(tickers, strategy, start_date, end_date, days, custom_transaction_cost, backtest_id, message_queue, session_id):
     """Run a backtest with progress updates sent to the client"""
     try:
         # Define a custom message handler for this backtest
@@ -655,8 +627,7 @@ def run_backtest_with_updates(tickers, strategy, start_date, end_date, days, cus
             start_date=start_date if start_date else None,
             end_date=end_date if end_date else None,
             days=days,
-            custom_transaction_cost=custom_transaction_cost,
-            custom_transaction_cost_type=transaction_cost_type
+            custom_transaction_cost=custom_transaction_cost
         )
 
         message_queue.put({
@@ -697,7 +668,6 @@ def run_backtest_with_updates(tickers, strategy, start_date, end_date, days, cus
             "progress": 100,
             "message": "Backtest complete!",
             "status": "complete",
-            "backtest_id": backtest_id,
             "redirect_url": f"/backtest_results?backtest_id={backtest_id}"
         })
 
@@ -748,7 +718,7 @@ def run_backtest():
     # Start the backtest in a background thread
     backtest_thread = Thread(
         target=run_backtest_with_updates, 
-        args=(tickers, strategy, start_date, end_date, days, custom_transaction_cost, 'per_share', backtest_id, message_queue, session_id)
+        args=(tickers, strategy, start_date, end_date, days, custom_transaction_cost, backtest_id, message_queue, session_id)
     )
     backtest_thread.daemon = True
     backtest_thread.start()
@@ -819,282 +789,6 @@ def documentation(doc_type='readme'):
     except Exception as e:
         return render_template('error.html', error=f"Error loading documentation: {str(e)}")
 
-@app.route('/api/analysis_results/<session_id>')
-def api_analysis_results(session_id):
-    """Return stored analysis results as JSON for the React frontend"""
-    data = analysis_progress.get(session_id)
-    if not data:
-        return jsonify({"error": "Session not found"}), 404
-    ranked_stocks = _sanitize(data.get('ranked_stocks', []))
-    failed_tickers = _sanitize(data.get('failed_tickers', []))
-    csv_url = f'/static/sessions/{session_id}/analysis.csv'
-    return jsonify({
-        "ranked_stocks": ranked_stocks,
-        "failed_tickers": failed_tickers,
-        "session_id": session_id,
-        "csv_url": csv_url if os.path.exists(os.path.join(app.static_folder, 'sessions', session_id, 'analysis.csv')) else None
-    })
-
-
-@app.route('/api/stock/<ticker>')
-def api_stock_detail(ticker):
-    """Return stock detail data as JSON for the React frontend"""
-    try:
-        stock_data, error = get_stock_data(ticker)
-        if error or not stock_data:
-            return jsonify({"error": f"Failed to retrieve {ticker}: {error}"}), 404
-        stock_data['metrics'] = get_detailed_stock_metrics(stock_data)
-        return jsonify(_sanitize(stock_data))
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route('/api/market_overview')
-def api_market_overview():
-    """Return market overview data as JSON for the React frontend"""
-    try:
-        raw = get_sector_performance()
-        # get_sector_performance returns a dict with a "sectors" key (list of sector dicts)
-        raw_sectors = raw.get("sectors", []) if isinstance(raw, dict) else []
-        sectors = []
-        for item in raw_sectors:
-            if not isinstance(item, dict):
-                continue
-            sectors.append({
-                "name": item.get("sector") or item.get("name", "Unknown"),
-                "return_1d":    float(item.get("day_change_pct") or item.get("return_1d") or 0),
-                "return_1w":    float(item.get("week_change_pct") or 0),
-                "return_1m":    float(item.get("month_change_pct") or 0),
-                "trend":        item.get("trend"),
-            })
-        market_trend = raw.get("market_trend", "Neutral") if isinstance(raw, dict) else "Neutral"
-        pos = sum(1 for s in sectors if s["return_1d"] > 0)
-        neg = sum(1 for s in sectors if s["return_1d"] < 0)
-        return jsonify({
-            "sectors": sectors,
-            "market_trend": market_trend,
-            "advances": pos,
-            "declines": neg,
-            "market_health": market_trend,
-            "avg_day_change":   raw.get("avg_day_change", 0) if isinstance(raw, dict) else 0,
-            "avg_week_change":  raw.get("avg_week_change", 0) if isinstance(raw, dict) else 0,
-            "avg_month_change": raw.get("avg_month_change", 0) if isinstance(raw, dict) else 0,
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route('/api/portfolio')
-def api_portfolio():
-    """Return portfolio data as JSON for the React frontend"""
-    try:
-        system = TradingSystem.load_system_state()
-        summary = system.portfolio_manager.get_portfolio_summary()
-        positions_raw = system.portfolio_manager.positions
-
-        positions = []
-        for pos in (positions_raw or []):
-            if isinstance(pos, dict):
-                positions.append(pos)
-            elif hasattr(pos, '__dict__'):
-                positions.append(pos.__dict__)
-
-        summary_dict = summary if isinstance(summary, dict) else (summary.__dict__ if hasattr(summary, '__dict__') else {})
-
-        return jsonify({"positions": positions, "summary": summary_dict})
-    except Exception as e:
-        return jsonify({"positions": [], "summary": {
-            "total_value": 100000.0,
-            "cash": 100000.0,
-            "invested": 0.0,
-            "total_pnl": 0.0,
-            "total_pnl_pct": 0.0,
-            "num_positions": 0,
-        }, "error": str(e)})
-
-
-@app.route('/api/run_backtest', methods=['POST'])
-def api_run_backtest():
-    """Start a backtest and return the backtest_id for SSE progress tracking"""
-    data = request.get_json() or {}
-    tickers = data.get('tickers', [])
-    if not tickers:
-        return jsonify({"error": "No tickers provided"}), 400
-
-    strategy = data.get('strategy', 'Combined Strategy')
-    start_date = data.get('start_date', '')
-    end_date = data.get('end_date', '')
-    days = int(data.get('days', 365))
-    custom_transaction_cost = data.get('custom_transaction_cost')
-    transaction_cost_type = data.get('transaction_cost_type', 'per_share')
-    if transaction_cost_type not in ('fixed', 'percent', 'per_share'):
-        transaction_cost_type = 'per_share'
-    if custom_transaction_cost is not None:
-        try:
-            custom_transaction_cost = float(custom_transaction_cost)
-        except (ValueError, TypeError):
-            custom_transaction_cost = None
-
-    backtest_id = f"backtest_{int(time.time())}"
-    session_id = datetime.now().strftime('%Y%m%d%H%M%S')
-
-    message_queue = Queue()
-    backtest_queues[backtest_id] = message_queue
-
-    backtest_thread = Thread(
-        target=run_backtest_with_updates,
-        args=(tickers, strategy, start_date, end_date, days, custom_transaction_cost, transaction_cost_type, backtest_id, message_queue, session_id)
-    )
-    backtest_thread.daemon = True
-    backtest_thread.start()
-
-    return jsonify({"backtest_id": backtest_id})
-
-
-@app.route('/api/backtest_results/<backtest_id>')
-def api_backtest_results(backtest_id):
-    """Return backtest results as JSON for the React frontend"""
-    key = f'backtest_result_{backtest_id}'
-    if key not in app.config:
-        return jsonify({"error": "Backtest results not found"}), 404
-
-    template_data = app.config[key]
-    result = template_data.get('result')
-    if result is None:
-        return jsonify({"error": "No result data"}), 404
-
-    def _get(obj, attr, default):
-        return obj.get(attr, default) if isinstance(obj, dict) else getattr(obj, attr, default)
-
-    raw_trades = _get(result, 'trades', [])
-    raw_equity = _get(result, 'equity_curve', [])
-
-    metrics = {
-        "total_return": (_get(result, 'total_return', 0.0) or 0.0) * 100,
-        "annualized_return": (_get(result, 'annualized_return', 0.0) or 0.0) * 100,
-        "sharpe_ratio": _get(result, 'sharpe_ratio', 0.0) or 0.0,
-        "max_drawdown": (_get(result, 'max_drawdown', 0.0) or 0.0) * 100,
-        "win_rate": _get(result, 'win_rate', 0.0) or 0.0,
-        "num_trades": len(raw_trades),
-        "profit_factor": _get(result, 'profit_factor', 0.0) or 0.0,
-    }
-
-    trades = []
-    for trade in raw_trades:
-        action = _get(trade, 'type', None) or _get(trade, 'action', '')
-        trades.append({
-            **(trade if isinstance(trade, dict) else {}),
-            "date": _get(trade, 'date', ''),
-            "ticker": _get(trade, 'ticker', ''),
-            "type": action,
-            "action": action,
-            "price": _get(trade, 'price', 0.0),
-            "shares": _get(trade, 'shares', 0),
-            "cost": _get(trade, 'cost', 0.0),
-            "value": _get(trade, 'value', 0.0),
-            "net_value": _get(trade, 'net_value', 0.0),
-        })
-
-    equity = []
-    for point in raw_equity:
-        value = _get(point, 'value', None)
-        if value is None:
-            value = _get(point, 'equity', 0.0)
-        equity.append({
-            **(point if isinstance(point, dict) else {}),
-            "date": _get(point, 'date', ''),
-            "value": value,
-            "equity": value,
-        })
-
-    return jsonify({
-        "metrics":      _sanitize(metrics),
-        "trades":       _sanitize(trades),
-        "equity_curve": _sanitize(equity),
-        "tickers":   template_data.get('tickers', []),
-        "strategy":  template_data.get('strategy', ''),
-        "start_date": template_data.get('start_date', ''),
-        "end_date":   template_data.get('end_date', ''),
-    })
-
-
-@app.route('/api/run_integrated', methods=['POST'])
-def api_run_integrated():
-    """Start the integrated trading system and return the system_id for SSE tracking"""
-    data = request.get_json() or {}
-    tickers = data.get('tickers', [])
-    if not tickers:
-        return jsonify({"error": "No tickers provided"}), 400
-
-    use_ml = bool(data.get('use_ml', True))
-    execute_trades = bool(data.get('execute_trades', False))
-
-    system_id = f"system_{int(time.time())}"
-    session_id = datetime.now().strftime('%Y%m%d%H%M%S')
-
-    message_queue = Queue()
-    integrated_queues[system_id] = message_queue
-
-    system_thread = Thread(
-        target=run_integrated_system_with_updates,
-        args=(tickers, use_ml, execute_trades, system_id, message_queue, session_id)
-    )
-    system_thread.daemon = True
-    system_thread.start()
-
-    return jsonify({"system_id": system_id})
-
-
-@app.route('/api/integrated_results/<system_id>')
-def api_integrated_results(system_id):
-    """Return integrated system results as JSON for the React frontend"""
-    key = f'integrated_result_{system_id}'
-    if key not in app.config:
-        return jsonify({"error": "Integrated results not found"}), 404
-
-    template_data = app.config[key]
-
-    watchlist = _sanitize(template_data.get('watchlist', []))
-    portfolio_summary = _sanitize(template_data.get('portfolio_summary', {}))
-    tickers = template_data.get('tickers', [])
-
-    signals = [s for s in watchlist if isinstance(s, dict)] if isinstance(watchlist, list) else []
-
-    return jsonify({
-        "signals": signals,
-        "portfolio_summary": portfolio_summary if isinstance(portfolio_summary, dict) else {
-            "total_value": 100000.0, "cash": 100000.0, "invested": 0.0,
-            "total_pnl": 0.0, "total_pnl_pct": 0.0, "num_positions": 0,
-        },
-        "tickers": tickers,
-    })
-
-
-@app.route('/api/documentation/<doc_type>')
-def api_documentation(doc_type='readme'):
-    """Return documentation as HTML for the React frontend"""
-    doc_map = {
-        'readme':     ('README.md',                      'README — TradeSmart'),
-        'strategy':   (os.path.join('docs', 'strategy.md'), 'Strategy Guide'),
-        'backtest':   (os.path.join('docs', 'backtest.md'), 'Backtesting'),
-        'integrated': (os.path.join('docs', 'Logic_Flow.md'), 'Integrated System'),
-        'api':        (os.path.join('docs', 'api.md'),    'API Reference'),
-    }
-    if doc_type not in doc_map:
-        return jsonify({"error": "Not found"}), 404
-
-    file_path, title = doc_map[doc_type]
-    try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-        html_content = markdown.markdown(content, extensions=['tables', 'fenced_code'])
-        return jsonify({"title": title, "html_content": html_content})
-    except FileNotFoundError:
-        return jsonify({"title": title, "html_content": "<p>Documentation not available.</p>"})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
 @app.route('/healthcheck')
 def healthcheck():
     """Simple endpoint to check if the API is functioning"""
@@ -1104,30 +798,6 @@ def healthcheck():
 def templates(filename):
     """Serve files from the templates directory"""
     return send_from_directory('templates', filename)
-
-
-def _spa_index():
-    """Serve the React SPA index.html if the build exists."""
-    dist = os.path.join(os.path.dirname(__file__), 'static', 'dist')
-    if os.path.exists(os.path.join(dist, 'index.html')):
-        return send_from_directory(dist, 'index.html')
-    return None
-
-
-@app.route('/static/dist/<path:filename>')
-def spa_assets(filename):
-    """Serve Vite build assets."""
-    dist = os.path.join(os.path.dirname(__file__), 'static', 'dist')
-    return send_from_directory(dist, filename)
-
-
-@app.route('/<path:path>')
-def spa_catchall(path):
-    """Catch-all: serve the React SPA for any unknown path."""
-    spa = _spa_index()
-    if spa:
-        return spa
-    return jsonify({"error": "Not found"}), 404
 
 def create_analysis_charts(df, session_folder):
     charts = {}

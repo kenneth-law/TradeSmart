@@ -38,10 +38,3 @@ local_settings.py
 db.sqlite3
 /day_trading_opportunities.csv
 /tests/
-
-# Frontend
-frontend/node_modules/
-static/dist/
-
-# Project virtualenv
-.venv/

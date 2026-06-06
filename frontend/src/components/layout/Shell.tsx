@@ -1,16 +1,14 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { hasSystemSettingsCookie } from '../../store/useAppStore'
 import TopBar from './TopBar'
 import StatusBar from './StatusBar'
 import CommandPalette from './CommandPalette'
-import Onboarding, { AppIntroOverlay } from '../onboarding/Onboarding'
 import heroImage from '../../assets/landing-hero.jpg'
 
 const SHORTCUTS: Record<string, string> = {
-  '1': '/', '2': '/market', '3': '/system',
-  '4': '/technical', '5': '/daily-lineup', '6': '/portfolio',
+  '1': '/', '2': '/technical', '3': '/system',
+  '4': '/market', '5': '/research', '6': '/portfolio',
   '7': '/docs', '8': '/settings',
 }
 
@@ -18,18 +16,10 @@ export default function Shell({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
   const location = useLocation()
   const [cmdOpen, setCmdOpen] = useState(false)
-  const [onboardingOpen, setOnboardingOpen] = useState(() => !hasSystemSettingsCookie())
-  const [appIntroOpen, setAppIntroOpen] = useState(() => hasSystemSettingsCookie())
-  const handleOnboardingComplete = useCallback(() => setOnboardingOpen(false), [])
-  const handleAppIntroComplete = useCallback(() => setAppIntroOpen(false), [])
   const showDashboardBackground = location.pathname !== '/'
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (onboardingOpen || appIntroOpen) {
-        setCmdOpen(false)
-        return
-      }
       if (e.altKey && SHORTCUTS[e.key]) {
         e.preventDefault()
         navigate(SHORTCUTS[e.key])
@@ -42,12 +32,12 @@ export default function Shell({ children }: { children: ReactNode }) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [appIntroOpen, navigate, onboardingOpen])
+  }, [navigate])
 
   const isHome = !showDashboardBackground
 
   return (
-    <div className="relative flex flex-col overflow-hidden bg-bg" style={{ height: '100dvh' }}>
+    <div className="relative flex flex-col overflow-hidden bg-bg" style={{ height: '100vh' }}>
       {/* Always mounted so it never remounts/resizes on route change */}
       <img
         src={heroImage}
@@ -70,12 +60,6 @@ export default function Shell({ children }: { children: ReactNode }) {
         {children}
       </main>
       <StatusBar />
-      {onboardingOpen && (
-        <Onboarding onComplete={handleOnboardingComplete} />
-      )}
-      {appIntroOpen && !onboardingOpen && (
-        <AppIntroOverlay onComplete={handleAppIntroComplete} />
-      )}
       <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} />
     </div>
   )

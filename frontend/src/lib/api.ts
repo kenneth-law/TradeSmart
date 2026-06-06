@@ -35,9 +35,6 @@ export const api = {
   getIndustryPeers: (ticker: string) =>
     get<Array<{ ticker: string; day_trading_score: number }>>(`/api/industry_peers/${ticker}`),
 
-  getFinancials: (ticker: string, period: 'annual' | 'quarterly') =>
-    get<import('../types').FinancialsResponse>(`/api/financials/${ticker}?period=${period}`),
-
   getMarketOverview: () =>
     get<import('../types').MarketOverview>('/api/market_overview'),
 
@@ -45,18 +42,6 @@ export const api = {
     get<{ positions: import('../types').PortfolioPosition[]; summary: import('../types').PortfolioSummary }>(
       '/api/portfolio'
     ),
-
-  getLiveSnapshot: (symbols: string[]) =>
-    get<import('../types').LiveMarketPayload>(`/api/live/snapshot?symbols=${encodeURIComponent(symbols.join(','))}`),
-
-  getLiveStatus: () =>
-    get<import('../types').LiveMarketStatus>('/api/live/status'),
-
-  getMarketDataStatus: () =>
-    get<import('../types').MarketDataStatus>('/api/market_data/status'),
-
-  getTrainedModels: () =>
-    get<import('../types').TrainedModelsResponse>('/api/models/trained'),
 
   runBacktest: (params: {
     tickers: string[]
@@ -66,16 +51,6 @@ export const api = {
     days?: number
     custom_transaction_cost?: number
     transaction_cost_type?: 'fixed' | 'percent' | 'per_share'
-    buy_threshold?: number
-    sell_threshold?: number
-    partial_exit_fraction?: number
-    exit_sizing_mode?: 'fixed_tranche' | 'remaining_fraction'
-    reentry_cooldown_days?: number
-    min_reentry_discount_pct?: number
-    allow_pyramiding?: boolean
-    training_lookback_days?: number
-    max_position_pct?: number
-    initial_capital?: number
   }) => post<{ backtest_id: string }>('/api/run_backtest', params),
 
   getBacktestResults: (backtestId: string) =>

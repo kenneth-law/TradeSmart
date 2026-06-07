@@ -183,6 +183,7 @@ const IMAGE_CACHE_STORE = 'image_cache'
 const SYSTEM_CORE_STORE = 'system_core'
 const MAX_SAVED_PROGRAMS = 200
 const VIBEOS_CORE_EVENT = 'vibeos-core-update'
+const VIBEOS_APPS_PATH = 'C:\\ProgramData\\VibeOS\\Applications'
 const DESKTOP_WALLPAPER_STORAGE = 'system_desktop_wallpaper_xp_v2'
 const PRODIA_IMAGE_URL = 'https://inference.prodia.com/v2/job'
 type VibeImageCategory = 'nature' | 'city' | 'technology' | 'food' | 'still_life' | 'abstract' | 'wildlife'
@@ -326,6 +327,47 @@ function makeCoreFolder(path: string, now = new Date().toISOString()): SystemCor
     updatedAt: now,
     version: 1,
   }
+}
+
+function savedProgramFileName(program: SavedProgram) {
+  const base = program.title.replace(/[<>:"|?*\\]/g, '_').trim() || 'Application'
+  const suffix = program.id.replace(/[<>:"|?*\\]/g, '_').slice(0, 12)
+  return `${base.slice(0, 64)} ${suffix}.vibeapp`
+}
+
+function savedProgramPath(program: SavedProgram) {
+  return `${VIBEOS_APPS_PATH}\\${savedProgramFileName(program)}`
+}
+
+function savedProgramEntry(program: SavedProgram): SystemCoreEntry {
+  return {
+    path: savedProgramPath(program),
+    kind: 'file',
+    name: savedProgramFileName(program),
+    parentPath: VIBEOS_APPS_PATH,
+    value: {
+      id: program.id,
+      title: program.title,
+      prompt: program.prompt,
+      kind: program.kind,
+      version: versionLabel(program.version),
+      updatedAt: program.updatedAt,
+    },
+    mime: 'application/x-vibeos-app',
+    ownerAppId: 'program-manager',
+    createdAt: program.createdAt,
+    updatedAt: program.updatedAt,
+    version: program.version + 1,
+  }
+}
+
+function savedProgramForPath(path: string, programs: SavedProgram[]) {
+  const normalized = normaliseCorePath(path).toLowerCase()
+  return programs.find(program => savedProgramPath(program).toLowerCase() === normalized)
+}
+
+function isVibeAppsPath(path: string) {
+  return normaliseCorePath(path).toLowerCase() === VIBEOS_APPS_PATH.toLowerCase()
 }
 
 function seedSystemCoreStore(store: IDBObjectStore) {
@@ -557,7 +599,6 @@ async function requestVibeJson({
       { role: 'user', content: user },
     ],
     response_format: { type: 'json_object' },
-    max_completion_tokens: maxOutputTokensFor(model),
   }
   if (!reasoning && typeof temperature === 'number') body.temperature = temperature
 
@@ -1853,6 +1894,8 @@ function WindowChrome({
   savedPrograms,
   onOpenSaved,
   onNewVersion,
+  onDeleteSaved,
+  onSavedProgramContextMenu,
   onMove,
   onResize,
   onContextMenu,
@@ -1870,6 +1913,8 @@ function WindowChrome({
   savedPrograms: SavedProgram[]
   onOpenSaved: (id: string) => void
   onNewVersion: (prompt: string) => void
+  onDeleteSaved: (id: string) => void
+  onSavedProgramContextMenu: (event: React.MouseEvent, program: SavedProgram) => void
   onMove: (layout: WindowLayout) => void
   onResize: (layout: WindowLayout) => void
   onContextMenu: (event: React.MouseEvent, app: VibeApp) => void
@@ -2006,6 +2051,8 @@ function WindowChrome({
           savedPrograms={savedPrograms}
           onOpenSaved={onOpenSaved}
           onNewVersion={onNewVersion}
+          onDeleteSaved={onDeleteSaved}
+          onSavedProgramContextMenu={onSavedProgramContextMenu}
         />
       </div>
       <button
@@ -2033,6 +2080,8 @@ function VibeAppContent({
   savedPrograms,
   onOpenSaved,
   onNewVersion,
+  onDeleteSaved,
+  onSavedProgramContextMenu,
 }: {
   app: VibeApp
   seed: number
@@ -2041,9 +2090,30 @@ function VibeAppContent({
   savedPrograms: SavedProgram[]
   onOpenSaved: (id: string) => void
   onNewVersion: (prompt: string) => void
+  onDeleteSaved: (id: string) => void
+  onSavedProgramContextMenu: (event: React.MouseEvent, program: SavedProgram) => void
 }) {
-  if (app.kind === 'programs') return <ProgramManagerApp savedPrograms={savedPrograms} onOpenSaved={onOpenSaved} onNewVersion={onNewVersion} />
-  if (app.kind === 'explorer') return <FileExplorerApp app={app} />
+  if (app.kind === 'programs') {
+    return (
+      <ProgramManagerApp
+        savedPrograms={savedPrograms}
+        onOpenSaved={onOpenSaved}
+        onNewVersion={onNewVersion}
+        onDeleteSaved={onDeleteSaved}
+        onProgramContextMenu={onSavedProgramContextMenu}
+      />
+    )
+  }
+  if (app.kind === 'explorer') {
+    return (
+      <FileExplorerApp
+        app={app}
+        savedPrograms={savedPrograms}
+        onOpenSaved={onOpenSaved}
+        onDeleteSaved={onDeleteSaved}
+      />
+    )
+  }
   if (app.kind === 'browser') return <AiBrowserApp app={app} />
   if (surface?.loading) return <LoadingSurface app={app} />
   if (surface?.data) return <GeneratedSurface app={app} state={surface} onGenerate={onGenerate} />
@@ -2099,10 +2169,14 @@ function ProgramManagerApp({
   savedPrograms,
   onOpenSaved,
   onNewVersion,
+  onDeleteSaved,
+  onProgramContextMenu,
 }: {
   savedPrograms: SavedProgram[]
   onOpenSaved: (id: string) => void
   onNewVersion: (prompt: string) => void
+  onDeleteSaved: (id: string) => void
+  onProgramContextMenu: (event: React.MouseEvent, program: SavedProgram) => void
 }) {
   const sorted = [...savedPrograms].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
 
@@ -2132,7 +2206,11 @@ function ProgramManagerApp({
             </thead>
             <tbody>
               {sorted.map(program => (
-                <tr key={program.id} className="border-b border-[#d8d8d8] hover:bg-[#eef3ff]">
+                <tr
+                  key={program.id}
+                  className="border-b border-[#d8d8d8] hover:bg-[#eef3ff]"
+                  onContextMenu={event => onProgramContextMenu(event, program)}
+                >
                   <td className="px-2 py-1">
                     <div className="flex items-center gap-2">
                       <XpIcon kind={program.kind} size="small" src={program.app.iconDataUrl} />
@@ -2161,6 +2239,13 @@ function ProgramManagerApp({
                       >
                         New Version
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => onDeleteSaved(program.id)}
+                        className="min-h-[24px] border border-[#404040] bg-[#d4d0c8] px-2 text-black shadow-[inset_1px_1px_0_#fff,inset_-1px_-1px_0_#808080] hover:bg-[#ece9d8]"
+                      >
+                        Delete
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -2176,7 +2261,17 @@ function ProgramManagerApp({
   )
 }
 
-function FileExplorerApp({ app }: { app: VibeApp }) {
+function FileExplorerApp({
+  app,
+  savedPrograms,
+  onOpenSaved,
+  onDeleteSaved,
+}: {
+  app: VibeApp
+  savedPrograms: SavedProgram[]
+  onOpenSaved: (id: string) => void
+  onDeleteSaved: (id: string) => void
+}) {
   const [path, setPath] = useState('C:\\Users\\Kenneth\\Documents')
   const [entries, setEntries] = useState<SystemCoreEntry[]>([])
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
@@ -2184,13 +2279,46 @@ function FileExplorerApp({ app }: { app: VibeApp }) {
   const [draftPath, setDraftPath] = useState(path)
   const [status, setStatus] = useState('Ready')
 
+  function virtualEntriesForPath(nextPath: string, coreItems: SystemCoreEntry[]) {
+    const normalized = normaliseCorePath(nextPath)
+    const lower = normalized.toLowerCase()
+    const programDataLower = 'C:\\ProgramData'.toLowerCase()
+    const vibeOsLower = coreParentPath(VIBEOS_APPS_PATH).toLowerCase()
+
+    if (isVibeAppsPath(normalized)) {
+      const savedEntries = [...savedPrograms]
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+        .map(savedProgramEntry)
+      const savedPaths = new Set(savedEntries.map(entry => entry.path.toLowerCase()))
+      return [...savedEntries, ...coreItems.filter(entry => !savedPaths.has(entry.path.toLowerCase()))]
+        .sort((a, b) => {
+          if (a.kind !== b.kind) return a.kind === 'folder' ? -1 : 1
+          return a.name.localeCompare(b.name)
+        })
+    }
+
+    const virtualFolders: SystemCoreEntry[] = []
+    if (lower === programDataLower) virtualFolders.push(makeCoreFolder(coreParentPath(VIBEOS_APPS_PATH)))
+    if (lower === vibeOsLower) virtualFolders.push(makeCoreFolder(VIBEOS_APPS_PATH))
+
+    const byPath = new Map<string, SystemCoreEntry>()
+    ;[...coreItems, ...virtualFolders].forEach(entry => {
+      byPath.set(entry.path.toLowerCase(), entry)
+    })
+    return [...byPath.values()].sort((a, b) => {
+      if (a.kind !== b.kind) return a.kind === 'folder' ? -1 : 1
+      return a.name.localeCompare(b.name)
+    })
+  }
+
   function refresh(nextPath = path) {
     const normalized = normaliseCorePath(nextPath)
     setPath(normalized)
     setDraftPath(normalized)
     void coreList(normalized).then(items => {
-      setEntries(items)
-      setStatus(`${items.length} object${items.length === 1 ? '' : 's'}`)
+      const nextEntries = virtualEntriesForPath(normalized, items)
+      setEntries(nextEntries)
+      setStatus(`${nextEntries.length} object${nextEntries.length === 1 ? '' : 's'}`)
     })
   }
 
@@ -2203,8 +2331,18 @@ function FileExplorerApp({ app }: { app: VibeApp }) {
       setSelectedEntry(null)
       return
     }
+    const program = savedProgramForPath(selectedPath, savedPrograms)
+    if (program) {
+      setSelectedEntry(savedProgramEntry(program))
+      return
+    }
     void coreReadEntry(selectedPath).then(setSelectedEntry)
-  }, [selectedPath])
+  }, [selectedPath, savedPrograms])
+
+  useEffect(() => {
+    const parent = coreParentPath(VIBEOS_APPS_PATH)
+    if (isVibeAppsPath(path) || normaliseCorePath(path).toLowerCase() === parent.toLowerCase()) refresh(path)
+  }, [savedPrograms])
 
   useEffect(() => {
     function onCoreUpdate(event: Event) {
@@ -2222,6 +2360,7 @@ function FileExplorerApp({ app }: { app: VibeApp }) {
     'C:\\Users\\Kenneth\\Desktop',
     'C:\\Users\\Kenneth\\Documents',
     'C:\\Users\\Kenneth\\Pictures',
+    VIBEOS_APPS_PATH,
     'C:\\ProgramData\\VibeOS\\Shared',
     'C:\\Temp',
   ]
@@ -2229,6 +2368,10 @@ function FileExplorerApp({ app }: { app: VibeApp }) {
   function openEntry(entry: SystemCoreEntry) {
     setSelectedPath(entry.path)
     if (entry.kind === 'folder') refresh(entry.path)
+    else {
+      const program = savedProgramForPath(entry.path, savedPrograms)
+      if (program) onOpenSaved(program.id)
+    }
   }
 
   function goUp() {
@@ -2250,6 +2393,15 @@ function FileExplorerApp({ app }: { app: VibeApp }) {
 
   async function deleteSelected() {
     if (!selectedPath || selectedPath === 'C:\\') return
+    const program = savedProgramForPath(selectedPath, savedPrograms)
+    if (program) {
+      onDeleteSaved(program.id)
+      setSelectedPath(null)
+      const nextEntries = entries.filter(entry => entry.path !== selectedPath)
+      setEntries(nextEntries)
+      setStatus(`${nextEntries.length} object${nextEntries.length === 1 ? '' : 's'}`)
+      return
+    }
     await coreDelete(selectedPath)
     setSelectedPath(null)
     refresh(path)
@@ -2306,19 +2458,22 @@ function FileExplorerApp({ app }: { app: VibeApp }) {
         </aside>
         <main className="min-h-0 overflow-auto bg-white p-2">
           <div className="grid grid-cols-[repeat(auto-fill,minmax(92px,1fr))] gap-2">
-            {entries.map(entry => (
-              <button
-                key={entry.path}
-                type="button"
-                onClick={() => setSelectedPath(entry.path)}
-                onDoubleClick={() => openEntry(entry)}
-                className={['grid min-h-[78px] place-items-center gap-1 p-1 text-center leading-tight hover:bg-[#dfe8ff]', selectedPath === entry.path ? 'bg-[#316ac5] text-white' : ''].join(' ')}
-                title={entry.path}
-              >
-                <XpIcon kind={entry.kind === 'folder' ? 'folder' : 'notes'} />
-                <span className="line-clamp-2 max-w-[90px]">{entry.name}</span>
-              </button>
-            ))}
+            {entries.map(entry => {
+              const program = savedProgramForPath(entry.path, savedPrograms)
+              return (
+                <button
+                  key={entry.path}
+                  type="button"
+                  onClick={() => setSelectedPath(entry.path)}
+                  onDoubleClick={() => openEntry(entry)}
+                  className={['grid min-h-[78px] place-items-center gap-1 p-1 text-center leading-tight hover:bg-[#dfe8ff]', selectedPath === entry.path ? 'bg-[#316ac5] text-white' : ''].join(' ')}
+                  title={entry.path}
+                >
+                  <XpIcon kind={program?.kind ?? (entry.kind === 'folder' ? 'folder' : 'notes')} src={program?.app.iconDataUrl} />
+                  <span className="line-clamp-2 max-w-[90px]">{entry.name}</span>
+                </button>
+              )
+            })}
           </div>
         </main>
         <aside className="min-h-0 overflow-auto border-l border-[#808080] bg-[#ece9d8] p-2 max-md:hidden">
@@ -3009,6 +3164,10 @@ function AiBrowserApp({ app }: { app: VibeApp }) {
   const currentPage = index >= 0 ? history[index] : null
   const canGoBack = index > 0
   const canGoForward = index >= 0 && index < history.length - 1
+  const googlePreviewImage = useMemo(
+    () => fallbackBrowserImageDataUrl('abstract', 'Random image from the web directory'),
+    []
+  )
 
   useSystemCoreResponder(app.id)
   useVibeImageResponder(app.id, () => ({
@@ -3126,16 +3285,23 @@ function AiBrowserApp({ app }: { app: VibeApp }) {
     return () => window.removeEventListener('message', onMessage)
   })
 
-  function submitAddress(event: React.FormEvent) {
+  function submitAddress(event: FormEvent) {
     event.preventDefault()
     void loadPage({ kind: /\s/.test(address.trim()) ? 'search' : 'address', value: address })
   }
 
-  function submitSearch(event: React.FormEvent) {
+  function submitSearch(event: FormEvent) {
     event.preventDefault()
     const query = searchQuery.trim()
     if (!query) return
     void loadPage({ kind: 'search', value: query })
+  }
+
+  function runSearch(query: string) {
+    const trimmed = query.trim()
+    if (!trimmed) return
+    setSearchQuery(trimmed)
+    void loadPage({ kind: 'search', value: trimmed })
   }
 
   function goBack() {
@@ -3192,7 +3358,14 @@ function AiBrowserApp({ app }: { app: VibeApp }) {
             />
           </div>
         )}
-        {currentPage ? (
+        {currentPage && isGoogleHomeUrl(currentPage.url) ? (
+          <BuiltInGoogleHome
+            query={searchQuery}
+            onQueryChange={setSearchQuery}
+            onSearch={runSearch}
+            imageSrc={googlePreviewImage}
+          />
+        ) : currentPage ? (
           <iframe
             key={`${app.id}-${currentPage.url}-${index}`}
             title={currentPage.title}
@@ -3955,7 +4128,51 @@ export default function VibeOS() {
   useEffect(() => {
     let alive = true
     void loadSavedPrograms().then(programs => {
-      if (alive) setSavedPrograms(programs)
+      if (!alive) return
+      setSavedPrograms(programs)
+      if (!programs.length) return
+
+      const savedApps = programs.map(program => ({
+        ...program.app,
+        id: `saved_${program.id}`,
+        savedId: program.id,
+        title: program.title,
+        kind: program.kind,
+        version: program.version,
+        prompt: program.prompt,
+      }))
+
+      savedApps.forEach(app => {
+        if (app.iconDataUrl) iconDataRef.current[appIconRuntimeKey(app)] = app.iconDataUrl
+      })
+
+      setApps(current => [
+        ...savedApps,
+        ...current.filter(app => !savedApps.some(savedApp => savedApp.id === app.id)),
+      ])
+      setSurfaces(current => ({
+        ...Object.fromEntries(programs.map(program => [
+          `saved_${program.id}`,
+          {
+            loading: false,
+            source: 'ai' as const,
+            generatedAt: program.updatedAt,
+            data: program.surface,
+          },
+        ])),
+        ...current,
+      }))
+      setIconLayouts(current => {
+        let changed = false
+        const next = { ...current }
+        savedApps.forEach((app, index) => {
+          if (!next[app.id]) {
+            next[app.id] = defaultIconLayout(index)
+            changed = true
+          }
+        })
+        return changed ? next : current
+      })
     })
     return () => { alive = false }
   }, [])
@@ -4101,6 +4318,15 @@ export default function VibeOS() {
     ])
   }
 
+  function showSavedProgramMenu(event: React.MouseEvent, program: SavedProgram) {
+    showContextMenu(event, program.title, [
+      { label: 'Open', onSelect: () => openSavedProgram(program.id) },
+      { label: 'New Version', onSelect: () => launchApp(program.prompt) },
+      { separator: true },
+      { label: 'Delete', onSelect: () => deleteSavedProgram(program.id) },
+    ])
+  }
+
   function arrangeIconsByName() {
     const sorted = [...apps].sort((a, b) => a.title.localeCompare(b.title))
     setIconLayouts(Object.fromEntries(sorted.map((app, index) => [app.id, defaultIconLayout(index)])))
@@ -4200,6 +4426,7 @@ export default function VibeOS() {
     }))
     setOpenIds(current => current.map(openId => openId === app.id ? savedApp.id : openId))
     setZOrderIds(current => current.map(openId => openId === app.id ? savedApp.id : openId))
+    setMinimizedIds(current => current.map(openId => openId === app.id ? savedApp.id : openId))
     setFocusedId(current => current === app.id ? savedApp.id : current)
     setWindowLayouts(current => {
       const existing = current[app.id]
@@ -4239,6 +4466,39 @@ export default function VibeOS() {
     setSettingsOpen(false)
     setStartOpen(false)
     if (!app.iconDataUrl) void generateAppIcon(app)
+  }
+
+  function deleteSavedProgram(id: string) {
+    const appId = `saved_${id}`
+    setSavedPrograms(current => {
+      const next = current.filter(program => program.id !== id)
+      if (next.length !== current.length) void saveSavedPrograms(next)
+      return next
+    })
+    setApps(current => current.filter(app => app.id !== appId && app.savedId !== id))
+    setSurfaces(current => {
+      if (!current[appId]) return current
+      const next = { ...current }
+      delete next[appId]
+      return next
+    })
+    setOpenIds(current => current.filter(openId => openId !== appId))
+    setZOrderIds(current => current.filter(openId => openId !== appId))
+    setMinimizedIds(current => current.filter(openId => openId !== appId))
+    setFocusedId(current => current === appId ? null : current)
+    setWindowLayouts(current => {
+      if (!current[appId]) return current
+      const next = { ...current }
+      delete next[appId]
+      return next
+    })
+    setIconLayouts(current => {
+      if (!current[appId]) return current
+      const next = { ...current }
+      delete next[appId]
+      return next
+    })
+    setSelectedIconId(current => current === appId ? null : current)
   }
 
   async function generateAppIcon(app: VibeApp) {
@@ -4326,8 +4586,9 @@ export default function VibeOS() {
           'You can have external assets, network calls, imports, script src, localStorage, cookies, parent/window.top access, or real system/file/account. Make the apps functional.',
           'Schema: { "documentHtml": string (REQUIRED, the entire app), "headline": string, "subtitle": string, "status": string, "skin": "plain"|"terminal"|"win95"|"neon"|"paper"|"danger"|"success", "caution": string }.',
           'documentHtml is the ONLY thing the user sees. It MUST be a complete, functional <!doctype html> document with substantial inline <style> AND inline <script>. The other fields are metadata only and are NOT rendered as UI. NEVER return an empty or trivial documentHtml.',
-          'Take as much space as you need. There is no character limit. Use however many tokens are required to produce a fully working app.',
-          'ABSOLUTE REQUIREMENT: Your output MUST be complete and syntactically valid. Every <script> tag must close with </script>. Every { ( [ must close. The JSON itself must be valid and end with }. Do NOT stop mid-statement, mid-string, or mid-tag. If you must choose, choose a smaller scope that finishes over a larger scope that runs out.',
+          'There is no app-side character limit on documentHtml. Take the space needed for a fully working app with complete HTML, CSS, and JavaScript.',
+          'ABSOLUTE REQUIREMENT: Finish. Your output MUST be complete and syntactically valid. Every <script> tag must close with </script>. Every { ( [ must close. The JSON itself must be valid and end with }. Do NOT stop mid-statement, mid-string, or mid-tag.',
+          'If the requested idea is large, deliberately build a smaller but polished and functional v1 instead of an ambitious unfinished app. A finished calculator/game/editor/workflow with fewer features is better than a large broken mockup. Preserve the core requested behavior first, then add extras only if you can still finish cleanly.',
           'The UI must fit a resizable OS window around 600x420, occupy the full viewport, and be responsive.',
         ].join('\n'),
         user: [
@@ -4900,6 +5161,8 @@ export default function VibeOS() {
               savedPrograms={savedPrograms}
               onOpenSaved={openSavedProgram}
               onNewVersion={launchApp}
+              onDeleteSaved={deleteSavedProgram}
+              onSavedProgramContextMenu={showSavedProgramMenu}
               onMove={next => setAppLayout(id, next)}
               onResize={next => setAppLayout(id, next)}
               onContextMenu={showWindowMenu}

@@ -588,6 +588,55 @@ function normaliseUrl(input: string) {
   return trimmed
 }
 
+function googleSearchUrl(query: string) {
+  return `https://www.google.com/search?q=${encodeURIComponent(query.trim())}`
+}
+
+function googleSearchQuery(url: string): string {
+  try {
+    const parsed = new URL(url)
+    if (!/(^|\.)google\.com$/i.test(parsed.hostname)) return ''
+    if (!/\/search$/i.test(parsed.pathname)) return ''
+    return parsed.searchParams.get('q')?.trim() ?? ''
+  } catch {
+    return ''
+  }
+}
+
+function googleRedirectTarget(url: string): string | null {
+  try {
+    const parsed = new URL(url)
+    if (!/(^|\.)google\.com$/i.test(parsed.hostname)) return null
+    if (!/^\/(?:url|interstitial|imgres)$/i.test(parsed.pathname)) return null
+    const target = parsed.searchParams.get('q') || parsed.searchParams.get('url') || parsed.searchParams.get('imgurl')
+    return target && /^https?:\/\//i.test(target) ? target : null
+  } catch {
+    return null
+  }
+}
+
+function destinationFromGoogleResultText(text: string | undefined, query: string): string | null {
+  const label = (text ?? '').replace(/\s+/g, ' ').trim()
+  if (!label || /^(google search|search|images|news|videos|maps|shopping|next|previous|cached|similar|search result ledger)$/i.test(label)) {
+    return null
+  }
+
+  const explicitDomain = label.match(/(?:https?:\/\/)?(?:www\.)?([a-z0-9][a-z0-9-]*(?:\.[a-z]{2,})+)(?:[/?#][^\s]*)?/i)?.[0]
+  if (explicitDomain) return normaliseUrl(explicitDomain.replace(/^https?:\/\//i, ''))
+  if (/wikipedia|encyclopedia|reference/i.test(label)) return `https://en.wikipedia.org/wiki/${encodeURIComponent(query || label)}`
+
+  const title = label.split(/\s[-|·]\s|\n/)[0] ?? label
+  const words = title
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(word => word && !['the', 'a', 'an', 'and', 'or', 'of', 'for', 'about', 'official', 'site', 'home', 'web', 'pages'].includes(word))
+
+  if (!words.length) return null
+  return `https://www.${words.slice(0, Math.min(words.length, 2)).join('')}.com/`
+}
+
 function displayUrl(url: string) {
   return url.replace(/^https?:\/\//i, '')
 }
@@ -646,6 +695,37 @@ function fallbackBrowserImageDataUrl(category: VibeImageCategory, title: string)
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
 }
 
+function cleanImagePromptText(value: string, max = 160) {
+  return value
+    .replace(/\s+/g, ' ')
+    .replace(/["'<>]/g, '')
+    .trim()
+    .slice(0, max)
+}
+
+function specificImageSubject(title: string, context: string) {
+  const source = cleanImagePromptText(`${title}. ${context}`, 260)
+  const patterns = [
+    /\b(?:depicting|showing|featuring|portrait of|photo of|photograph of|picture of|image of|illustration of|diagram of|drawing of|rendering of|model of|cutaway of|related to)\s+([^.,;:()|]+(?:\s+[^.,;:()|]+){0,8})/i,
+    /\b(?:a|an|the)\s+specific\s+([^.,;:()|]+(?:\s+[^.,;:()|]+){0,8})/i,
+  ]
+
+  for (const pattern of patterns) {
+    const match = source.match(pattern)?.[1]
+    if (match) {
+      const cleaned = cleanImagePromptText(match, 120)
+        .replace(/\s+(?:on|for|from|with|in|at|and)$/i, '')
+        .trim()
+      if (cleaned.length > 2) return cleaned
+    }
+  }
+
+  const modelLike = source.match(/\b(?:[A-Z][a-z]+(?:\s+[A-Z][a-z0-9-]+){1,5}|[A-Z]{2,}[-\s]?[A-Z0-9-]{2,}(?:\s+[A-Z][A-Za-z0-9-]+){0,3}|[A-Z][a-z]+-[A-Z0-9-]+(?:\s+[A-Z][A-Za-z0-9-]+){0,3})\b/)
+  if (modelLike?.[0]) return cleanImagePromptText(modelLike[0], 120)
+
+  return cleanImagePromptText(title || context || 'website image', 120)
+}
+
 function blobToDataUrl(blob: Blob) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
@@ -656,8 +736,9 @@ function blobToDataUrl(blob: Blob) {
 }
 
 function prodiaPromptForImage(category: VibeImageCategory, title: string, context: string) {
-  const safeTitle = (title || 'website image').replace(/\s+/g, ' ').slice(0, 120)
-  const safeContext = (context || safeTitle).replace(/\s+/g, ' ').slice(0, 180)
+  const safeTitle = cleanImagePromptText(title || 'website image', 120)
+  const safeContext = cleanImagePromptText(context || safeTitle, 180)
+  const exactSubject = specificImageSubject(safeTitle, safeContext)
   const combined = `${safeTitle} ${safeContext}`.toLowerCase()
   const isGameAsset = /(pokemon|pok[eé]dex|pikachu|bulbasaur|squirtle|charmander|monster|creature|sprite|rpg|battle|party|trainer|card|game|map|tileset|top down|top-down|character)/.test(combined)
   const imageHauntRoll = hashString(`${safeTitle}:${safeContext}:signal`) % 100
@@ -672,9 +753,11 @@ function prodiaPromptForImage(category: VibeImageCategory, title: string, contex
     wildlife: 'loose category: animals, habitats, pets, field photography, biological subjects, or natural creatures if relevant',
   }
   return [
-    `subject: ${safeTitle}`,
+    `exact subject to depict: ${exactSubject}`,
+    `original image request: ${safeTitle}`,
     `site/app context: ${safeContext}`,
     categoryIntent[category],
+    'if the request names a specific real object, vehicle, aircraft, animal species, product, character, person, place, or model, include that exact name visibly in the mental target of the image; for example, if the request says Lockheed L-1011 TriStar, generate a Lockheed L-1011 TriStar, not a generic airplane',
     'the subject and context are more important than the category; do not force a landscape, city, gadget, food plate, or animal unless it fits the requested subject',
     'generate the most useful specific image for this website or desktop app, it can be anything: scene, object, character, map, texture, product, diagram, background, document, portrait, icon-like asset, or reference image',
     isGameAsset
@@ -1195,8 +1278,10 @@ async function requestBrowserPage({
   history: AiBrowserPage[]
   signal?: AbortSignal
 }): Promise<AiBrowserPage> {
-  const target = request.kind === 'address' || request.kind === 'search'
-    ? normaliseUrl(request.value)
+  const target = request.kind === 'search'
+    ? googleSearchUrl(request.value)
+    : request.kind === 'address'
+      ? normaliseUrl(request.value)
     : request.value
   const body: Record<string, unknown> = {
     model,
@@ -1215,7 +1300,9 @@ async function requestBrowserPage({
           'Very occasionally, if it fits the site and does not break usefulness, add subtle analog-era unease: an emergency-broadcast-like notice, a timestamp mismatch, a dead authority link, a low-resolution image caption that seems too specific, or dry bureaucratic copy implying the system noticed the visitor. Keep it plausible, understated, and never a jump scare.',
           'Do not mention AI, generated content, models, hallucinations, VibeOS, or vibes anywhere in the user-visible page.',
           'Include working anchors and forms. Links should point to plausible relative URLs on the same domain.',
+          'For Google search result pages, result-title links must point directly to plausible destination websites, not to google.com/search, /search, or another Google results page. Reserve Google search URLs only for search forms or search-refinement controls.',
           'Include useful image placeholders where a real website would naturally have images: product photos, article thumbnails, profile photos, venue/travel images, diagrams, hero photos, or gallery items. Use <img data-vibe-random-image="category" alt="descriptive text"> where category is one of nature, city, technology, food, still_life, abstract, wildlife. Do not use external image URLs; the host browser will populate these placeholders.',
+          'Image alt text must name the specific visual subject, not just the category. If the image depicts a Lockheed L-1011 TriStar, write alt="Lockheed L-1011 TriStar passenger aircraft in flight, 1990s aviation photo" instead of alt="airplane" or alt="random image". Include exact model names, species, landmarks, products, people, aircraft, vehicles, or characters whenever they are known.',
           'You CAN include inline <script> tags for client-side interactivity: form validation, tab switching, dropdown menus, calculators, mini games, interactive demos, dynamic content updates. Make the page feel alive and functional.',
           'No external script src or network calls. No credential collection or real private data. Inline scripts only.',
           'Schema: { "title": string, "url": string, "status": string, "documentHtml": string }.',
@@ -2282,7 +2369,7 @@ body>.window>.titlebar:first-child,body>.window>.title-bar:first-child,body>.app
 
 function fallbackBrowserPage(request: BrowserRequest, currentPage?: AiBrowserPage): AiBrowserPage {
   const url = request.kind === 'search'
-    ? `https://www.google.com/search?q=${encodeURIComponent(request.value)}`
+    ? googleSearchUrl(request.value)
     : request.kind === 'address'
       ? normaliseUrl(request.value)
       : request.value
@@ -2327,8 +2414,14 @@ function fallbackBrowserPage(request: BrowserRequest, currentPage?: AiBrowserPag
         <input type="text" name="q" value="${safeQuery === safeUrl ? '' : safeQuery}" autofocus />
         <input type="submit" value="Google Search" />
       </form>
-      <p class="small">Compatibility services are currently active.</p>
-      <div class="result"><a href="/search?q=${encodeURIComponent(safeQuery || 'market data')}">Search result ledger</a><div class="url">google.com/search/local-ledger</div><div>Search results will be assembled after a query is submitted.</div></div>
+      <p class="small">${safeQuery && safeQuery !== safeUrl ? `Search results for ${safeQuery}` : 'Compatibility services are currently active.'}</p>
+      ${safeQuery && safeQuery !== safeUrl ? `
+        <div class="result"><a href="${destinationFromGoogleResultText(safeQuery, safeQuery) ?? `https://www.example.com/search?q=${encodeURIComponent(safeQuery)}`}">Web pages about ${safeQuery}</a><div class="url">${displayUrl(destinationFromGoogleResultText(safeQuery, safeQuery) ?? 'example.com')}</div><div>Directory results assembled for the current query.</div></div>
+        <div class="result"><a href="https://en.wikipedia.org/wiki/${encodeURIComponent(safeQuery)}">Reference entry for ${safeQuery}</a><div class="url">en.wikipedia.org/wiki/${safeQuery}</div><div>Open an encyclopedia-style result.</div></div>
+        <div class="result"><a href="https://www.reuters.com/search/news?blob=${encodeURIComponent(safeQuery)}">Recent notices for ${safeQuery}</a><div class="url">reuters.com/search/news?blob=${safeQuery}</div><div>News and index entries matching the search terms.</div></div>
+      ` : `
+        <div class="result"><a href="/search?q=${encodeURIComponent(safeQuery || 'market data')}">Search result ledger</a><div class="url">google.com/search/local-ledger</div><div>Enter a query above to assemble search results.</div></div>
+      `}
     ` : `
       <figure class="webphoto"><img data-vibe-random-image="${browserImageCategoryFor(`${safeUrl} ${safeQuery}`)}" alt="A random image related to ${safeQuery || safeUrl}"><figcaption>Random site image</figcaption></figure>
       <h1>${safeUrl}</h1>
@@ -2612,23 +2705,54 @@ function injectBrowserBridge(html: string, appId: string, page?: AiBrowserPage) 
     while(node && node !== document){ if(node.tagName === 'A' && node.getAttribute('href')) return node; node = node.parentNode; }
     return null;
   }
+  function closestSubmitControl(node){
+    while(node && node !== document){
+      if((node.tagName === 'BUTTON' || node.tagName === 'INPUT') && node.form) return node;
+      node = node.parentNode;
+    }
+    return null;
+  }
+  function submitForm(form){
+    if(!form || form.tagName !== 'FORM') return;
+    const fields = {};
+    const data = new FormData(form);
+    data.forEach(function(value, key){ fields[key] = String(value); });
+    parent.postMessage({ type:'VIBE_BROWSER_FORM', appId, action:form.getAttribute('action') || location.href, fields }, '*');
+  }
   document.addEventListener('click', function(event){
+    const submitter = closestSubmitControl(event.target);
+    if(submitter){
+      const tag = submitter.tagName;
+      const type = String(submitter.getAttribute('type') || (tag === 'BUTTON' ? 'submit' : 'text')).toLowerCase();
+      const isSubmit = tag === 'BUTTON' ? type !== 'button' && type !== 'reset' : type === 'submit' || type === 'image';
+      if(isSubmit && submitter.form){
+        event.preventDefault();
+        submitForm(submitter.form);
+        return;
+      }
+    }
     const link = closestLink(event.target);
     if(!link) return;
     const href = link.getAttribute('href');
     if(!href || href.indexOf('javascript:') === 0 || href[0] === '#') return;
     event.preventDefault();
     parent.postMessage({ type:'VIBE_BROWSER_NAVIGATE', appId, href, text:(link.textContent || '').trim() }, '*');
-  });
+  }, true);
   document.addEventListener('submit', function(event){
     const form = event.target;
     if(!form || form.tagName !== 'FORM') return;
     event.preventDefault();
-    const fields = {};
-    const data = new FormData(form);
-    data.forEach(function(value, key){ fields[key] = String(value); });
-    parent.postMessage({ type:'VIBE_BROWSER_FORM', appId, action:form.getAttribute('action') || location.href, fields }, '*');
-  });
+    submitForm(form);
+  }, true);
+  document.addEventListener('keydown', function(event){
+    if(event.key !== 'Enter') return;
+    const target = event.target;
+    if(!target || target.tagName !== 'INPUT') return;
+    const form = target.form;
+    if(!form) return;
+    event.preventDefault();
+    submitForm(form);
+  }, true);
 })();</script>`
   const safeHtml = sanitizeGeneratedScripts(html)
   const doc = /<html[\s>]/i.test(safeHtml) ? safeHtml : `<!doctype html><html><body>${safeHtml}</body></html>`
@@ -2777,6 +2901,7 @@ function AiBrowserApp({ app }: { app: VibeApp }) {
   const abortRef = useRef<AbortController | null>(null)
   const home = googleHomePage()
   const [address, setAddress] = useState(() => displayUrl(home.url))
+  const [searchQuery, setSearchQuery] = useState('')
   const [history, setHistory] = useState<AiBrowserPage[]>([home])
   const [index, setIndex] = useState(0)
   const [loading, setLoading] = useState(false)
@@ -2793,7 +2918,7 @@ function AiBrowserApp({ app }: { app: VibeApp }) {
   }))
 
   function requestUrlFor(request: BrowserRequest): string {
-    if (request.kind === 'search') return `https://www.google.com/search?q=${encodeURIComponent(request.value)}`
+    if (request.kind === 'search') return googleSearchUrl(request.value)
     return normaliseUrl(request.value)
   }
 
@@ -2870,11 +2995,30 @@ function AiBrowserApp({ app }: { app: VibeApp }) {
       if (!data || data.appId !== app.id) return
       if (data.type === 'VIBE_BROWSER_NAVIGATE' && data.href) {
         const nextUrl = new URL(data.href, currentPage?.url ?? normaliseUrl(address)).toString()
-        void loadPage({ kind: 'link', value: nextUrl, text: data.text })
+        const redirectTarget = googleRedirectTarget(nextUrl)
+        if (redirectTarget) {
+          void loadPage({ kind: 'link', value: redirectTarget, text: data.text })
+          return
+        }
+
+        const nextGoogleQuery = googleSearchQuery(nextUrl)
+        const currentGoogleQuery = googleSearchQuery(currentPage?.url ?? normaliseUrl(address))
+        if (nextGoogleQuery && currentGoogleQuery) {
+          const destination = destinationFromGoogleResultText(data.text, nextGoogleQuery)
+          if (destination) {
+            void loadPage({ kind: 'link', value: destination, text: data.text })
+            return
+          }
+        }
+
+        void loadPage(nextGoogleQuery ? { kind: 'search', value: nextGoogleQuery } : { kind: 'link', value: nextUrl, text: data.text })
       }
       if (data.type === 'VIBE_BROWSER_FORM' && data.fields) {
         const q = data.fields.q || data.fields.search || Object.values(data.fields)[0] || ''
-        if (q.trim()) void loadPage({ kind: 'search', value: q })
+        if (q.trim()) {
+          setSearchQuery(q)
+          void loadPage({ kind: 'search', value: q })
+        }
         else void loadPage({ kind: 'form', value: data.action || currentPage?.url || normaliseUrl(address), fields: data.fields })
       }
     }
@@ -2886,6 +3030,13 @@ function AiBrowserApp({ app }: { app: VibeApp }) {
   function submitAddress(event: React.FormEvent) {
     event.preventDefault()
     void loadPage({ kind: /\s/.test(address.trim()) ? 'search' : 'address', value: address })
+  }
+
+  function submitSearch(event: React.FormEvent) {
+    event.preventDefault()
+    const query = searchQuery.trim()
+    if (!query) return
+    void loadPage({ kind: 'search', value: query })
   }
 
   function goBack() {
@@ -2921,17 +3072,15 @@ function AiBrowserApp({ app }: { app: VibeApp }) {
         </form>
       </div>
       <div className="flex min-h-[28px] items-center gap-2 border-b border-[#808080] bg-[#ece9d8] px-2">
-        <form
-          onSubmit={event => {
-            event.preventDefault()
-            const data = new FormData(event.currentTarget)
-            const q = String(data.get('q') ?? '')
-            if (q.trim()) void loadPage({ kind: 'search', value: q })
-          }}
-          className="flex min-w-0 flex-1 items-center gap-1"
-        >
+        <form onSubmit={submitSearch} className="flex min-w-0 flex-1 items-center gap-1">
           <span className="text-2xs text-[#404040]">Search</span>
-          <input name="q" placeholder="Search web" className="h-5 min-w-0 flex-1 border border-[#808080] bg-white px-1 text-2xs" />
+          <input
+            name="q"
+            value={searchQuery}
+            onChange={event => setSearchQuery(event.target.value)}
+            placeholder="Search web"
+            className="h-5 min-w-0 flex-1 border border-[#808080] bg-white px-1 text-2xs"
+          />
           <button type="submit" className="h-5 border border-[#404040] bg-[#d4d0c8] px-2 text-2xs shadow-[inset_1px_1px_0_#fff,inset_-1px_-1px_0_#808080]">Search</button>
         </form>
       </div>
@@ -2948,7 +3097,7 @@ function AiBrowserApp({ app }: { app: VibeApp }) {
           <iframe
             key={`${app.id}-${currentPage.url}-${index}`}
             title={currentPage.title}
-            sandbox="allow-scripts"
+            sandbox="allow-scripts allow-forms"
             srcDoc={injectBrowserBridge(currentPage.documentHtml, app.id, currentPage)}
             className="h-full w-full border-0 bg-white"
           />
@@ -4066,6 +4215,7 @@ export default function VibeOS() {
           'Make each app uniquely shaped: different layout, controls, visual style, and logic depending on the requested app. Avoid generic dashboard cards unless the prompt asks for a dashboard.',
           'Visual style must be Windows 95/98/XP or early software inside the app: grey panels, bevels, menu bars, status bars, tree views, tabs, toolbars, serif-free system fonts. No purple gradients, neon AI styling, glassmorphism, glowing blobs, or meme UI. if someone fun is requested generate silly 90s-style homemade web page vibes',
           'Only include image placeholders when imagery is part of the app itself: game backgrounds/sprites/maps/creatures/characters/cards, product photos, profile/portfolio images, gallery/media apps, travel/recipe/catalog pages, or visual reference material. Do NOT add decorative/random images to calculators, terminals, notes, forms, admin tools, ledgers, settings panels, or plain utilities. When imagery is genuinely needed, use <img data-vibe-random-image="category" alt="descriptive text"> where category is nature, city, technology, food, still_life, abstract, or wildlife. The host will generate and cache those images.',
+          'Image alt text must be specific enough to generate the exact picture. If the picture should depict a named thing, put that name in the alt text along with visual description, e.g. "Lockheed L-1011 TriStar passenger aircraft parked at an airport gate, 1990s photo". Avoid vague alt text like "airplane", "product image", "character", or "random image".',
           'For representational art inside apps, especially games, creature indexes, RPGs, bestiaries, maps, trading cards, item catalogs, avatars, and backgrounds, DO NOT draw crude placeholder boxes, emoji, inline SVG doodles, CSS-only faces, or canvas stand-ins. Use host-generated <img data-vibe-random-image="..."> elements with precise alt text such as "1990s game manual portrait of Squirtle" or "top-down RPG forest tile background".',
           'Shared system data: the host injects window.SystemCore into your iframe. Use it when user data should persist or sync with other apps. It is async and Windows-file oriented: await SystemCore.readFile("C:\\\\Users\\\\Kenneth\\\\Documents\\\\notes.json"), await SystemCore.writeFile(path, value, { mime: "application/json" }), await SystemCore.mergeFile(path, partialObject), await SystemCore.list("C:\\\\ProgramData\\\\VibeOS\\\\Shared"), await SystemCore.stat(path), await SystemCore.delete(path), and SystemCore.subscribe("C:\\\\ProgramData\\\\VibeOS\\\\Shared", callback). Prefer C:\\\\Users\\\\Kenneth\\\\Documents for personal documents, C:\\\\Users\\\\Kenneth\\\\Pictures for generated image metadata, C:\\\\ProgramData\\\\VibeOS\\\\Shared for cross-app shared state, and C:\\\\Temp for disposable state. Use local in-memory state for throwaway UI only.',
           'When appropriate and rare, make the app feel like it belongs to a slightly alive system: a status bar that reports an impossible but harmless observation, a system notice that disappears, a timestamp that corrects itself, or a dry administrative warning. Psychological unease only; no gore, no screaming, no jump scares, no obvious horror branding.',

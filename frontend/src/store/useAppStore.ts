@@ -5,7 +5,7 @@ export type ThemeMode = 'dark' | 'light'
 export type FontFamily = 'lato' | 'ibm-plex' | 'inter' | 'system' | 'mono'
 export type AccentColor = 'amber' | 'blue' | 'green' | 'rose' | 'custom'
 export type InterfaceDensity = 'standard' | 'compact'
-export type OpenAIModel = 'gpt-5.4-nano' | 'gpt-5.4-mini' | 'gpt-4.1' | 'gpt-5.5'
+export type OpenAIModel = 'gpt-5.4-nano' | 'gpt-5.4-mini' | 'gpt-4.1' | 'gpt-5.5' | 'gpt-5.3-codex-spark'
 export type PaperInstrumentKind = 'stock' | 'option'
 export type PaperOptionType = 'call' | 'put'
 export type PaperOrderAction = 'BUY' | 'SELL' | 'BUY_OPTION' | 'SELL_OPTION'
@@ -84,11 +84,17 @@ export function isReasoningModel(model: string): boolean {
   return model === 'gpt-5.5'
 }
 
+export function maxOutputTokensFor(model: string): number {
+  if (model === 'gpt-5.3-codex-spark') return 16000
+  return 128000
+}
+
 export const OPENAI_MODEL_OPTIONS: Array<{ value: OpenAIModel; label: string }> = [
   { value: 'gpt-5.4-nano', label: 'gpt-5.4-nano (fastest)' },
   { value: 'gpt-5.4-mini', label: 'gpt-5.4-mini (fast, cheap)' },
   { value: 'gpt-4.1', label: 'gpt-4.1 (stronger)' },
   { value: 'gpt-5.5', label: 'gpt-5.5 (reasoning)' },
+  { value: 'gpt-5.3-codex-spark', label: 'gpt-5.3-codex-spark (code)' },
 ]
 
 const LEGACY_MODEL_MIGRATION: Record<string, OpenAIModel> = {

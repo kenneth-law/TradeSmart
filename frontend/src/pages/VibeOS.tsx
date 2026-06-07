@@ -3785,12 +3785,14 @@ function playLoginChime() {
 function LoginScreen({
   username,
   password,
+  hasOpenAIKey,
   onUsername,
   onPassword,
   onLogin,
 }: {
   username: string
   password: string
+  hasOpenAIKey: boolean
   onUsername: (value: string) => void
   onPassword: (value: string) => void
   onLogin: () => void
@@ -3812,6 +3814,7 @@ function LoginScreen({
           className="text-[11px]"
           onSubmit={event => {
             event.preventDefault()
+            if (!hasOpenAIKey) return
             onLogin()
           }}
         >
@@ -3853,10 +3856,21 @@ function LoginScreen({
             </div>
           </div>
 
+          {!hasOpenAIKey && (
+            <div className="mx-3 mb-2 border border-[#d0a400] bg-[#fff8d7] p-2 text-[11px] leading-[1.35] text-[#202020] shadow-[inset_1px_1px_0_#fff]">
+              OpenAI API key required. Please go to{' '}
+              <Link to="/settings#api-key" className="font-bold text-[#0a246a] underline">
+                Settings
+              </Link>{' '}
+              and set up your API key before logging in.
+            </div>
+          )}
+
           <div className="flex justify-end gap-2 border-t border-[#9eb8e8] bg-[#d7e6ff] px-3 py-2">
             <button
               type="submit"
-              className="min-h-[24px] min-w-[76px] rounded-[3px] border border-[#316ac5] bg-gradient-to-b from-white to-[#d7e7ff] px-3 text-[11px] text-black hover:brightness-105"
+              disabled={!hasOpenAIKey}
+              className="min-h-[24px] min-w-[76px] rounded-[3px] border border-[#316ac5] bg-gradient-to-b from-white to-[#d7e7ff] px-3 text-[11px] text-black hover:brightness-105 disabled:cursor-not-allowed disabled:text-[#777] disabled:brightness-95"
             >
               OK
             </button>
@@ -4065,6 +4079,7 @@ export default function VibeOS() {
   const openaiKey = useAppStore(s => s.openaiKey)
   const prodiaKey = useAppStore(s => s.prodiaKey)
   const settings = useAppStore(s => s.settings)
+  const hasOpenAIKey = openaiKey.trim().length > 0
   const controllersRef = useRef<Record<string, AbortController>>({})
   const iconDataRef = useRef<Record<string, string>>({})
   const wallpaperControllerRef = useRef<AbortController | null>(null)
@@ -4117,6 +4132,15 @@ export default function VibeOS() {
     const timer = window.setInterval(() => setSeed(Date.now()), 4200)
     return () => window.clearInterval(timer)
   }, [drift])
+
+  useEffect(() => {
+    if (hasOpenAIKey || !loggedIn) return
+    setLoggedIn(false)
+    setWelcomeOpen(false)
+    setStartOpen(false)
+    setSettingsOpen(false)
+    setPrompt('')
+  }, [hasOpenAIKey, loggedIn])
 
   useEffect(() => {
     return () => {
@@ -4656,6 +4680,11 @@ export default function VibeOS() {
   }
 
   function launchApp(nextPrompt = prompt) {
+    if (!hasOpenAIKey) {
+      setStartOpen(false)
+      setPrompt('')
+      return
+    }
     const clean = nextPrompt.trim()
     if (!clean) return
     const draft = makeApp(clean, Date.now(), apps.length + 1)
@@ -4789,6 +4818,7 @@ export default function VibeOS() {
   }
 
   function completeLogin() {
+    if (!hasOpenAIKey) return
     setLoggedIn(true)
     setWelcomeOpen(true)
     playLoginChime()
@@ -4799,6 +4829,7 @@ export default function VibeOS() {
       <LoginScreen
         username={username}
         password={password}
+        hasOpenAIKey={hasOpenAIKey}
         onUsername={setUsername}
         onPassword={setPassword}
         onLogin={completeLogin}

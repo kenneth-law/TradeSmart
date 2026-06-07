@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import {
   ACCENT_OPTIONS,
   FONT_OPTIONS,
@@ -250,6 +250,13 @@ const SETTINGS_NAV: Array<{
 type SettingsCategoryId = typeof SETTINGS_NAV[number]['id']
 
 const inputClassName = 'min-h-[44px] w-full rounded-[8px] border border-border bg-bg px-4 py-3 text-sm text-text outline-none transition-colors placeholder:text-dim focus-visible:border-accent'
+
+function categoryFromHash(): SettingsCategoryId {
+  if (typeof window === 'undefined') return 'appearance'
+  const hash = window.location.hash.replace(/^#/, '')
+  const match = SETTINGS_NAV.find(item => item.id === hash)
+  return match?.id ?? 'appearance'
+}
 
 function CategoryNav({
   activeCategory,
@@ -513,7 +520,14 @@ export default function Settings() {
   const [prodiaKeyDraft, setProdiaKeyDraft] = useState(prodiaKey)
   const [showKey, setShowKey] = useState(false)
   const [showProdiaKey, setShowProdiaKey] = useState(false)
-  const [activeCategory, setActiveCategory] = useState<SettingsCategoryId>('appearance')
+  const [activeCategory, setActiveCategory] = useState<SettingsCategoryId>(() => categoryFromHash())
+
+  useEffect(() => {
+    const syncCategoryFromHash = () => setActiveCategory(categoryFromHash())
+    window.addEventListener('hashchange', syncCategoryFromHash)
+    syncCategoryFromHash()
+    return () => window.removeEventListener('hashchange', syncCategoryFromHash)
+  }, [])
 
   function update(patch: Partial<SystemSettings>) {
     setSettings(patch)

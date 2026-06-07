@@ -142,6 +142,7 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
 
 export const SETTINGS_COOKIE = 'tradesmart_system_settings'
 const OPENAI_KEY_STORAGE = 'tradesmart_openai_key'
+const PRODIA_KEY_STORAGE = 'tradesmart_prodia_key'
 const PAPER_ACCOUNT_STORAGE = 'tradesmart_paper_account'
 const DEFAULT_PAPER_CASH = 100000
 export const DEFAULT_PAPER_COST_MODEL: PaperCostModel = {
@@ -249,6 +250,25 @@ export function saveOpenAIKey(key: string) {
   try {
     if (key) window.localStorage.setItem(OPENAI_KEY_STORAGE, key)
     else window.localStorage.removeItem(OPENAI_KEY_STORAGE)
+  } catch {
+    // ignore quota / disabled storage
+  }
+}
+
+export function loadProdiaKey(): string {
+  if (typeof window === 'undefined') return ''
+  try {
+    return window.localStorage.getItem(PRODIA_KEY_STORAGE) ?? ''
+  } catch {
+    return ''
+  }
+}
+
+export function saveProdiaKey(key: string) {
+  if (typeof window === 'undefined') return
+  try {
+    if (key) window.localStorage.setItem(PRODIA_KEY_STORAGE, key)
+    else window.localStorage.removeItem(PRODIA_KEY_STORAGE)
   } catch {
     // ignore quota / disabled storage
   }
@@ -444,6 +464,7 @@ export function applySystemSettings(settings: SystemSettings) {
 const initialSettings = loadSettings()
 applySystemSettings(initialSettings)
 const initialOpenAIKey = loadOpenAIKey()
+const initialProdiaKey = loadProdiaKey()
 const initialPaperAccount = loadPaperAccount()
 
 interface AppStore {
@@ -465,6 +486,9 @@ interface AppStore {
 
   openaiKey: string
   setOpenAIKey: (key: string) => void
+
+  prodiaKey: string
+  setProdiaKey: (key: string) => void
 
   paperAccount: PaperAccount
   setPaperCash: (cash: number) => void
@@ -523,6 +547,13 @@ export const useAppStore = create<AppStore>((set) => ({
     const trimmed = key.trim()
     saveOpenAIKey(trimmed)
     set({ openaiKey: trimmed })
+  },
+
+  prodiaKey: initialProdiaKey,
+  setProdiaKey: (key) => {
+    const trimmed = key.trim()
+    saveProdiaKey(trimmed)
+    set({ prodiaKey: trimmed })
   },
 
   paperAccount: initialPaperAccount,

@@ -185,7 +185,6 @@ const MAX_SAVED_PROGRAMS = 200
 const VIBEOS_CORE_EVENT = 'vibeos-core-update'
 const DESKTOP_WALLPAPER_STORAGE = 'system_desktop_wallpaper_xp_v2'
 const PRODIA_IMAGE_URL = 'https://inference.prodia.com/v2/job'
-const PRODIA_TOKEN = '***REDACTED_PRODIA_KEY***'
 type VibeImageCategory = 'nature' | 'city' | 'technology' | 'food' | 'still_life' | 'abstract' | 'wildlife'
 const HAUNTED_WALLPAPER_CACHE_ID = 'wallpaper_analog_signal_current'
 
@@ -867,17 +866,18 @@ async function coreDelete(path: string): Promise<{ path: string; deleted: true }
   }
 }
 
-async function fetchProdiaGeneratedImage(category: VibeImageCategory, title: string, context: string, signal?: AbortSignal) {
+async function fetchProdiaGeneratedImage(prodiaKey: string, category: VibeImageCategory, title: string, context: string, signal?: AbortSignal) {
   const prompt = prodiaPromptForImage(category, title, context)
   const id = imageCacheId(prompt)
   const cached = await loadCachedGeneratedImage(id)
   if (cached?.dataUrl) return cached.dataUrl
+  if (!prodiaKey) return null
 
   try {
     const response = await fetch(PRODIA_IMAGE_URL, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${PRODIA_TOKEN}`,
+        Authorization: `Bearer ${prodiaKey}`,
         Accept: 'image/jpeg;quality=82;progressive=1',
         'Content-Type': 'application/json',
       },
@@ -914,13 +914,14 @@ function hauntedWallpaperPrompt(seed: number) {
   ].join(', ')
 }
 
-async function fetchHauntedWallpaper(seed = Date.now(), signal?: AbortSignal) {
+async function fetchHauntedWallpaper(prodiaKey: string, seed = Date.now(), signal?: AbortSignal) {
+  if (!prodiaKey) return null
   const prompt = hauntedWallpaperPrompt(seed)
   try {
     const response = await fetch(PRODIA_IMAGE_URL, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${PRODIA_TOKEN}`,
+        Authorization: `Bearer ${prodiaKey}`,
         Accept: 'image/jpeg;quality=84;progressive=1',
         'Content-Type': 'application/json',
       },
@@ -967,13 +968,14 @@ function customWallpaperPrompt(subject: string) {
 // Generate a wallpaper from a user-typed subject. Deliberately does NOT write to
 // HAUNTED_WALLPAPER_CACHE_ID (that slot belongs to the haunted retune image and is
 // reloaded on mount); for v1 the custom image is in-memory only, like the retune.
-async function fetchCustomWallpaper(subject: string, seed = Date.now(), signal?: AbortSignal) {
+async function fetchCustomWallpaper(prodiaKey: string, subject: string, seed = Date.now(), signal?: AbortSignal) {
+  if (!prodiaKey) return null
   const prompt = customWallpaperPrompt(subject)
   try {
     const response = await fetch(PRODIA_IMAGE_URL, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${PRODIA_TOKEN}`,
+        Authorization: `Bearer ${prodiaKey}`,
         Accept: 'image/jpeg;quality=84;progressive=1',
         'Content-Type': 'application/json',
       },
@@ -1127,17 +1129,18 @@ async function makeTransparentIconPng(dataUrl: string) {
   return canvas.toDataURL('image/png')
 }
 
-async function fetchProdiaGeneratedAppIcon(app: VibeApp, signal?: AbortSignal) {
+async function fetchProdiaGeneratedAppIcon(prodiaKey: string, app: VibeApp, signal?: AbortSignal) {
   const prompt = prodiaPromptForAppIcon(app)
   const id = appIconCacheId(prompt)
   const cached = await loadCachedGeneratedImage(id)
   if (cached?.dataUrl) return cached.dataUrl
+  if (!prodiaKey) return fallbackAppIconDataUrl(app)
 
   try {
     const response = await fetch(PRODIA_IMAGE_URL, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${PRODIA_TOKEN}`,
+        Authorization: `Bearer ${prodiaKey}`,
         Accept: 'image/jpeg;quality=90',
         'Content-Type': 'application/json',
       },
@@ -2634,6 +2637,7 @@ function injectBrowserBridge(html: string, appId: string, page?: AiBrowserPage) 
 }
 
 function useVibeImageResponder(appId: string, getContext: () => { title: string; context: string }) {
+  const prodiaKey = useAppStore(s => s.prodiaKey)
   useEffect(() => {
     function onMessage(event: MessageEvent) {
       const data = event.data as {
@@ -2649,7 +2653,7 @@ function useVibeImageResponder(appId: string, getContext: () => { title: string;
       const title = data.title || fallback.title || 'Generated image'
       const context = fallback.context || title
       const category = coerceVibeImageCategory(data.category) ?? browserImageCategoryFor(`${data.category ?? ''} ${title} ${context}`)
-      void fetchProdiaGeneratedImage(category, title, context)
+      void fetchProdiaGeneratedImage(prodiaKey, category, title, context)
         .then(src => source?.postMessage({
           type: 'VIBE_RANDOM_IMAGE_RESULT',
           appId,
@@ -2668,7 +2672,7 @@ function useVibeImageResponder(appId: string, getContext: () => { title: string;
 
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
-  }, [appId, getContext])
+  }, [appId, getContext, prodiaKey])
 }
 
 function useSystemCoreResponder(appId: string) {
@@ -3480,10 +3484,10 @@ function WelcomeDialog({ username, onClose }: { username: string; onClose: () =>
               <div><span className="font-bold">License:</span> Perpetual</div>
             </div>
             <p className="mt-3 text-[11px]">
-              This is real software running on a real machine, this is not a hallucination. If you experience any hallucinatory behaviours, please report it to the hallucination support team.
+              Hallucination XP - a Windows XP/95 simulator where nothing is pre-built. Every app, web page, image and icon is generated live by AI when you open it. Run.exe any program into existence.
             </p>
             <p className="mt-2 text-[10px] text-[#404040]">
-              Hallucination support is available somewhere.
+              Hallucination support is available somewhere. Make sure your api key is valid and has enough credits, and if the app doesn't work, just launch it again.
             </p>
           </div>
         </div>
@@ -3638,6 +3642,8 @@ function StartMenu({
 
 export default function VibeOS() {
   const openaiKey = useAppStore(s => s.openaiKey)
+  const prodiaKey = useAppStore(s => s.prodiaKey)
+  const setProdiaKey = useAppStore(s => s.setProdiaKey)
   const settings = useAppStore(s => s.settings)
   const controllersRef = useRef<Record<string, AbortController>>({})
   const iconDataRef = useRef<Record<string, string>>({})
@@ -3987,7 +3993,7 @@ export default function VibeOS() {
 
   async function generateAppIcon(app: VibeApp) {
     if (app.iconDataUrl) return
-    const iconDataUrl = await fetchProdiaGeneratedAppIcon(app)
+    const iconDataUrl = await fetchProdiaGeneratedAppIcon(prodiaKey, app)
     const runtimeKey = appIconRuntimeKey(app)
     iconDataRef.current[runtimeKey] = iconDataUrl
 
@@ -4231,7 +4237,7 @@ export default function VibeOS() {
       intensity: manual ? 0.48 : 0.36,
     })
     try {
-      const url = await fetchHauntedWallpaper(Date.now(), controller.signal)
+      const url = await fetchHauntedWallpaper(prodiaKey, Date.now(), controller.signal)
       if (!url || controller.signal.aborted) return
       setHauntedWallpaperUrl(url)
       setGeneratedWallpaperLabel(null)
@@ -4251,7 +4257,7 @@ export default function VibeOS() {
     wallpaperControllerRef.current = controller
     setWallpaperRetuning(true)
     try {
-      const url = await fetchCustomWallpaper(subject, Date.now(), controller.signal)
+      const url = await fetchCustomWallpaper(prodiaKey, subject, Date.now(), controller.signal)
       if (!url || controller.signal.aborted) return
       setHauntedWallpaperUrl(url)
       setGeneratedWallpaperLabel(subject.slice(0, 32))
@@ -4536,6 +4542,29 @@ export default function VibeOS() {
                             {wallpaperRetuning ? 'Composing...' : 'Apply'}
                           </button>
                         </form>
+                      </div>
+                      <div className="mt-3 border border-[#808080] bg-[#ece9d8] p-2 shadow-[inset_1px_1px_0_#fff,inset_-1px_-1px_0_#aaa]">
+                        <div className="font-bold">Imaging Service Key</div>
+                        <p className="mt-1 text-[10px] leading-tight text-[#404040]">
+                          Wallpapers, application icons and in-page pictures are rendered by the
+                          Prodia imaging service. Paste your Prodia API key to enable image
+                          generation. Stored on this machine only.
+                        </p>
+                        <label className="mt-2 flex flex-col gap-1">
+                          <span className="text-[10px] text-[#404040]">Prodia API key</span>
+                          <input
+                            type="password"
+                            value={prodiaKey}
+                            onChange={event => setProdiaKey(event.target.value)}
+                            placeholder="prodia key"
+                            autoComplete="off"
+                            spellCheck={false}
+                            className="h-6 border border-[#808080] bg-white px-1 font-mono text-[11px] shadow-[inset_1px_1px_0_#aaa,inset_-1px_-1px_0_#fff]"
+                          />
+                        </label>
+                        <p className="mt-1 text-[10px] text-[#404040]">
+                          {prodiaKey ? 'Imaging service configured.' : 'No key set. Image generation is disabled.'}
+                        </p>
                       </div>
                     </div>
                   ) : controlPanelSelection === 'Add/Remove Programs' ? (

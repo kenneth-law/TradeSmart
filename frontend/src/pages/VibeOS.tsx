@@ -14,8 +14,9 @@ import { isReasoningModel, maxOutputTokensFor, useAppStore } from '../store/useA
 import vibeOsLogo from '../assets/generated/vibeos-logo.png'
 import xpAiWallpaper from '../assets/generated/xp-ai-wallpaper.png'
 
-type VibeAppKind = 'terminal' | 'calculator' | 'browser' | 'notes' | 'money' | 'paint' | 'encyclopedia' | 'programs' | 'generic'
+type VibeAppKind = 'terminal' | 'calculator' | 'browser' | 'notes' | 'money' | 'paint' | 'encyclopedia' | 'programs' | 'explorer' | 'generic'
 type DesktopWallpaper = 'teal' | 'rolling-hills'
+type HauntSignal = 'idle' | 'listening' | 'retuning' | 'observed' | 'maintenance'
 
 interface VibeApp {
   id: string
@@ -24,6 +25,7 @@ interface VibeApp {
   kind: VibeAppKind
   version?: number
   savedId?: string
+  iconDataUrl?: string
   accent: string
   x: number
   y: number
@@ -55,6 +57,13 @@ interface ContextMenuState {
   y: number
   title?: string
   items: ContextMenuItem[]
+}
+
+interface HauntState {
+  signal: HauntSignal
+  message: string
+  until: number
+  intensity: number
 }
 
 interface GeneratedWidget {
@@ -150,23 +159,42 @@ interface CachedGeneratedImage {
   updatedAt: string
 }
 
+type SystemCoreEntryKind = 'file' | 'folder'
+
+interface SystemCoreEntry {
+  path: string
+  kind: SystemCoreEntryKind
+  name: string
+  parentPath: string
+  value?: unknown
+  mime?: string
+  ownerAppId?: string
+  createdAt: string
+  updatedAt: string
+  version: number
+}
+
 const ACCENTS = ['#E89B2C', '#3B82F6', '#10B981', '#F43F5E', '#A78BFA', '#22D3EE', '#F97316']
 const SAVED_PROGRAMS_STORAGE = 'system_desktop_program_registry_v1'
 const VIBEOS_DB_NAME = 'tradesmart_vibeos'
-const VIBEOS_DB_VERSION = 2
+const VIBEOS_DB_VERSION = 3
 const SAVED_PROGRAMS_STORE = 'saved_programs'
 const IMAGE_CACHE_STORE = 'image_cache'
+const SYSTEM_CORE_STORE = 'system_core'
 const MAX_SAVED_PROGRAMS = 200
+const VIBEOS_CORE_EVENT = 'vibeos-core-update'
 const DESKTOP_WALLPAPER_STORAGE = 'system_desktop_wallpaper_xp_v2'
 const PRODIA_IMAGE_URL = 'https://inference.prodia.com/v2/job'
 const PRODIA_TOKEN = '***REDACTED_PRODIA_KEY***'
 type VibeImageCategory = 'nature' | 'city' | 'technology' | 'food' | 'still_life' | 'abstract' | 'wildlife'
+const HAUNTED_WALLPAPER_CACHE_ID = 'wallpaper_analog_signal_current'
 
 const STARTERS: Array<Pick<VibeApp, 'title' | 'prompt' | 'kind'>> = [
   { title: 'Program Manager', prompt: 'installed program manager', kind: 'programs' },
-  { title: 'Market Notes', prompt: 'Hallucination Explorer XP', kind: 'notes' },
+  { title: 'My Computer', prompt: 'Windows Explorer file manager', kind: 'explorer' },
+  { title: 'Market Notes', prompt: 'sticky notes pad for market observations', kind: 'notes' },
   { title: 'Calculator', prompt: 'Windows 95 calculator with one quietly unreliable operator', kind: 'calculator' },
-  { title: 'Internet Console', prompt: 'Hallucination Explorer XP', kind: 'browser' },
+  { title: 'Hallucinations Explorer XP', prompt: 'Hallucinations Explorer XP web browser', kind: 'browser' },
   { title: 'Command Prompt', prompt: 'NT style command prompt with dry administrative messages', kind: 'terminal' },
 ]
 
@@ -256,9 +284,73 @@ function displayTitle(title: string, version?: number) {
   return typeof version === 'number' ? `${title} ${versionLabel(version)}` : title
 }
 
+function normaliseCorePath(input: string, basePath = 'C:\\Users\\Kenneth\\Documents') {
+  const raw = (input || '').trim().replace(/\//g, '\\')
+  const withDrive = /^[a-z]:\\/i.test(raw)
+    ? raw
+    : raw.startsWith('\\')
+      ? `C:${raw}`
+      : `${basePath.replace(/\\+$/, '')}\\${raw}`
+  const drive = withDrive.slice(0, 2).toUpperCase()
+  const parts = withDrive
+    .slice(2)
+    .split('\\')
+    .filter(Boolean)
+    .reduce<string[]>((stack, part) => {
+      if (part === '.') return stack
+      if (part === '..') stack.pop()
+      else stack.push(part.replace(/[<>:"|?*]/g, '_').slice(0, 80))
+      return stack
+    }, [])
+  return parts.length ? `${drive}\\${parts.join('\\')}` : `${drive}\\`
+}
+
+function coreEntryName(path: string) {
+  if (/^[A-Z]:\\$/.test(path)) return path
+  return path.split('\\').filter(Boolean).at(-1) ?? path
+}
+
+function coreParentPath(path: string) {
+  if (/^[A-Z]:\\$/.test(path)) return ''
+  const parts = path.split('\\').filter(Boolean)
+  if (parts.length <= 1) return `${path.slice(0, 2)}\\`
+  return `${path.slice(0, 2)}\\${parts.slice(1, -1).join('\\')}`
+}
+
+function makeCoreFolder(path: string, now = new Date().toISOString()): SystemCoreEntry {
+  return {
+    path,
+    kind: 'folder',
+    name: coreEntryName(path),
+    parentPath: coreParentPath(path),
+    createdAt: now,
+    updatedAt: now,
+    version: 1,
+  }
+}
+
+function seedSystemCoreStore(store: IDBObjectStore) {
+  const now = new Date().toISOString()
+  ;[
+    'C:\\',
+    'C:\\Users',
+    'C:\\Users\\Kenneth',
+    'C:\\Users\\Kenneth\\Desktop',
+    'C:\\Users\\Kenneth\\Documents',
+    'C:\\Users\\Kenneth\\Pictures',
+    'C:\\ProgramData',
+    'C:\\ProgramData\\VibeOS',
+    'C:\\ProgramData\\VibeOS\\Shared',
+    'C:\\Temp',
+    'C:\\Windows',
+    'C:\\Windows\\System32',
+  ].forEach(path => store.put(makeCoreFolder(path, now)))
+}
+
 function appKindForPrompt(prompt: string): VibeAppKind {
   const text = prompt.toLowerCase()
   if (/(program manager|installed program|saved app|applications)/.test(text)) return 'programs'
+  if (/(windows explorer|file explorer|my computer|my documents|file manager|filesystem|file system|folders?|documents folder|desktop folder)/.test(text)) return 'explorer'
   if (/^(https?:\/\/)?[a-z0-9.-]+\.[a-z]{2,}([/?#].*)?$/i.test(prompt.trim())) return 'browser'
   if (/(terminal|bash|shell|cmd|ssh|unix)/.test(text)) return 'terminal'
   if (/(calc|math|money|budget|account|tax|invoice)/.test(text)) return text.includes('calc') ? 'calculator' : 'money'
@@ -281,6 +373,7 @@ function makeApp(prompt: string, seed: number, index: number): VibeApp {
     paint: ['Paint With Intent', 'Image Guessr', 'Pixel Fog', 'Canvas Maybe'],
     encyclopedia: ['EncycloMaybe 98', 'Fact Museum', 'Knowledge-ish', 'Reference Cloud'],
     programs: ['Program Manager', 'Application Catalog', 'Installed Programs', 'Module Registry'],
+    explorer: ['My Computer', 'Windows Explorer', 'File Cabinet', 'C Drive'],
     generic: ['App Shaped Object', 'Utility Apparition', 'Productivity?', 'Soft Where'],
   } satisfies Record<VibeAppKind, string[]>
 
@@ -343,6 +436,12 @@ function openVibeOsDb() {
       if (!db.objectStoreNames.contains(IMAGE_CACHE_STORE)) {
         const store = db.createObjectStore(IMAGE_CACHE_STORE, { keyPath: 'id' })
         store.createIndex('updatedAt', 'updatedAt', { unique: false })
+      }
+      if (!db.objectStoreNames.contains(SYSTEM_CORE_STORE)) {
+        const store = db.createObjectStore(SYSTEM_CORE_STORE, { keyPath: 'path' })
+        store.createIndex('parentPath', 'parentPath', { unique: false })
+        store.createIndex('updatedAt', 'updatedAt', { unique: false })
+        seedSystemCoreStore(store)
       }
     }
     request.onsuccess = () => resolve(request.result)
@@ -560,6 +659,10 @@ function blobToDataUrl(blob: Blob) {
 function prodiaPromptForImage(category: VibeImageCategory, title: string, context: string) {
   const safeTitle = (title || 'website image').replace(/\s+/g, ' ').slice(0, 120)
   const safeContext = (context || safeTitle).replace(/\s+/g, ' ').slice(0, 180)
+  const combined = `${safeTitle} ${safeContext}`.toLowerCase()
+  const isGameAsset = /(pokemon|pok[eé]dex|pikachu|bulbasaur|squirtle|charmander|monster|creature|sprite|rpg|battle|party|trainer|card|game|map|tileset|top down|top-down|character)/.test(combined)
+  const imageHauntRoll = hashString(`${safeTitle}:${safeContext}:signal`) % 100
+  const shouldHauntImage = imageHauntRoll < 14 && !/(calculator|ledger|invoice|tax|settings|terminal|command prompt|form|admin)/.test(combined)
   const categoryIntent: Record<VibeImageCategory, string> = {
     nature: 'loose category: nature, outdoors, landscape, plants, weather, terrain, or natural materials if relevant',
     city: 'loose category: places, streets, buildings, public spaces, venues, travel, interiors, or locations if relevant',
@@ -575,9 +678,14 @@ function prodiaPromptForImage(category: VibeImageCategory, title: string, contex
     categoryIntent[category],
     'the subject and context are more important than the category; do not force a landscape, city, gadget, food plate, or animal unless it fits the requested subject',
     'generate the most useful specific image for this website or desktop app, it can be anything: scene, object, character, map, texture, product, diagram, background, document, portrait, icon-like asset, or reference image',
-    'authentic late-1990s to early-2000s photo style, consumer digital camera or scanned print, modest resolution, slight JPEG compression, practical composition',
-    'period-appropriate objects, clothing, UI, devices, furniture, and lighting',
-    'no modern smartphone look, no cinematic color grading, no ultra-sharp HDR, no glossy stock-photo aesthetic',
+    isGameAsset
+      ? 'for game or creature assets, use authentic 1990s handheld/PC game art direction: scanned strategy guide illustration, early anime/game manual art, flat colors, simple shading, slight dithering, chunky silhouette, period-correct sprite or bestiary portrait feel'
+      : 'choose the medium that fits the subject: consumer digital camera photo, scanned print, magazine/catalog scan, old web graphic, pixel-art asset, game manual illustration, or practical diagram',
+    'authentic late-1990s to early-2000s visual era, modest resolution, slight JPEG compression or scan texture, practical composition, period-appropriate objects, clothing, UI, devices, furniture, and lighting',
+    shouldHauntImage
+      ? 'subtle analog horror contamination: the image should still satisfy the requested subject, but include one barely noticeable impossible detail, warped face-like reflection, distant human shape, smeared frame tear, tracking noise, broadcast scanline artifact, or wrong shadow; psychological dread only, no gore, no monster attack, no obvious jump scare'
+      : 'keep the image normal and useful; no horror element unless the subject asks for it',
+    'no modern smartphone look, no cinematic color grading, no ultra-sharp HDR, no glossy stock-photo aesthetic, no modern 3D game render, no vector-flat startup illustration',
     'clear composition, readable at thumbnail size, no text, no logos, no watermark',
   ].join(', ')
 }
@@ -616,6 +724,149 @@ async function saveCachedGeneratedImage(image: CachedGeneratedImage) {
   }
 }
 
+function dispatchSystemCoreUpdate(entry: SystemCoreEntry | { path: string; deleted: true }) {
+  if (typeof window === 'undefined') return
+  window.dispatchEvent(new CustomEvent(VIBEOS_CORE_EVENT, { detail: entry }))
+}
+
+async function ensureCoreFolder(store: IDBObjectStore, path: string, now: string) {
+  const folderPath = normaliseCorePath(path)
+  if (!folderPath) return
+  const existing = await idbRequest(store.get(folderPath))
+  if (existing) return
+  const parent = coreParentPath(folderPath)
+  if (parent && parent !== folderPath) await ensureCoreFolder(store, parent, now)
+  store.put(makeCoreFolder(folderPath, now))
+}
+
+async function coreReadEntry(path: string): Promise<SystemCoreEntry | null> {
+  try {
+    const db = await openVibeOsDb()
+    try {
+      const transaction = db.transaction(SYSTEM_CORE_STORE, 'readonly')
+      const entry = await idbRequest(transaction.objectStore(SYSTEM_CORE_STORE).get(normaliseCorePath(path)))
+      return entry && typeof entry === 'object' ? entry as SystemCoreEntry : null
+    } finally {
+      db.close()
+    }
+  } catch {
+    return null
+  }
+}
+
+async function coreList(path = 'C:\\Users\\Kenneth\\Documents'): Promise<SystemCoreEntry[]> {
+  const parentPath = normaliseCorePath(path)
+  try {
+    const db = await openVibeOsDb()
+    try {
+      const transaction = db.transaction(SYSTEM_CORE_STORE, 'readonly')
+      const store = transaction.objectStore(SYSTEM_CORE_STORE)
+      const entries = await idbRequest(store.index('parentPath').getAll(parentPath))
+      return (entries as SystemCoreEntry[]).sort((a, b) => {
+        if (a.kind !== b.kind) return a.kind === 'folder' ? -1 : 1
+        return a.name.localeCompare(b.name)
+      })
+    } finally {
+      db.close()
+    }
+  } catch {
+    return []
+  }
+}
+
+async function coreWriteFile({
+  path,
+  value,
+  mime,
+  ownerAppId,
+}: {
+  path: string
+  value: unknown
+  mime?: string
+  ownerAppId?: string
+}): Promise<SystemCoreEntry> {
+  const filePath = normaliseCorePath(path)
+  const now = new Date().toISOString()
+  const db = await openVibeOsDb()
+  try {
+    const transaction = db.transaction(SYSTEM_CORE_STORE, 'readwrite')
+    const store = transaction.objectStore(SYSTEM_CORE_STORE)
+    await ensureCoreFolder(store, coreParentPath(filePath), now)
+    const previous = await idbRequest(store.get(filePath)) as SystemCoreEntry | undefined
+    const entry: SystemCoreEntry = {
+      path: filePath,
+      kind: 'file',
+      name: coreEntryName(filePath),
+      parentPath: coreParentPath(filePath),
+      value,
+      mime,
+      ownerAppId,
+      createdAt: previous?.createdAt ?? now,
+      updatedAt: now,
+      version: (previous?.version ?? 0) + 1,
+    }
+    store.put(entry)
+    await idbTransactionDone(transaction)
+    dispatchSystemCoreUpdate(entry)
+    return entry
+  } finally {
+    db.close()
+  }
+}
+
+function mergeCoreValues(previous: unknown, patch: unknown) {
+  if (
+    previous &&
+    patch &&
+    typeof previous === 'object' &&
+    typeof patch === 'object' &&
+    !Array.isArray(previous) &&
+    !Array.isArray(patch)
+  ) {
+    return { ...previous as Record<string, unknown>, ...patch as Record<string, unknown> }
+  }
+  return patch
+}
+
+async function coreMergeFile({
+  path,
+  value,
+  mime,
+  ownerAppId,
+}: {
+  path: string
+  value: unknown
+  mime?: string
+  ownerAppId?: string
+}) {
+  const existing = await coreReadEntry(path)
+  return coreWriteFile({
+    path,
+    value: mergeCoreValues(existing?.value, value),
+    mime: mime ?? existing?.mime,
+    ownerAppId,
+  })
+}
+
+async function coreDelete(path: string): Promise<{ path: string; deleted: true }> {
+  const targetPath = normaliseCorePath(path)
+  const db = await openVibeOsDb()
+  try {
+    const transaction = db.transaction(SYSTEM_CORE_STORE, 'readwrite')
+    const store = transaction.objectStore(SYSTEM_CORE_STORE)
+    const all = await idbRequest(store.getAll()) as SystemCoreEntry[]
+    all
+      .filter(entry => entry.path === targetPath || entry.path.startsWith(`${targetPath}\\`))
+      .forEach(entry => store.delete(entry.path))
+    await idbTransactionDone(transaction)
+    const result = { path: targetPath, deleted: true as const }
+    dispatchSystemCoreUpdate(result)
+    return result
+  } finally {
+    db.close()
+  }
+}
+
 async function fetchProdiaGeneratedImage(category: VibeImageCategory, title: string, context: string, signal?: AbortSignal) {
   const prompt = prodiaPromptForImage(category, title, context)
   const id = imageCacheId(prompt)
@@ -648,6 +899,267 @@ async function fetchProdiaGeneratedImage(category: VibeImageCategory, title: str
     return dataUrl
   } catch {
     return fallbackBrowserImageDataUrl(category, title)
+  }
+}
+
+function hauntedWallpaperPrompt(seed: number) {
+  return [
+    `desktop wallpaper broadcast frame ${seed}`,
+    'Windows XP rolling hills wallpaper reinterpreted as a late 1990s analog videotape still',
+    'blue sky and green hill composition remains recognizable and usable as a desktop background',
+    'subtle VHS tracking noise, scanlines, low resolution compression, local weather alert color drift',
+    'one very faint impossible detail in the distance or cloud shape, barely noticeable, uncanny valley but not explicit',
+    'looks like recovered 2001 consumer camcorder footage, atmospheric helplessness, familiar system wallpaper turned slightly wrong',
+    'dry corporate operating system mood, no gore, no monster closeup, no text, no logos, no watermark, no cinematic horror poster',
+  ].join(', ')
+}
+
+async function fetchHauntedWallpaper(seed = Date.now(), signal?: AbortSignal) {
+  const prompt = hauntedWallpaperPrompt(seed)
+  try {
+    const response = await fetch(PRODIA_IMAGE_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${PRODIA_TOKEN}`,
+        Accept: 'image/jpeg;quality=84;progressive=1',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        type: 'inference.flux-fast.schnell.txt2img.v2',
+        config: {
+          prompt,
+          steps: 4,
+          width: 1365,
+          height: 768,
+        },
+      }),
+      signal,
+    })
+    if (!response.ok) return null
+    const dataUrl = await blobToDataUrl(await response.blob())
+    const now = new Date().toISOString()
+    void saveCachedGeneratedImage({
+      id: HAUNTED_WALLPAPER_CACHE_ID,
+      prompt,
+      category: 'nature',
+      title: 'Desktop background retune',
+      dataUrl,
+      createdAt: now,
+      updatedAt: now,
+    })
+    return dataUrl
+  } catch {
+    return null
+  }
+}
+
+function customWallpaperPrompt(subject: string) {
+  const wish = subject.replace(/\s+/g, ' ').trim().slice(0, 160)
+  return [
+    `desktop wallpaper of: ${wish}`,
+    'rendered as a mid-1990s computer desktop background, 1995 era',
+    'composed and framed to work as a usable widescreen desktop wallpaper, simple readable composition',
+    'slightly low resolution, soft retro 256-color feel, gentle dithering, period-correct early CG / early digital photography mood',
+    'no text, no logos, no watermark, no UI chrome, no window frames',
+  ].join(', ')
+}
+
+// Generate a wallpaper from a user-typed subject. Deliberately does NOT write to
+// HAUNTED_WALLPAPER_CACHE_ID (that slot belongs to the haunted retune image and is
+// reloaded on mount); for v1 the custom image is in-memory only, like the retune.
+async function fetchCustomWallpaper(subject: string, seed = Date.now(), signal?: AbortSignal) {
+  const prompt = customWallpaperPrompt(subject)
+  try {
+    const response = await fetch(PRODIA_IMAGE_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${PRODIA_TOKEN}`,
+        Accept: 'image/jpeg;quality=84;progressive=1',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        type: 'inference.flux-fast.schnell.txt2img.v2',
+        config: { prompt, seed, steps: 4, width: 1365, height: 768 },
+      }),
+      signal,
+    })
+    if (!response.ok) return null
+    return await blobToDataUrl(await response.blob())
+  } catch {
+    return null
+  }
+}
+
+function appIconRuntimeKey(app: Pick<VibeApp, 'prompt' | 'version' | 'kind'>) {
+  return `${promptKey(app.prompt)}:${app.kind}:${app.version ?? 'draft'}`
+}
+
+function appIconCacheId(prompt: string) {
+  return `app_icon_${hashString(prompt)}`
+}
+
+function prodiaPromptForAppIcon(app: VibeApp) {
+  const title = (app.title || app.prompt || 'desktop app').replace(/\s+/g, ' ').slice(0, 90)
+  const purpose = (app.prompt || title).replace(/\s+/g, ' ').slice(0, 160)
+  return [
+    `single desktop application icon for: ${title}`,
+    `software purpose: ${purpose}`,
+    `app category: ${app.kind}`,
+    'authentic mid-1990s Windows 95 desktop software icon, lo-fi 16-bit pixel art',
+    'heavily pixelated, visible chunky pixels, hard aliased edges, jagged dithered shading, limited dingy retro 256-color palette, flat matte surfaces',
+    'absolutely no modern glossy plastic, no smooth gradients, no soft shadows, no bevels, no 3D render, no anti-aliasing, no clean vector look',
+    'subtly unsettling and creepy: off mood, slightly wrong proportions, uncanny, eerie dim lighting, faintly sinister',
+    'make the subject specific to the app prompt, not a generic square logo',
+    'isolated centered object, no text, no letters, no watermark, no brand logo, no background scene',
+    'solid pure magenta #ff00ff background only so it can be removed into transparency',
+  ].join(', ')
+}
+
+function fallbackAppIconDataUrl(app: VibeApp) {
+  const color = app.accent || '#2f7de5'
+  const label = escapeSvgText((app.title || app.kind).slice(0, 1).toUpperCase())
+  if (typeof document !== 'undefined') {
+    const canvas = document.createElement('canvas')
+    canvas.width = 128
+    canvas.height = 128
+    const context = canvas.getContext('2d')
+    if (context) {
+      context.clearRect(0, 0, 128, 128)
+      context.shadowColor = 'rgba(0,0,0,0.35)'
+      context.shadowBlur = 7
+      context.shadowOffsetX = 5
+      context.shadowOffsetY = 6
+      context.fillStyle = color
+      context.strokeStyle = '#ffffff'
+      context.lineWidth = 5
+      context.beginPath()
+      context.moveTo(24, 18)
+      context.lineTo(84, 18)
+      context.lineTo(104, 38)
+      context.lineTo(104, 110)
+      context.lineTo(24, 110)
+      context.closePath()
+      context.fill()
+      context.stroke()
+      context.shadowColor = 'transparent'
+      context.fillStyle = '#dfefff'
+      context.beginPath()
+      context.moveTo(84, 18)
+      context.lineTo(108, 42)
+      context.lineTo(84, 42)
+      context.closePath()
+      context.fill()
+      context.stroke()
+      context.fillStyle = 'rgba(255,255,255,0.86)'
+      context.beginPath()
+      context.arc(62, 72, 25, 0, Math.PI * 2)
+      context.fill()
+      context.fillStyle = '#16439c'
+      context.font = '700 38px Tahoma, Arial, sans-serif'
+      context.textAlign = 'center'
+      context.textBaseline = 'middle'
+      context.fillText((app.title || app.kind).slice(0, 1).toUpperCase(), 62, 75)
+      return canvas.toDataURL('image/png')
+    }
+  }
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+<filter id="s"><feDropShadow dx="5" dy="6" stdDeviation="4" flood-color="#000" flood-opacity=".35"/></filter>
+<g filter="url(#s)">
+<path d="M24 18h60l20 20v72H24z" fill="${color}" stroke="#fff" stroke-width="5"/>
+<path d="M84 18v24h24" fill="#dfefff" stroke="#fff" stroke-width="5"/>
+<circle cx="62" cy="72" r="25" fill="#fff" fill-opacity=".85"/>
+<text x="62" y="83" text-anchor="middle" font-family="Tahoma,Arial,sans-serif" font-size="38" font-weight="700" fill="#16439c">${label}</text>
+</g>
+</svg>`
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
+}
+
+function imageElementFromDataUrl(dataUrl: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image()
+    image.onload = () => resolve(image)
+    image.onerror = () => reject(new Error('Unable to load generated icon.'))
+    image.src = dataUrl
+  })
+}
+
+function colorDistance(r: number, g: number, b: number, color: [number, number, number]) {
+  return Math.sqrt((r - color[0]) ** 2 + (g - color[1]) ** 2 + (b - color[2]) ** 2)
+}
+
+async function makeTransparentIconPng(dataUrl: string) {
+  if (typeof document === 'undefined') return dataUrl
+  const image = await imageElementFromDataUrl(dataUrl)
+  const size = 128
+  const canvas = document.createElement('canvas')
+  canvas.width = size
+  canvas.height = size
+  const context = canvas.getContext('2d', { willReadFrequently: true })
+  if (!context) return dataUrl
+
+  context.clearRect(0, 0, size, size)
+  context.drawImage(image, 0, 0, size, size)
+  const imageData = context.getImageData(0, 0, size, size)
+  const data = imageData.data
+  const indexFor = (x: number, y: number) => (y * size + x) * 4
+  const samples: Array<[number, number, number]> = [
+    [data[0], data[1], data[2]],
+    [data[indexFor(size - 1, 0)], data[indexFor(size - 1, 0) + 1], data[indexFor(size - 1, 0) + 2]],
+    [data[indexFor(0, size - 1)], data[indexFor(0, size - 1) + 1], data[indexFor(0, size - 1) + 2]],
+    [data[indexFor(size - 1, size - 1)], data[indexFor(size - 1, size - 1) + 1], data[indexFor(size - 1, size - 1) + 2]],
+    [255, 0, 255],
+  ]
+
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i]
+    const g = data[i + 1]
+    const b = data[i + 2]
+    const nearestBackground = Math.min(...samples.map(sample => colorDistance(r, g, b, sample)))
+    const isMagentaKey = r > 170 && b > 170 && g < 105
+    if (isMagentaKey || nearestBackground < 44) {
+      data[i + 3] = 0
+    } else if (nearestBackground < 86) {
+      data[i + 3] = Math.round(data[i + 3] * ((nearestBackground - 44) / 42))
+    }
+  }
+
+  context.putImageData(imageData, 0, 0)
+  return canvas.toDataURL('image/png')
+}
+
+async function fetchProdiaGeneratedAppIcon(app: VibeApp, signal?: AbortSignal) {
+  const prompt = prodiaPromptForAppIcon(app)
+  const id = appIconCacheId(prompt)
+  const cached = await loadCachedGeneratedImage(id)
+  if (cached?.dataUrl) return cached.dataUrl
+
+  try {
+    const response = await fetch(PRODIA_IMAGE_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${PRODIA_TOKEN}`,
+        Accept: 'image/jpeg;quality=90',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        type: 'inference.flux-fast.schnell.txt2img.v2',
+        config: {
+          prompt,
+          steps: 4,
+          width: 512,
+          height: 512,
+        },
+      }),
+      signal,
+    })
+    if (!response.ok) return fallbackAppIconDataUrl(app)
+    const rawDataUrl = await blobToDataUrl(await response.blob())
+    const dataUrl = await makeTransparentIconPng(rawDataUrl)
+    const now = new Date().toISOString()
+    void saveCachedGeneratedImage({ id, prompt, category: 'technology', title: app.title, dataUrl, createdAt: now, updatedAt: now })
+    return dataUrl
+  } catch {
+    return fallbackAppIconDataUrl(app)
   }
 }
 
@@ -697,6 +1209,7 @@ async function requestBrowserPage({
           'For unknown/obscure domains: infer the most plausible purpose from the domain name and generate fitting content.',
           'Visual style should feel like an 1990s or early-2000s version of the real site: flat design, tables, simple CSS, no modern gradients. Functional but period-appropriate.',
           'The page should behave like a live web session: navigation links lead to subpages, search forms work, clicked links produce coherent follow-up pages consistent with the domain.',
+          'Very occasionally, if it fits the site and does not break usefulness, add subtle analog-era unease: an emergency-broadcast-like notice, a timestamp mismatch, a dead authority link, a low-resolution image caption that seems too specific, or dry bureaucratic copy implying the system noticed the visitor. Keep it plausible, understated, and never a jump scare.',
           'Do not mention AI, generated content, models, hallucinations, VibeOS, or vibes anywhere in the user-visible page.',
           'Include working anchors and forms. Links should point to plausible relative URLs on the same domain.',
           'Include useful image placeholders where a real website would naturally have images: product photos, article thumbnails, profile photos, venue/travel images, diagrams, hero photos, or gallery items. Use <img data-vibe-random-image="category" alt="descriptive text"> where category is one of nature, city, technology, food, still_life, abstract, wildlife. Do not use external image URLs; the host browser will populate these placeholders.',
@@ -930,7 +1443,10 @@ STATUS: waiting for operator input</pre>
 }
 
 function makeStarterApps(seed: number) {
-  return STARTERS.map((app, index) => makeApp(app.prompt, seed, index))
+  return STARTERS.map((app, index) => {
+    const built = makeApp(app.prompt, seed, index)
+    return { ...built, title: app.title, kind: app.kind }
+  })
 }
 
 function metric(seed: string, min: number, max: number, suffix = '') {
@@ -948,14 +1464,50 @@ function bootLine(seed: string, index: number) {
 function XpIcon({
   kind,
   size = 'desktop',
+  src,
 }: {
   kind: VibeAppKind | 'computer' | 'folder' | 'control'
   size?: 'desktop' | 'small'
+  src?: string
 }) {
   const compact = size === 'small'
   const boxClass = compact ? 'h-5 w-5' : 'h-11 w-11'
   const iconSize = compact ? 13 : 24
   const base = `${boxClass} relative grid shrink-0 place-items-center overflow-hidden rounded-[5px] border border-white/40 shadow-[0_2px_3px_rgba(0,0,0,0.35),inset_1px_1px_0_rgba(255,255,255,0.75)]`
+
+  if (src) {
+    const pixelSize = compact ? 18 : 44
+    return (
+      <span
+        className="relative grid shrink-0 place-items-center"
+        style={{
+          width: pixelSize,
+          height: pixelSize,
+          minWidth: pixelSize,
+          maxWidth: pixelSize,
+          minHeight: pixelSize,
+          maxHeight: pixelSize,
+          overflow: compact ? 'hidden' : 'visible',
+        }}
+      >
+        <img
+          src={src}
+          alt=""
+          className="drop-shadow-[2px_2px_1px_rgba(0,0,0,0.42)]"
+          style={{
+            width: pixelSize,
+            height: pixelSize,
+            maxWidth: pixelSize,
+            maxHeight: pixelSize,
+            objectFit: 'contain',
+            display: 'block',
+          }}
+          draggable={false}
+          aria-hidden="true"
+        />
+      </span>
+    )
+  }
 
   if (kind === 'terminal') {
     return (
@@ -1035,7 +1587,7 @@ function XpIcon({
     )
   }
 
-  if (kind === 'computer') {
+  if (kind === 'computer' || kind === 'explorer') {
     return (
       <span className={`${base} bg-gradient-to-br from-[#f8fbff] via-[#9cc1ee] to-[#416ca8]`}>
         <Monitor size={iconSize} className="text-white drop-shadow" aria-hidden="true" />
@@ -1176,7 +1728,7 @@ function DesktopIcon({
       style={{ left: layout.x, top: layout.y }}
       title={app.prompt}
     >
-      <XpIcon kind={app.kind} />
+      <XpIcon kind={app.kind} src={app.iconDataUrl} />
       <span
         className={[
           'line-clamp-2 w-full rounded-[1px] px-1 leading-[1.1] [text-shadow:1px_1px_2px_rgba(0,0,0,0.9)]',
@@ -1296,10 +1848,10 @@ function WindowChrome({
         className="flex h-8 cursor-move touch-none items-center gap-1.5 rounded-t-[6px] border-b border-[#003caa] bg-gradient-to-b from-[#5da7ff] via-[#1768e7] to-[#0b45bd] px-1.5 text-white shadow-[inset_1px_1px_0_rgba(255,255,255,0.55)]"
         onPointerDown={startDrag}
       >
-        <XpIcon kind={app.kind} size="small" />
+        <XpIcon kind={app.kind} size="small" src={app.iconDataUrl} />
         <div className="min-w-0 flex-1 truncate text-[12px] font-bold text-white [text-shadow:1px_1px_1px_rgba(0,0,0,0.45)]">{app.title}</div>
         <span className="hidden text-[10px] text-white/80 sm:inline">PID {metric(`${app.id}:${seed}:render`, 100, 999)}</span>
-        {app.kind !== 'browser' && app.kind !== 'programs' && (
+        {app.kind !== 'browser' && app.kind !== 'programs' && app.kind !== 'explorer' && (
           <button
             type="button"
             onPointerDown={event => event.stopPropagation()}
@@ -1387,6 +1939,7 @@ function VibeAppContent({
   onNewVersion: (prompt: string) => void
 }) {
   if (app.kind === 'programs') return <ProgramManagerApp savedPrograms={savedPrograms} onOpenSaved={onOpenSaved} onNewVersion={onNewVersion} />
+  if (app.kind === 'explorer') return <FileExplorerApp app={app} />
   if (app.kind === 'browser') return <AiBrowserApp app={app} />
   if (surface?.loading) return <LoadingSurface app={app} />
   if (surface?.data) return <GeneratedSurface app={app} state={surface} onGenerate={onGenerate} />
@@ -1477,8 +2030,13 @@ function ProgramManagerApp({
               {sorted.map(program => (
                 <tr key={program.id} className="border-b border-[#d8d8d8] hover:bg-[#eef3ff]">
                   <td className="px-2 py-1">
-                    <div className="font-semibold">{program.title}</div>
-                    <div className="max-w-[260px] truncate text-[#606060]" title={program.prompt}>{program.prompt}</div>
+                    <div className="flex items-center gap-2">
+                      <XpIcon kind={program.kind} size="small" src={program.app.iconDataUrl} />
+                      <div className="min-w-0">
+                        <div className="font-semibold">{program.title}</div>
+                        <div className="max-w-[260px] truncate text-[#606060]" title={program.prompt}>{program.prompt}</div>
+                      </div>
+                    </div>
                   </td>
                   <td className="px-2 py-1 font-mono">{versionLabel(program.version)}</td>
                   <td className="px-2 py-1">{program.kind}</td>
@@ -1509,6 +2067,179 @@ function ProgramManagerApp({
       )}
       <div className="border-t border-[#808080] px-2 py-1 text-2xs text-[#404040]">
         {sorted.length} application{sorted.length === 1 ? '' : 's'} registered.
+      </div>
+    </div>
+  )
+}
+
+function FileExplorerApp({ app }: { app: VibeApp }) {
+  const [path, setPath] = useState('C:\\Users\\Kenneth\\Documents')
+  const [entries, setEntries] = useState<SystemCoreEntry[]>([])
+  const [selectedPath, setSelectedPath] = useState<string | null>(null)
+  const [selectedEntry, setSelectedEntry] = useState<SystemCoreEntry | null>(null)
+  const [draftPath, setDraftPath] = useState(path)
+  const [status, setStatus] = useState('Ready')
+
+  function refresh(nextPath = path) {
+    const normalized = normaliseCorePath(nextPath)
+    setPath(normalized)
+    setDraftPath(normalized)
+    void coreList(normalized).then(items => {
+      setEntries(items)
+      setStatus(`${items.length} object${items.length === 1 ? '' : 's'}`)
+    })
+  }
+
+  useEffect(() => {
+    refresh(path)
+  }, [])
+
+  useEffect(() => {
+    if (!selectedPath) {
+      setSelectedEntry(null)
+      return
+    }
+    void coreReadEntry(selectedPath).then(setSelectedEntry)
+  }, [selectedPath])
+
+  useEffect(() => {
+    function onCoreUpdate(event: Event) {
+      const detail = (event as CustomEvent<SystemCoreEntry | { path: string; deleted: true }>).detail
+      if (!detail?.path) return
+      const parent = coreParentPath(normaliseCorePath(detail.path))
+      if (parent === path || normaliseCorePath(detail.path) === path) refresh(path)
+    }
+    window.addEventListener(VIBEOS_CORE_EVENT, onCoreUpdate)
+    return () => window.removeEventListener(VIBEOS_CORE_EVENT, onCoreUpdate)
+  }, [path])
+
+  const quickPaths = [
+    'C:\\',
+    'C:\\Users\\Kenneth\\Desktop',
+    'C:\\Users\\Kenneth\\Documents',
+    'C:\\Users\\Kenneth\\Pictures',
+    'C:\\ProgramData\\VibeOS\\Shared',
+    'C:\\Temp',
+  ]
+
+  function openEntry(entry: SystemCoreEntry) {
+    setSelectedPath(entry.path)
+    if (entry.kind === 'folder') refresh(entry.path)
+  }
+
+  function goUp() {
+    if (path === 'C:\\') return
+    refresh(coreParentPath(path) || 'C:\\')
+  }
+
+  async function createNote() {
+    const stamp = new Date()
+    const fileName = `Note ${stamp.toLocaleTimeString().replace(/[^0-9]/g, '').slice(0, 6) || Date.now()}.txt`
+    await coreWriteFile({
+      path: `${path}\\${fileName}`,
+      value: `Created by ${app.title} at ${stamp.toLocaleString()}`,
+      mime: 'text/plain',
+      ownerAppId: app.id,
+    })
+    refresh(path)
+  }
+
+  async function deleteSelected() {
+    if (!selectedPath || selectedPath === 'C:\\') return
+    await coreDelete(selectedPath)
+    setSelectedPath(null)
+    refresh(path)
+  }
+
+  function previewValue(value: unknown) {
+    if (typeof value === 'string') return value
+    if (typeof value === 'undefined') return ''
+    try {
+      return JSON.stringify(value, null, 2)
+    } catch {
+      return String(value)
+    }
+  }
+
+  return (
+    <div className="flex h-full min-h-[360px] flex-col border border-[#808080] bg-[#d4d0c8] text-[11px] text-black">
+      <div className="flex min-h-[24px] items-center gap-3 border-b border-[#808080] bg-[#ece9d8] px-2">
+        {['File', 'Edit', 'View', 'Favorites', 'Tools', 'Help'].map(menu => (
+          <button key={menu} type="button" className="px-1 hover:bg-[#316ac5] hover:text-white">{menu}</button>
+        ))}
+      </div>
+      <div className="flex min-h-[30px] items-center gap-1 border-b border-[#808080] bg-[#d4d0c8] px-1 shadow-[inset_0_1px_0_#fff]">
+        <button type="button" onClick={goUp} className="h-6 border border-[#404040] bg-[#d4d0c8] px-2 shadow-[inset_1px_1px_0_#fff,inset_-1px_-1px_0_#808080]">Up</button>
+        <button type="button" onClick={() => refresh(path)} className="h-6 border border-[#404040] bg-[#d4d0c8] px-2 shadow-[inset_1px_1px_0_#fff,inset_-1px_-1px_0_#808080]">Refresh</button>
+        <button type="button" onClick={createNote} className="h-6 border border-[#404040] bg-[#d4d0c8] px-2 shadow-[inset_1px_1px_0_#fff,inset_-1px_-1px_0_#808080]">New Text File</button>
+        <button type="button" onClick={deleteSelected} disabled={!selectedPath || selectedPath === 'C:\\'} className="h-6 border border-[#404040] bg-[#d4d0c8] px-2 shadow-[inset_1px_1px_0_#fff,inset_-1px_-1px_0_#808080] disabled:text-[#808080]">Delete</button>
+      </div>
+      <form
+        className="flex min-h-[28px] items-center gap-1 border-b border-[#808080] bg-[#ece9d8] px-2"
+        onSubmit={event => {
+          event.preventDefault()
+          refresh(draftPath)
+        }}
+      >
+        <span className="text-[#404040]">Address</span>
+        <input value={draftPath} onChange={event => setDraftPath(event.target.value)} className="h-5 min-w-0 flex-1 border border-[#808080] bg-white px-1 font-mono text-[11px]" />
+        <button type="submit" className="h-5 border border-[#404040] bg-[#d4d0c8] px-2 shadow-[inset_1px_1px_0_#fff,inset_-1px_-1px_0_#808080]">Go</button>
+      </form>
+      <div className="grid min-h-0 flex-1 grid-cols-[170px_minmax(0,1fr)_220px] max-md:grid-cols-[150px_minmax(0,1fr)]">
+        <aside className="min-h-0 overflow-auto border-r border-[#808080] bg-[#d7e6ff] p-2">
+          <div className="mb-2 font-bold text-[#174aa5]">Other Places</div>
+          {quickPaths.map(item => (
+            <button
+              key={item}
+              type="button"
+              onClick={() => refresh(item)}
+              className={['mb-1 block w-full truncate px-1 py-1 text-left hover:bg-[#316ac5] hover:text-white', path === item ? 'bg-[#316ac5] text-white' : ''].join(' ')}
+              title={item}
+            >
+              {coreEntryName(item)}
+            </button>
+          ))}
+        </aside>
+        <main className="min-h-0 overflow-auto bg-white p-2">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(92px,1fr))] gap-2">
+            {entries.map(entry => (
+              <button
+                key={entry.path}
+                type="button"
+                onClick={() => setSelectedPath(entry.path)}
+                onDoubleClick={() => openEntry(entry)}
+                className={['grid min-h-[78px] place-items-center gap-1 p-1 text-center leading-tight hover:bg-[#dfe8ff]', selectedPath === entry.path ? 'bg-[#316ac5] text-white' : ''].join(' ')}
+                title={entry.path}
+              >
+                <XpIcon kind={entry.kind === 'folder' ? 'folder' : 'notes'} />
+                <span className="line-clamp-2 max-w-[90px]">{entry.name}</span>
+              </button>
+            ))}
+          </div>
+        </main>
+        <aside className="min-h-0 overflow-auto border-l border-[#808080] bg-[#ece9d8] p-2 max-md:hidden">
+          <div className="mb-2 font-bold text-[#174aa5]">Details</div>
+          {selectedEntry ? (
+            <div className="grid gap-2">
+              <div><span className="text-[#404040]">Name:</span> {selectedEntry.name}</div>
+              <div><span className="text-[#404040]">Type:</span> {selectedEntry.kind}</div>
+              <div className="break-all"><span className="text-[#404040]">Path:</span> {selectedEntry.path}</div>
+              <div><span className="text-[#404040]">Version:</span> {selectedEntry.version}</div>
+              <div><span className="text-[#404040]">Modified:</span> {new Date(selectedEntry.updatedAt).toLocaleString()}</div>
+              {selectedEntry.kind === 'file' && (
+                <pre className="max-h-56 overflow-auto border border-[#808080] bg-white p-2 text-[10px] whitespace-pre-wrap">
+                  {previewValue(selectedEntry.value)}
+                </pre>
+              )}
+            </div>
+          ) : (
+            <div className="text-[#404040]">Select a file or folder.</div>
+          )}
+        </aside>
+      </div>
+      <div className="flex h-6 items-center justify-between border-t border-[#808080] bg-[#d4d0c8] px-2 text-[10px] text-[#404040]">
+        <span>{status}</span>
+        <span className="truncate">{path}</span>
       </div>
     </div>
   )
@@ -1755,15 +2486,122 @@ function randomImageBridgeScript(appId: string, defaultCategory: VibeImageCatego
 })();</script>`
 }
 
+function systemCoreBridgeScript(appId: string) {
+  return `<script>
+(function(){
+  const appId = ${JSON.stringify(appId)};
+  const pending = {};
+  const subscriptions = {};
+  function request(action, payload){
+    const requestId = appId + ':core:' + Date.now() + ':' + Math.random().toString(36).slice(2);
+    parent.postMessage({ type:'VIBE_CORE_REQUEST', appId, requestId, action, payload: payload || {} }, '*');
+    return new Promise(function(resolve, reject){
+      const timer = setTimeout(function(){
+        delete pending[requestId];
+        reject(new Error('SystemCore request timed out: ' + action));
+      }, 8000);
+      pending[requestId] = { resolve, reject, timer };
+    });
+  }
+  function readFile(path){ return request('readFile', { path }).then(function(result){ return result ? result.value : undefined; }); }
+  function stat(path){ return request('stat', { path }); }
+  function writeFile(path, value, options){ return request('writeFile', { path, value, mime: options && options.mime }); }
+  function mergeFile(path, value, options){ return request('mergeFile', { path, value, mime: options && options.mime }); }
+  function list(path){ return request('list', { path: path || 'C:\\\\Users\\\\Kenneth\\\\Documents' }); }
+  function deletePath(path){ return request('delete', { path }); }
+  function subscribe(path, callback){
+    const normal = String(path || 'C:\\\\').toLowerCase();
+    if(!subscriptions[normal]) subscriptions[normal] = [];
+    subscriptions[normal].push(callback);
+    request('subscribe', { path: normal }).catch(function(){});
+    return function(){
+      subscriptions[normal] = (subscriptions[normal] || []).filter(function(item){ return item !== callback; });
+      request('unsubscribe', { path: normal }).catch(function(){});
+    };
+  }
+  window.addEventListener('message', function(event){
+    const data = event.data || {};
+    if(data.appId !== appId) return;
+    if(data.type === 'VIBE_CORE_RESPONSE' && data.requestId && pending[data.requestId]){
+      const task = pending[data.requestId];
+      clearTimeout(task.timer);
+      delete pending[data.requestId];
+      if(data.ok) task.resolve(data.result);
+      else task.reject(new Error(data.error || 'SystemCore request failed'));
+      return;
+    }
+    if(data.type === 'VIBE_CORE_UPDATE' && data.entry){
+      const changedPath = String(data.entry.path || '').toLowerCase();
+      Object.keys(subscriptions).forEach(function(path){
+        if(changedPath === path || changedPath.indexOf(path.replace(/\\\\+$/, '') + '\\\\') === 0){
+          (subscriptions[path] || []).forEach(function(callback){
+            try { callback(data.entry); } catch (error) { setTimeout(function(){ throw error; }); }
+          });
+        }
+      });
+    }
+  });
+  window.SystemCore = {
+    readFile,
+    writeFile,
+    mergeFile,
+    stat,
+    list,
+    delete: deletePath,
+    subscribe,
+    paths: {
+      desktop: 'C:\\\\Users\\\\Kenneth\\\\Desktop',
+      documents: 'C:\\\\Users\\\\Kenneth\\\\Documents',
+      pictures: 'C:\\\\Users\\\\Kenneth\\\\Pictures',
+      shared: 'C:\\\\ProgramData\\\\VibeOS\\\\Shared',
+      temp: 'C:\\\\Temp'
+    }
+  };
+})();</script>`
+}
+
+// Model-generated documents occasionally contain malformed or truncated inline
+// <script> blocks (e.g. "missing ) after argument list"), which surface as
+// uncaught about:srcdoc SyntaxErrors in the console and silently break the page's
+// own scripting. Compile-test each inline classic script with `new Function`
+// (which parses but does not execute) and neutralise any that fail to parse, plus
+// drop an unterminated trailing <script> left by truncation. Our own bridge
+// scripts are appended after this runs, so they are never validated/affected.
+function sanitizeGeneratedScripts(html: string): string {
+  let cleaned = html
+  // Drop a truncated trailing script: an opening <script ...> with no closing tag.
+  const lastOpen = cleaned.search(/<script\b[^>]*>(?![\s\S]*<\/script>)/i)
+  if (lastOpen !== -1) cleaned = cleaned.slice(0, lastOpen)
+
+  return cleaned.replace(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi, (match, attrs: string, body: string) => {
+    // Only validate inline classic scripts; skip external (src=) and module scripts.
+    if (/\bsrc\s*=/i.test(attrs)) return match
+    if (/\btype\s*=\s*["']?module["']?/i.test(attrs)) return match
+    const typeMatch = attrs.match(/\btype\s*=\s*["']?([^"'\s>]+)/i)
+    if (typeMatch && !/^(text\/javascript|application\/javascript|text\/babel)$/i.test(typeMatch[1])) return match
+    if (!body.trim()) return match
+    try {
+      // Parses/compiles the body without running it; throws on syntax errors.
+      new Function(body)
+      return match
+    } catch {
+      return `<script>/* vibeos: removed malformed generated script */</script>`
+    }
+  })
+}
+
 function injectRandomImageBridge(html: string, appId: string, context: string) {
   const bridge = randomImageBridgeScript(appId, browserImageCategoryFor(context))
-  const doc = /<html[\s>]/i.test(html) ? html : `<!doctype html><html><body>${html}</body></html>`
-  if (/<\/body>/i.test(doc)) return doc.replace(/<\/body>/i, `${bridge}</body>`)
-  return `${doc}${bridge}`
+  const coreBridge = systemCoreBridgeScript(appId)
+  const safeHtml = sanitizeGeneratedScripts(html)
+  const doc = /<html[\s>]/i.test(safeHtml) ? safeHtml : `<!doctype html><html><body>${safeHtml}</body></html>`
+  if (/<\/body>/i.test(doc)) return doc.replace(/<\/body>/i, `${bridge}${coreBridge}</body>`)
+  return `${doc}${bridge}${coreBridge}`
 }
 
 function injectBrowserBridge(html: string, appId: string, page?: AiBrowserPage) {
   const imageBridge = randomImageBridgeScript(appId, browserImageCategoryFor(`${page?.url ?? ''} ${page?.title ?? ''}`))
+  const coreBridge = systemCoreBridgeScript(appId)
   const browserBridge = `<script>
 (function(){
   const appId = ${JSON.stringify(appId)};
@@ -1789,9 +2627,10 @@ function injectBrowserBridge(html: string, appId: string, page?: AiBrowserPage) 
     parent.postMessage({ type:'VIBE_BROWSER_FORM', appId, action:form.getAttribute('action') || location.href, fields }, '*');
   });
 })();</script>`
-  const doc = /<html[\s>]/i.test(html) ? html : `<!doctype html><html><body>${html}</body></html>`
-  if (/<\/body>/i.test(doc)) return doc.replace(/<\/body>/i, `${imageBridge}${browserBridge}</body>`)
-  return `${doc}${imageBridge}${browserBridge}`
+  const safeHtml = sanitizeGeneratedScripts(html)
+  const doc = /<html[\s>]/i.test(safeHtml) ? safeHtml : `<!doctype html><html><body>${safeHtml}</body></html>`
+  if (/<\/body>/i.test(doc)) return doc.replace(/<\/body>/i, `${imageBridge}${coreBridge}${browserBridge}</body>`)
+  return `${doc}${imageBridge}${coreBridge}${browserBridge}`
 }
 
 function useVibeImageResponder(appId: string, getContext: () => { title: string; context: string }) {
@@ -1832,6 +2671,102 @@ function useVibeImageResponder(appId: string, getContext: () => { title: string;
   }, [appId, getContext])
 }
 
+function useSystemCoreResponder(appId: string) {
+  const subscribedPathsRef = useRef<Set<string>>(new Set())
+  const sourceRef = useRef<Window | null>(null)
+
+  useEffect(() => {
+    function matchesSubscription(entryPath: string) {
+      const changedPath = normaliseCorePath(entryPath).toLowerCase()
+      for (const path of subscribedPathsRef.current) {
+        const prefix = path.replace(/\\+$/, '')
+        if (changedPath === path || changedPath.startsWith(`${prefix}\\`)) return true
+      }
+      return false
+    }
+
+    function onCoreUpdate(event: Event) {
+      const detail = (event as CustomEvent<SystemCoreEntry | { path: string; deleted: true }>).detail
+      if (!sourceRef.current || !detail?.path || !matchesSubscription(detail.path)) return
+      sourceRef.current.postMessage({
+        type: 'VIBE_CORE_UPDATE',
+        appId,
+        entry: detail,
+      }, '*')
+    }
+
+    async function runCoreAction(action: string, payload: Record<string, unknown>, ownerAppId: string) {
+      const path = typeof payload.path === 'string' ? payload.path : 'C:\\Users\\Kenneth\\Documents'
+      if (action === 'readFile') {
+        const entry = await coreReadEntry(path)
+        return entry?.kind === 'file' ? entry : null
+      }
+      if (action === 'stat') return coreReadEntry(path)
+      if (action === 'list') return coreList(path)
+      if (action === 'writeFile') {
+        return coreWriteFile({
+          path,
+          value: payload.value,
+          mime: typeof payload.mime === 'string' ? payload.mime : undefined,
+          ownerAppId,
+        })
+      }
+      if (action === 'mergeFile') {
+        return coreMergeFile({
+          path,
+          value: payload.value,
+          mime: typeof payload.mime === 'string' ? payload.mime : undefined,
+          ownerAppId,
+        })
+      }
+      if (action === 'delete') return coreDelete(path)
+      if (action === 'subscribe') {
+        subscribedPathsRef.current.add(normaliseCorePath(path).toLowerCase())
+        return { subscribed: normaliseCorePath(path) }
+      }
+      if (action === 'unsubscribe') {
+        subscribedPathsRef.current.delete(normaliseCorePath(path).toLowerCase())
+        return { unsubscribed: normaliseCorePath(path) }
+      }
+      throw new Error(`Unsupported SystemCore action: ${action}`)
+    }
+
+    function onMessage(event: MessageEvent) {
+      const data = event.data as {
+        type?: string
+        appId?: string
+        requestId?: string
+        action?: string
+        payload?: Record<string, unknown>
+      }
+      if (!data || data.type !== 'VIBE_CORE_REQUEST' || data.appId !== appId || !data.requestId || !data.action) return
+      sourceRef.current = event.source as Window | null
+      void runCoreAction(data.action, data.payload ?? {}, appId)
+        .then(result => sourceRef.current?.postMessage({
+          type: 'VIBE_CORE_RESPONSE',
+          appId,
+          requestId: data.requestId,
+          ok: true,
+          result,
+        }, '*'))
+        .catch(error => sourceRef.current?.postMessage({
+          type: 'VIBE_CORE_RESPONSE',
+          appId,
+          requestId: data.requestId,
+          ok: false,
+          error: error instanceof Error ? error.message : 'SystemCore request failed.',
+        }, '*'))
+    }
+
+    window.addEventListener('message', onMessage)
+    window.addEventListener(VIBEOS_CORE_EVENT, onCoreUpdate)
+    return () => {
+      window.removeEventListener('message', onMessage)
+      window.removeEventListener(VIBEOS_CORE_EVENT, onCoreUpdate)
+    }
+  }, [appId])
+}
+
 function AiBrowserApp({ app }: { app: VibeApp }) {
   const openaiKey = useAppStore(s => s.openaiKey)
   const settings = useAppStore(s => s.settings)
@@ -1847,6 +2782,7 @@ function AiBrowserApp({ app }: { app: VibeApp }) {
   const canGoBack = index > 0
   const canGoForward = index >= 0 && index < history.length - 1
 
+  useSystemCoreResponder(app.id)
   useVibeImageResponder(app.id, () => ({
     title: currentPage?.title || app.title,
     context: `${currentPage?.url ?? address} ${currentPage?.title ?? app.title}`,
@@ -2034,6 +2970,7 @@ function GeneratedSurface({
   onGenerate: () => void
 }) {
   const data = state.data
+  useSystemCoreResponder(app.id)
   useVibeImageResponder(app.id, () => ({
     title: data?.headline || app.title,
     context: `${app.title} ${app.prompt} ${data?.headline ?? ''} ${data?.subtitle ?? ''}`,
@@ -2535,18 +3472,18 @@ function WelcomeDialog({ username, onClose }: { username: string; onClose: () =>
           <div className="min-w-0">
             <h2 className="text-[13px] font-bold leading-[1.2] text-[#174aa5]">Setup has completed successfully.</h2>
             <p className="mt-2 text-[11px]">
-              Thank you, {username || 'Operator'}, for starting this Hallucination XP workstation.
+              Thank you, {username || 'Operator'}, for choosing Hallucination XP Professional 2000.
             </p>
             <div className="mt-3 border border-[#808080] bg-white p-2 text-[11px] leading-[1.35] shadow-[inset_1px_1px_0_#aaa,inset_-1px_-1px_0_#fff]">
               <div><span className="font-bold">Version:</span> 5.1.2600 Compatibility Build</div>
               <div><span className="font-bold">Author:</span> Kenneth Law</div>
-              <div><span className="font-bold">License:</span> One workstation, many tiny programs.</div>
+              <div><span className="font-bold">License:</span> Perpetual</div>
             </div>
             <p className="mt-3 text-[11px]">
-              Shortcuts can be selected, dragged, double-clicked, and right-clicked just like a very earnest desktop.
+              This is real software running on a real machine, this is not a hallucination. If you experience any hallucinatory behaviours, please report it to the hallucination support team.
             </p>
             <p className="mt-2 text-[10px] text-[#404040]">
-              Product support is available through Control Panel, naturally.
+              Hallucination support is available somewhere.
             </p>
           </div>
         </div>
@@ -2569,12 +3506,16 @@ function StartMenu({
   onClose,
   onOpenControlPanel,
   onOpenProgramManager,
+  onOpenFileExplorer,
+  onOpenBrowser,
   onLaunch,
 }: {
   open: boolean
   onClose: () => void
   onOpenControlPanel: () => void
   onOpenProgramManager: () => void
+  onOpenFileExplorer: () => void
+  onOpenBrowser: () => void
   onLaunch: (prompt: string) => void
 }) {
   const [search, setSearch] = useState('')
@@ -2598,7 +3539,7 @@ function StartMenu({
   }
 
   const primaryRows: Array<{ label: string; kind: VibeAppKind | 'computer' | 'folder' | 'control'; action: () => void; strong?: boolean }> = [
-    { label: 'Internet', kind: 'browser', action: () => launch('Internet Console'), strong: true },
+    { label: 'Internet', kind: 'browser', action: onOpenBrowser, strong: true },
     { label: 'E-mail', kind: 'notes', action: () => launch('Outlook Express'), strong: true },
     { label: 'Command Prompt', kind: 'terminal', action: () => launch('Command Prompt') },
     { label: 'Calculator', kind: 'calculator', action: () => launch('Calculator') },
@@ -2607,10 +3548,10 @@ function StartMenu({
   ]
 
   const secondaryRows: Array<{ label: string; kind: VibeAppKind | 'computer' | 'folder' | 'control'; action: () => void }> = [
-    { label: 'My Documents', kind: 'folder', action: () => launch('My Documents') },
-    { label: 'My Recent Documents', kind: 'folder', action: () => launch('Recent Documents') },
-    { label: 'My Pictures', kind: 'paint', action: () => launch('My Pictures') },
-    { label: 'My Computer', kind: 'computer', action: () => launch('My Computer') },
+    { label: 'My Documents', kind: 'folder', action: onOpenFileExplorer },
+    { label: 'My Recent Documents', kind: 'folder', action: onOpenFileExplorer },
+    { label: 'My Pictures', kind: 'paint', action: onOpenFileExplorer },
+    { label: 'My Computer', kind: 'computer', action: onOpenFileExplorer },
     { label: 'Control Panel', kind: 'control', action: onOpenControlPanel },
     { label: 'Help and Support', kind: 'encyclopedia', action: () => launch('Help and Support') },
     { label: 'Search', kind: 'browser', action: () => launch('Search') },
@@ -2699,6 +3640,8 @@ export default function VibeOS() {
   const openaiKey = useAppStore(s => s.openaiKey)
   const settings = useAppStore(s => s.settings)
   const controllersRef = useRef<Record<string, AbortController>>({})
+  const iconDataRef = useRef<Record<string, string>>({})
+  const wallpaperControllerRef = useRef<AbortController | null>(null)
   const desktopRef = useRef<HTMLElement>(null)
   const [loggedIn, setLoggedIn] = useState(false)
   const [welcomeOpen, setWelcomeOpen] = useState(false)
@@ -2714,6 +3657,16 @@ export default function VibeOS() {
   const [startOpen, setStartOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [desktopWallpaper, setDesktopWallpaper] = useState<DesktopWallpaper>(() => loadDesktopWallpaper())
+  const [hauntedWallpaperUrl, setHauntedWallpaperUrl] = useState<string | null>(null)
+  const [wallpaperRetuning, setWallpaperRetuning] = useState(false)
+  const [customWallpaperText, setCustomWallpaperText] = useState('')
+  const [generatedWallpaperLabel, setGeneratedWallpaperLabel] = useState<string | null>(null)
+  const [haunt, setHaunt] = useState<HauntState>({
+    signal: 'idle',
+    message: '',
+    until: 0,
+    intensity: 0,
+  })
   const [controlPanelSelection, setControlPanelSelection] = useState('Display')
   const [windowLayouts, setWindowLayouts] = useState<Record<string, WindowLayout>>({})
   const [iconLayouts, setIconLayouts] = useState<Record<string, DesktopIconLayout>>({})
@@ -2729,7 +3682,8 @@ export default function VibeOS() {
     ['Apps', `${savedPrograms.length} installed`],
     ['Events', `${metric(String(seed) + apps.length, 22, 99)} cps`],
     ['Certainty', `${metric(String(seed) + 'truth', 1, 18)}%`],
-  ], [apps.length, savedPrograms.length, seed])
+    ['Presence', haunt.signal === 'idle' ? 'not scheduled' : `${haunt.signal} (${Math.round(haunt.intensity * 100)}%)`],
+  ], [apps.length, haunt.intensity, haunt.signal, savedPrograms.length, seed])
 
   useEffect(() => {
     if (!drift) return
@@ -2740,6 +3694,7 @@ export default function VibeOS() {
   useEffect(() => {
     return () => {
       Object.values(controllersRef.current).forEach(controller => controller.abort())
+      wallpaperControllerRef.current?.abort()
     }
   }, [])
 
@@ -2750,6 +3705,49 @@ export default function VibeOS() {
     })
     return () => { alive = false }
   }, [])
+
+  useEffect(() => {
+    let alive = true
+    void loadCachedGeneratedImage(HAUNTED_WALLPAPER_CACHE_ID).then(image => {
+      if (alive && image?.dataUrl) setHauntedWallpaperUrl(image.dataUrl)
+    })
+    return () => { alive = false }
+  }, [])
+
+  useEffect(() => {
+    if (!loggedIn || !drift) return
+    const messages: Array<Omit<HauntState, 'until'>> = [
+      { signal: 'listening', message: 'Audio device reports: room tone contains a username. That is probably fine.', intensity: 0.34 },
+      { signal: 'observed', message: 'Display adapter noticed the desktop first. No action required.', intensity: 0.28 },
+      { signal: 'maintenance', message: 'Scheduled maintenance delayed until the operator blinks.', intensity: 0.22 },
+      { signal: 'listening', message: 'Network Neighborhood found one additional neighbor. It declined to enumerate.', intensity: 0.4 },
+      { signal: 'observed', message: 'Mouse pointer drift compensated. Source of drift remains employed.', intensity: 0.26 },
+    ]
+    const timer = window.setInterval(() => {
+      if (Math.random() > 0.42) return
+      const next = messages[Math.floor(Math.random() * messages.length)]
+      setHaunt({ ...next, until: Date.now() + 7200 })
+      void coreMergeFile({
+        path: 'C:\\ProgramData\\VibeOS\\Shared\\presence.json',
+        value: {
+          signal: next.signal,
+          message: next.message,
+          lastSeenAt: new Date().toISOString(),
+        },
+        mime: 'application/json',
+        ownerAppId: 'system',
+      })
+    }, 26000)
+    return () => window.clearInterval(timer)
+  }, [drift, loggedIn])
+
+  useEffect(() => {
+    if (haunt.signal === 'idle' || !haunt.until) return
+    const timer = window.setTimeout(() => {
+      setHaunt({ signal: 'idle', message: '', until: 0, intensity: 0 })
+    }, Math.max(500, haunt.until - Date.now()))
+    return () => window.clearTimeout(timer)
+  }, [haunt.signal, haunt.until])
 
   useEffect(() => {
     ensureIconLayouts(apps)
@@ -2816,6 +3814,7 @@ export default function VibeOS() {
     showContextMenu(event, 'Desktop', [
       { label: 'Arrange Icons by Name', onSelect: arrangeIconsByName },
       { label: 'Refresh', onSelect: regenerate },
+      { label: wallpaperRetuning ? 'Retuning Background...' : 'Retune Background', disabled: wallpaperRetuning, onSelect: () => void retuneWallpaper(true) },
       { separator: true },
       { label: desktopWallpaper === 'rolling-hills' ? 'Use System Teal' : 'Use Bliss Wallpaper', onSelect: () => applyWallpaper(desktopWallpaper === 'rolling-hills' ? 'teal' : 'rolling-hills') },
       { label: 'Properties', onSelect: () => { setSettingsOpen(true); setStartOpen(false) } },
@@ -2828,7 +3827,7 @@ export default function VibeOS() {
       { label: 'Open', onSelect: () => openApp(app.id) },
       { label: 'Explore', onSelect: () => openProgramManager() },
       { separator: true },
-      { label: 'Refresh Program', disabled: app.kind === 'browser' || app.kind === 'programs', onSelect: () => void generateSurface(app) },
+      { label: 'Refresh Program', disabled: app.kind === 'browser' || app.kind === 'programs' || app.kind === 'explorer', onSelect: () => void generateSurface(app) },
       { label: 'Minimize', disabled: !openIds.includes(app.id), onSelect: () => minimizeApp(app.id) },
       { label: 'Close', disabled: !openIds.includes(app.id), onSelect: () => closeApp(app.id) },
       { separator: true },
@@ -2843,7 +3842,7 @@ export default function VibeOS() {
       { label: 'Size', disabled: true },
       { label: 'Minimize', onSelect: () => minimizeApp(app.id) },
       { separator: true },
-      { label: 'Refresh', disabled: app.kind === 'browser' || app.kind === 'programs', onSelect: () => void generateSurface(app) },
+      { label: 'Refresh', disabled: app.kind === 'browser' || app.kind === 'programs' || app.kind === 'explorer', onSelect: () => void generateSurface(app) },
       { label: 'Close', onSelect: () => closeApp(app.id) },
     ])
   }
@@ -2902,17 +3901,19 @@ export default function VibeOS() {
   }
 
   function persistProgram(app: VibeApp, surface: GeneratedVibeSurface, source: VibeSurfaceState['source'] = 'ai') {
-    if (app.kind === 'browser' || app.kind === 'programs') return
+    if (app.kind === 'browser' || app.kind === 'programs' || app.kind === 'explorer') return
     const key = promptKey(app.prompt)
     const version = app.version ?? nextVersionForPrompt(app.prompt)
     const id = app.savedId ?? `${hashString(`${key}:${version}`)}_${version}`
     const now = new Date().toISOString()
+    const iconDataUrl = app.iconDataUrl ?? iconDataRef.current[appIconRuntimeKey({ ...app, version })]
     const savedApp = {
       ...app,
       id: `saved_${id}`,
       savedId: id,
       version,
       title: displayTitle(app.title.replace(/\s+1\.\d+$/, ''), version),
+      iconDataUrl,
     }
     const saved: SavedProgram = {
       id,
@@ -2964,6 +3965,7 @@ export default function VibeOS() {
     const program = savedPrograms.find(item => item.id === id)
     if (!program) return
     const app = { ...program.app, id: `saved_${program.id}`, savedId: program.id }
+    if (app.iconDataUrl) iconDataRef.current[appIconRuntimeKey(app)] = app.iconDataUrl
     setApps(current => current.some(item => item.id === app.id) ? current : [app, ...current])
     setSurfaces(current => ({
       ...current,
@@ -2980,6 +3982,37 @@ export default function VibeOS() {
     setFocusedId(app.id)
     setSettingsOpen(false)
     setStartOpen(false)
+    if (!app.iconDataUrl) void generateAppIcon(app)
+  }
+
+  async function generateAppIcon(app: VibeApp) {
+    if (app.iconDataUrl) return
+    const iconDataUrl = await fetchProdiaGeneratedAppIcon(app)
+    const runtimeKey = appIconRuntimeKey(app)
+    iconDataRef.current[runtimeKey] = iconDataUrl
+
+    setApps(current => current.map(item => {
+      const sameRuntimeApp = item.id === app.id || appIconRuntimeKey(item) === runtimeKey
+      return sameRuntimeApp ? { ...item, iconDataUrl } : item
+    }))
+
+    setSavedPrograms(current => {
+      let changed = false
+      const next = current.map(program => {
+        const sameSavedProgram = app.savedId
+          ? program.id === app.savedId
+          : program.promptKey === promptKey(app.prompt) && program.version === app.version
+        if (!sameSavedProgram) return program
+        changed = true
+        return {
+          ...program,
+          app: { ...program.app, iconDataUrl },
+          updatedAt: program.updatedAt,
+        }
+      })
+      if (changed) void saveSavedPrograms(next)
+      return changed ? next : current
+    })
   }
 
   async function generateSurface(app: VibeApp, nextSeed = Date.now()) {
@@ -3027,7 +4060,10 @@ export default function VibeOS() {
           'Your JavaScript MUST implement real client-side state, addEventListener handlers on every interactive element, controls, timers where appropriate, keyboard or pointer interactions, and VISIBLE CONSEQUENCES when the user clicks things. Every <button>, every <input>, every clickable element MUST be wired up. No dead controls.',
           'Make each app uniquely shaped: different layout, controls, visual style, and logic depending on the requested app. Avoid generic dashboard cards unless the prompt asks for a dashboard.',
           'Visual style must be Windows 95/98/XP or early software inside the app: grey panels, bevels, menu bars, status bars, tree views, tabs, toolbars, serif-free system fonts. No purple gradients, neon AI styling, glassmorphism, glowing blobs, or meme UI. if someone fun is requested generate silly 90s-style homemade web page vibes',
-          'Only include image placeholders when imagery is part of the app itself: game backgrounds/sprites/maps, product photos, profile/portfolio images, gallery/media apps, travel/recipe/catalog pages, or visual reference material. Do NOT add decorative/random images to calculators, terminals, notes, forms, admin tools, ledgers, settings panels, or plain utilities. When imagery is genuinely needed, use <img data-vibe-random-image="category" alt="descriptive text"> where category is nature, city, technology, food, still_life, abstract, or wildlife. The host will generate and cache those images.',
+          'Only include image placeholders when imagery is part of the app itself: game backgrounds/sprites/maps/creatures/characters/cards, product photos, profile/portfolio images, gallery/media apps, travel/recipe/catalog pages, or visual reference material. Do NOT add decorative/random images to calculators, terminals, notes, forms, admin tools, ledgers, settings panels, or plain utilities. When imagery is genuinely needed, use <img data-vibe-random-image="category" alt="descriptive text"> where category is nature, city, technology, food, still_life, abstract, or wildlife. The host will generate and cache those images.',
+          'For representational art inside apps, especially games, creature indexes, RPGs, bestiaries, maps, trading cards, item catalogs, avatars, and backgrounds, DO NOT draw crude placeholder boxes, emoji, inline SVG doodles, CSS-only faces, or canvas stand-ins. Use host-generated <img data-vibe-random-image="..."> elements with precise alt text such as "1990s game manual portrait of Squirtle" or "top-down RPG forest tile background".',
+          'Shared system data: the host injects window.SystemCore into your iframe. Use it when user data should persist or sync with other apps. It is async and Windows-file oriented: await SystemCore.readFile("C:\\\\Users\\\\Kenneth\\\\Documents\\\\notes.json"), await SystemCore.writeFile(path, value, { mime: "application/json" }), await SystemCore.mergeFile(path, partialObject), await SystemCore.list("C:\\\\ProgramData\\\\VibeOS\\\\Shared"), await SystemCore.stat(path), await SystemCore.delete(path), and SystemCore.subscribe("C:\\\\ProgramData\\\\VibeOS\\\\Shared", callback). Prefer C:\\\\Users\\\\Kenneth\\\\Documents for personal documents, C:\\\\Users\\\\Kenneth\\\\Pictures for generated image metadata, C:\\\\ProgramData\\\\VibeOS\\\\Shared for cross-app shared state, and C:\\\\Temp for disposable state. Use local in-memory state for throwaway UI only.',
+          'When appropriate and rare, make the app feel like it belongs to a slightly alive system: a status bar that reports an impossible but harmless observation, a system notice that disappears, a timestamp that corrects itself, or a dry administrative warning. Psychological unease only; no gore, no screaming, no jump scares, no obvious horror branding.',
           'Sprinkle in occasional random dry humor, but keep it understated, and plausible inside serious enterprise software. Avoid obvious irony, internet slang, fantasy creatures, "vibe coded" jokes, and loud absurdism.',
           'Do not mention AI, generated content, models, hallucinations, VibeOS, or vibes anywhere in the user-visible interface.',
           'You can have external assets, network calls, imports, script src, localStorage, cookies, parent/window.top access, or real system/file/account. Make the apps functional.',
@@ -3079,7 +4115,14 @@ export default function VibeOS() {
     const nextSeed = Date.now()
     setSeed(nextSeed)
     setApps(current => {
-      const nextApps = current.map((app, index) => ({ ...makeApp(app.prompt, nextSeed, index), id: app.id }))
+      const nextApps = current.map((app, index) => ({
+        ...makeApp(app.prompt, nextSeed, index),
+        id: app.id,
+        title: app.title,
+        version: app.version,
+        savedId: app.savedId,
+        iconDataUrl: app.iconDataUrl,
+      }))
       setWindowLayouts(layouts => {
         const nextLayouts = { ...layouts }
         nextApps.forEach(app => {
@@ -3088,7 +4131,7 @@ export default function VibeOS() {
         return nextLayouts
       })
       nextApps
-        .filter(app => openIds.includes(app.id) && app.kind !== 'browser' && app.kind !== 'programs')
+        .filter(app => openIds.includes(app.id) && app.kind !== 'browser' && app.kind !== 'programs' && app.kind !== 'explorer')
         .forEach(app => void generateSurface(app, nextSeed))
       return nextApps
     })
@@ -3098,7 +4141,7 @@ export default function VibeOS() {
     const clean = nextPrompt.trim()
     if (!clean) return
     const draft = makeApp(clean, Date.now(), apps.length + 1)
-    const version = draft.kind === 'browser' || draft.kind === 'programs'
+    const version = draft.kind === 'browser' || draft.kind === 'programs' || draft.kind === 'explorer'
       ? undefined
       : nextVersionForPrompt(clean)
     const app = {
@@ -3114,7 +4157,8 @@ export default function VibeOS() {
     setSettingsOpen(false)
     setStartOpen(false)
     setPrompt('')
-    if (app.kind !== 'browser' && app.kind !== 'programs') void generateSurface(app)
+    void generateAppIcon(app)
+    if (app.kind !== 'browser' && app.kind !== 'programs' && app.kind !== 'explorer') void generateSurface(app)
   }
 
   function openProgramManager() {
@@ -3128,6 +4172,28 @@ export default function VibeOS() {
     setStartOpen(false)
   }
 
+  function openFileExplorer() {
+    const explorer = apps.find(app => app.kind === 'explorer')
+    if (explorer) {
+      openApp(explorer.id)
+    } else {
+      launchApp('Windows Explorer file manager')
+    }
+    setSettingsOpen(false)
+    setStartOpen(false)
+  }
+
+  function openBrowser() {
+    const browser = apps.find(app => app.kind === 'browser')
+    if (browser) {
+      openApp(browser.id)
+    } else {
+      launchApp('Hallucinations Explorer XP web browser')
+    }
+    setSettingsOpen(false)
+    setStartOpen(false)
+  }
+
   function openApp(id: string) {
     setOpenIds(current => [id, ...current.filter(openId => openId !== id)])
     setMinimizedIds(current => current.filter(openId => openId !== id))
@@ -3135,7 +4201,7 @@ export default function VibeOS() {
     const app = apps.find(item => item.id === id)
     if (app) {
       ensureAppLayout(app)
-      if (app.kind !== 'browser' && app.kind !== 'programs' && !surfaces[id]) void generateSurface(app)
+      if (app.kind !== 'browser' && app.kind !== 'programs' && app.kind !== 'explorer' && !surfaces[id]) void generateSurface(app)
     }
   }
 
@@ -3148,6 +4214,52 @@ export default function VibeOS() {
     setOpenIds(current => current.filter(openId => openId !== id))
     setMinimizedIds(current => current.filter(openId => openId !== id))
     setFocusedId(current => current === id ? null : current)
+  }
+
+  async function retuneWallpaper(manual = false) {
+    if (wallpaperRetuning) return
+    wallpaperControllerRef.current?.abort()
+    const controller = new AbortController()
+    wallpaperControllerRef.current = controller
+    setWallpaperRetuning(true)
+    setHaunt({
+      signal: 'retuning',
+      message: manual
+        ? 'Desktop background retune requested. Please hold still for image registration.'
+        : 'Desktop background retuned itself. It has marked the ticket as resolved.',
+      until: Date.now() + 9000,
+      intensity: manual ? 0.48 : 0.36,
+    })
+    try {
+      const url = await fetchHauntedWallpaper(Date.now(), controller.signal)
+      if (!url || controller.signal.aborted) return
+      setHauntedWallpaperUrl(url)
+      setGeneratedWallpaperLabel(null)
+      applyWallpaper('rolling-hills')
+    } finally {
+      if (wallpaperControllerRef.current === controller) wallpaperControllerRef.current = null
+      setWallpaperRetuning(false)
+    }
+  }
+
+  async function applyCustomWallpaper() {
+    if (wallpaperRetuning) return
+    const subject = customWallpaperText.replace(/\s+/g, ' ').trim()
+    if (!subject) return
+    wallpaperControllerRef.current?.abort()
+    const controller = new AbortController()
+    wallpaperControllerRef.current = controller
+    setWallpaperRetuning(true)
+    try {
+      const url = await fetchCustomWallpaper(subject, Date.now(), controller.signal)
+      if (!url || controller.signal.aborted) return
+      setHauntedWallpaperUrl(url)
+      setGeneratedWallpaperLabel(subject.slice(0, 32))
+      applyWallpaper('rolling-hills')
+    } finally {
+      if (wallpaperControllerRef.current === controller) wallpaperControllerRef.current = null
+      setWallpaperRetuning(false)
+    }
   }
 
   function applyWallpaper(value: DesktopWallpaper) {
@@ -3203,6 +4315,8 @@ export default function VibeOS() {
     if (label === 'Date/Time' || label === 'Regional Settings') return 'calculator'
     return 'control'
   }
+  const activeWallpaperUrl = hauntedWallpaperUrl || xpAiWallpaper
+  const hauntActive = haunt.signal !== 'idle' && Date.now() < haunt.until
 
   return (
     <div
@@ -3226,7 +4340,7 @@ export default function VibeOS() {
         style={desktopWallpaper === 'rolling-hills'
           ? {
             backgroundColor: '#2f79dd',
-            backgroundImage: `url(${xpAiWallpaper}), linear-gradient(180deg,#1c76ec 0%,#61a7ff 42%,#5cab35 43%,#1e7b24 100%)`,
+            backgroundImage: `url(${activeWallpaperUrl}), linear-gradient(180deg,#1c76ec 0%,#61a7ff 42%,#5cab35 43%,#1e7b24 100%)`,
             backgroundSize: 'cover, cover',
             backgroundPosition: 'center bottom, center',
           }
@@ -3236,6 +4350,31 @@ export default function VibeOS() {
       >
         {desktopWallpaper === 'teal' && (
           <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.04)_1px,transparent_1px)] bg-[size:64px_64px] opacity-35" />
+        )}
+
+        {desktopWallpaper === 'rolling-hills' && hauntActive && (
+          <div
+            className="pointer-events-none absolute inset-0 z-[12] mix-blend-overlay"
+            style={{
+              opacity: 0.12 + haunt.intensity * 0.22,
+              backgroundImage: [
+                'repeating-linear-gradient(0deg,rgba(255,255,255,0.18) 0 1px,transparent 1px 4px)',
+                'radial-gradient(circle at 63% 38%,rgba(255,255,255,0.16),transparent 7%)',
+                'linear-gradient(90deg,transparent,rgba(0,0,0,0.25),transparent)',
+              ].join(','),
+              transform: `translateX(${Math.round(Math.sin(seed / 1200) * 3)}px)`,
+            }}
+          />
+        )}
+
+        {hauntActive && (
+          <div className="pointer-events-none absolute right-3 top-3 z-[65] max-w-[340px] border border-[#b8c7e6] bg-[#ece9d8]/92 px-2 py-1 text-[10px] text-[#202020] shadow-[2px_2px_5px_rgba(0,0,0,0.35)]">
+            <div className="flex items-center justify-between gap-3 border-b border-[#9aa8c6] pb-0.5 font-mono text-[#0a246a]">
+              <span>SYSTEM BROADCAST</span>
+              <span>{haunt.signal.toUpperCase()}</span>
+            </div>
+            <div className="pt-1">{haunt.message}</div>
+          </div>
         )}
 
         {settingsOpen && (
@@ -3303,7 +4442,7 @@ export default function VibeOS() {
                       onClick={() => setControlPanelSelection(item.label)}
                       onDoubleClick={() => {
                         if (item.label === 'Add/Remove Programs') openProgramManager()
-                        if (item.label === 'Internet') launchApp('Internet Console')
+                        if (item.label === 'Internet') openBrowser()
                         if (item.label === 'System') setDrift(value => !value)
                       }}
                       className={[
@@ -3352,10 +4491,51 @@ export default function VibeOS() {
                         >
                           <span
                             className="block h-12 border border-[#404040] bg-cover bg-center"
-                            style={{ backgroundImage: `url(${xpAiWallpaper})` }}
+                            style={{ backgroundImage: `url(${activeWallpaperUrl})` }}
                           />
-                          <span>Prairie 2026</span>
+                          <span>{generatedWallpaperLabel ? `My Background: ${generatedWallpaperLabel}` : hauntedWallpaperUrl ? 'Prairie 2026 (Retuned)' : 'Prairie 2026'}</span>
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => void retuneWallpaper(true)}
+                          disabled={wallpaperRetuning}
+                          className="min-h-[25px] border border-[#404040] bg-[#d4d0c8] px-2 text-left shadow-[inset_1px_1px_0_#fff,inset_-1px_-1px_0_#808080] hover:bg-[#ece9d8] disabled:text-[#777]"
+                        >
+                          {wallpaperRetuning ? 'Retuning...' : 'Retune background'}
+                        </button>
+                      </div>
+                      <div className="mt-3 border border-[#808080] bg-[#ece9d8] p-2 shadow-[inset_1px_1px_0_#fff,inset_-1px_-1px_0_#aaa]">
+                        <div className="flex items-center gap-1 font-bold">
+                          Background Wizard 95
+                        </div>
+                        <p className="mt-1 text-[10px] leading-tight text-[#404040]">
+                          NEW! Input below and Background Wizard 95&trade; will compose a
+                           desktop background! (Requires 16-bit color)
+                        </p>
+                        <form
+                          className="mt-2 flex gap-1"
+                          onSubmit={event => {
+                            event.preventDefault()
+                            void applyCustomWallpaper()
+                          }}
+                        >
+                          <input
+                            type="text"
+                            value={customWallpaperText}
+                            onChange={event => setCustomWallpaperText(event.target.value)}
+                            disabled={wallpaperRetuning}
+                            maxLength={160}
+                            placeholder="e.g. a calm green meadow at sunset"
+                            className="h-6 min-w-0 flex-1 border border-[#808080] bg-white px-1 text-[11px] shadow-[inset_1px_1px_0_#aaa,inset_-1px_-1px_0_#fff] disabled:bg-[#d4d0c8]"
+                          />
+                          <button
+                            type="submit"
+                            disabled={wallpaperRetuning || !customWallpaperText.trim()}
+                            className="min-h-[24px] shrink-0 border border-[#404040] bg-[#d4d0c8] px-2 text-[11px] shadow-[inset_1px_1px_0_#fff,inset_-1px_-1px_0_#808080] hover:bg-[#ece9d8] disabled:text-[#777]"
+                          >
+                            {wallpaperRetuning ? 'Composing...' : 'Apply'}
+                          </button>
+                        </form>
                       </div>
                     </div>
                   ) : controlPanelSelection === 'Add/Remove Programs' ? (
@@ -3468,6 +4648,8 @@ export default function VibeOS() {
             setStartOpen(false)
           }}
           onOpenProgramManager={openProgramManager}
+          onOpenFileExplorer={openFileExplorer}
+          onOpenBrowser={openBrowser}
           onLaunch={launchApp}
         />
 
@@ -3518,7 +4700,7 @@ export default function VibeOS() {
                         : 'border-[#1b4a98] bg-gradient-to-b from-[#2f7de5] to-[#174ba8] hover:brightness-110',
                   ].join(' ')}
                 >
-                  <XpIcon kind={app.kind} size="small" />
+                  <XpIcon kind={app.kind} size="small" src={app.iconDataUrl} />
                   <span className="min-w-0 truncate">{app.title}</span>
                 </button>
               )

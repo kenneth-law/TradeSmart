@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import {
   AppWindow,
@@ -612,6 +612,15 @@ function googleRedirectTarget(url: string): string | null {
     return target && /^https?:\/\//i.test(target) ? target : null
   } catch {
     return null
+  }
+}
+
+function isGoogleHomeUrl(url: string) {
+  try {
+    const parsed = new URL(normaliseUrl(url))
+    return /(^|\.)google\.com$/i.test(parsed.hostname) && (parsed.pathname === '/' || parsed.pathname === '')
+  } catch {
+    return /^(?:https?:\/\/)?(?:www\.)?google\.com\/?$/i.test(url.trim())
   }
 }
 
@@ -1847,6 +1856,7 @@ function WindowChrome({
   onMove,
   onResize,
   onContextMenu,
+  minimized = false,
 }: {
   app: VibeApp
   seed: number
@@ -1863,6 +1873,7 @@ function WindowChrome({
   onMove: (layout: WindowLayout) => void
   onResize: (layout: WindowLayout) => void
   onContextMenu: (event: React.MouseEvent, app: VibeApp) => void
+  minimized?: boolean
 }) {
   const [isInteracting, setIsInteracting] = useState(false)
 
@@ -1922,7 +1933,10 @@ function WindowChrome({
 
   return (
     <section
-      className="absolute min-h-[260px] min-w-[300px] overflow-hidden rounded-t-[8px] border border-[#0054e3] bg-[#ece9d8] shadow-[4px_5px_12px_rgba(0,0,0,0.45)]"
+      className={[
+        'absolute min-h-[260px] min-w-[300px] overflow-hidden rounded-t-[8px] border border-[#0054e3] bg-[#ece9d8] shadow-[4px_5px_12px_rgba(0,0,0,0.45)]',
+        minimized ? 'hidden' : '',
+      ].join(' ')}
       style={{
         left: layout.x,
         top: layout.y,
@@ -2895,6 +2909,91 @@ function useSystemCoreResponder(appId: string) {
   }, [appId])
 }
 
+function BuiltInGoogleHome({
+  query,
+  onQueryChange,
+  onSearch,
+  imageSrc,
+}: {
+  query: string
+  onQueryChange: (value: string) => void
+  onSearch: (query: string) => void
+  imageSrc: string
+}) {
+  function submit(event: FormEvent) {
+    event.preventDefault()
+    const trimmed = query.trim()
+    if (trimmed) onSearch(trimmed)
+  }
+
+  return (
+    <div className="flex h-full flex-col items-center overflow-auto bg-white px-3 pb-3 pt-[30px] font-['Times_New_Roman',Times,serif] text-[14px] text-black">
+      <div className="relative mb-[18px] inline-block">
+        <div className="font-['Times_New_Roman',serif] text-[78px] font-bold leading-none tracking-[-2px] [text-shadow:2px_2px_0_rgba(0,0,0,0.15)]">
+          <span className="text-[#0039A6]">G</span>
+          <span className="text-[#C8102E]">o</span>
+          <span className="text-[#F4C400]">o</span>
+          <span className="text-[#0039A6]">g</span>
+          <span className="text-[#008A05]">l</span>
+          <span className="text-[#C8102E]">e</span>
+          <span className="text-[#0039A6]">!</span>
+        </div>
+        <div className="absolute bottom-2 right-[-46px] font-sans text-[14px] tracking-[6px] text-[#888]">BETA</div>
+      </div>
+
+      <form onSubmit={submit} className="w-[520px] max-w-[96%] border border-[#bdbdbd] bg-[#e6e6e6] px-[18px] py-[14px] text-center">
+        <div className="mb-2 text-[15px]">Search the web using Google!</div>
+        <input
+          type="text"
+          value={query}
+          onChange={event => onQueryChange(event.target.value)}
+          autoComplete="off"
+          autoFocus
+          className="mb-2 w-[300px] border border-[#7f7f7f] bg-white px-1 py-0.5 text-[14px] text-black"
+        />
+        <div className="flex justify-center gap-2">
+          <button type="submit" className="border border-[#7f7f7f] bg-[#dcdcdc] px-2.5 py-0.5 text-[13px] active:border-[#404040] active:bg-[#cccccc]">
+            Google Search
+          </button>
+          <button type="submit" className="border border-[#7f7f7f] bg-[#dcdcdc] px-2.5 py-0.5 text-[13px] active:border-[#404040] active:bg-[#cccccc]">
+            I'm feeling lucky
+          </button>
+        </div>
+      </form>
+
+      <div className="mt-[14px] flex w-[520px] max-w-[96%]">
+        <div className="flex-1 bg-[#9fe2cf] px-3 py-2.5 text-center text-[13px]">
+          <h3 className="mb-1 text-[13px] font-normal">Special Searches</h3>
+          <button type="button" onClick={() => onSearch('Stanford')} className="block w-full text-[#0000cc] underline">Stanford Search</button>
+          <button type="button" onClick={() => onSearch('Linux')} className="block w-full text-[#0000cc] underline">Linux Search</button>
+        </div>
+        <div className="flex-1 bg-[#7fd6c0] px-3 py-2.5 text-center text-[13px]">
+          <button type="button" onClick={() => onSearch('Google help')} className="block w-full text-[#0000cc] underline">Help!</button>
+          <button type="button" onClick={() => onSearch('About Google')} className="block w-full text-[#0000cc] underline">About Google!</button>
+          <button type="button" onClick={() => onSearch('Google company info')} className="block w-full text-[#0000cc] underline">Company Info</button>
+          <button type="button" onClick={() => onSearch('Google logos')} className="block w-full text-[#0000cc] underline">Google! Logos</button>
+        </div>
+        <div className="flex-1 bg-[#5fc7b0] px-3 py-2.5 text-center text-[13px]">
+          <div>Get Google!<br />updates monthly:</div>
+          <input type="text" defaultValue="your e-mail" className="mt-1 w-[120px] border border-[#444] bg-white px-1 py-0 text-[12px] text-[#444]" />
+          <br />
+          <button type="button" className="mt-1 border border-[#7f7f7f] bg-[#dcdcdc] px-2 py-0 text-[12px]">Subscribe</button>
+          <button type="button" onClick={() => onSearch('Google archive')} className="ml-2 text-[#0000cc] underline">Archive</button>
+        </div>
+      </div>
+
+      <div className="mt-3 w-[520px] max-w-[96%] border border-[#bdbdbd] bg-[#f4f4f4] p-2 text-left">
+        <img src={imageSrc} alt="Random image from the web directory" className="mr-2.5 float-left h-[78px] w-[120px] border border-[#999] object-cover" />
+        <h3 className="mb-1 mt-0 font-sans text-[13px] font-bold">Image Search Preview</h3>
+        <p className="m-0 text-[13px]">One sample picture has been selected for this browsing session.</p>
+        <div className="clear-both" />
+      </div>
+
+      <div className="mt-[18px] text-center text-[13px]">Copyright &copy;1998 Google Inc.</div>
+    </div>
+  )
+}
+
 function AiBrowserApp({ app }: { app: VibeApp }) {
   const openaiKey = useAppStore(s => s.openaiKey)
   const settings = useAppStore(s => s.settings)
@@ -3806,6 +3905,7 @@ export default function VibeOS() {
   const [prompt, setPrompt] = useState('')
   const [apps, setApps] = useState<VibeApp[]>(() => makeStarterApps(Date.now()))
   const [openIds, setOpenIds] = useState<string[]>(() => [])
+  const [zOrderIds, setZOrderIds] = useState<string[]>(() => [])
   const [minimizedIds, setMinimizedIds] = useState<string[]>(() => [])
   const [focusedId, setFocusedId] = useState<string | null>(null)
   const [startOpen, setStartOpen] = useState(false)
@@ -4099,6 +4199,7 @@ export default function VibeOS() {
       },
     }))
     setOpenIds(current => current.map(openId => openId === app.id ? savedApp.id : openId))
+    setZOrderIds(current => current.map(openId => openId === app.id ? savedApp.id : openId))
     setFocusedId(current => current === app.id ? savedApp.id : current)
     setWindowLayouts(current => {
       const existing = current[app.id]
@@ -4132,7 +4233,8 @@ export default function VibeOS() {
     }))
     setWindowLayouts(current => current[app.id] ? current : { ...current, [app.id]: defaultLayoutForApp(app) })
     setIconLayouts(current => current[app.id] ? current : { ...current, [app.id]: defaultIconLayout(apps.length) })
-    setOpenIds(current => [app.id, ...current.filter(openId => openId !== app.id)])
+    setOpenIds(current => current.includes(app.id) ? current : [...current, app.id])
+    setZOrderIds(current => [app.id, ...current.filter(openId => openId !== app.id)])
     setFocusedId(app.id)
     setSettingsOpen(false)
     setStartOpen(false)
@@ -4307,7 +4409,8 @@ export default function VibeOS() {
     setApps(current => [app, ...current])
     setWindowLayouts(current => ({ ...current, [app.id]: defaultLayoutForApp(app) }))
     setIconLayouts(current => ({ ...current, [app.id]: defaultIconLayout(apps.length) }))
-    setOpenIds(current => [app.id, ...current.filter(id => id !== app.id)])
+    setOpenIds(current => current.includes(app.id) ? current : [...current, app.id])
+    setZOrderIds(current => [app.id, ...current.filter(id => id !== app.id)])
     setFocusedId(app.id)
     setSettingsOpen(false)
     setStartOpen(false)
@@ -4350,7 +4453,8 @@ export default function VibeOS() {
   }
 
   function openApp(id: string) {
-    setOpenIds(current => [id, ...current.filter(openId => openId !== id)])
+    setOpenIds(current => current.includes(id) ? current : [...current, id])
+    setZOrderIds(current => [id, ...current.filter(openId => openId !== id)])
     setMinimizedIds(current => current.filter(openId => openId !== id))
     setFocusedId(id)
     const app = apps.find(item => item.id === id)
@@ -4367,6 +4471,7 @@ export default function VibeOS() {
 
   function closeApp(id: string) {
     setOpenIds(current => current.filter(openId => openId !== id))
+    setZOrderIds(current => current.filter(openId => openId !== id))
     setMinimizedIds(current => current.filter(openId => openId !== id))
     setFocusedId(current => current === id ? null : current)
   }
@@ -4472,6 +4577,11 @@ export default function VibeOS() {
   }
   const activeWallpaperUrl = hauntedWallpaperUrl || xpAiWallpaper
   const hauntActive = haunt.signal !== 'idle' && Date.now() < haunt.until
+
+  function windowZIndex(id: string) {
+    const order = zOrderIds.indexOf(id)
+    return order >= 0 ? 80 - order : 40
+  }
 
   return (
     <div
@@ -4769,10 +4879,11 @@ export default function VibeOS() {
           ))}
         </div>
 
-        {openIds.filter(id => !minimizedIds.includes(id)).map((id, index) => {
+        {openIds.map((id) => {
           const app = apps.find(item => item.id === id)
           if (!app) return null
           const layout = windowLayouts[id] ?? defaultLayoutForApp(app)
+          const minimized = minimizedIds.includes(id)
           return (
             <WindowChrome
               key={id}
@@ -4780,7 +4891,8 @@ export default function VibeOS() {
               seed={seed}
               surface={surfaces[id]}
               layout={layout}
-              z={40 - index}
+              z={windowZIndex(id)}
+              minimized={minimized}
               onFocus={() => openApp(id)}
               onMinimize={() => minimizeApp(id)}
               onClose={() => closeApp(id)}

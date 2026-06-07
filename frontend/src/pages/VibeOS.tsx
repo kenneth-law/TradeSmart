@@ -3643,7 +3643,6 @@ function StartMenu({
 export default function VibeOS() {
   const openaiKey = useAppStore(s => s.openaiKey)
   const prodiaKey = useAppStore(s => s.prodiaKey)
-  const setProdiaKey = useAppStore(s => s.setProdiaKey)
   const settings = useAppStore(s => s.settings)
   const controllersRef = useRef<Record<string, AbortController>>({})
   const iconDataRef = useRef<Record<string, string>>({})
@@ -4542,29 +4541,6 @@ export default function VibeOS() {
                             {wallpaperRetuning ? 'Composing...' : 'Apply'}
                           </button>
                         </form>
-                      </div>
-                      <div className="mt-3 border border-[#808080] bg-[#ece9d8] p-2 shadow-[inset_1px_1px_0_#fff,inset_-1px_-1px_0_#aaa]">
-                        <div className="font-bold">Imaging Service Key</div>
-                        <p className="mt-1 text-[10px] leading-tight text-[#404040]">
-                          Wallpapers, application icons and in-page pictures are rendered by the
-                          Prodia imaging service. Paste your Prodia API key to enable image
-                          generation. Stored on this machine only.
-                        </p>
-                        <label className="mt-2 flex flex-col gap-1">
-                          <span className="text-[10px] text-[#404040]">Prodia API key</span>
-                          <input
-                            type="password"
-                            value={prodiaKey}
-                            onChange={event => setProdiaKey(event.target.value)}
-                            placeholder="prodia key"
-                            autoComplete="off"
-                            spellCheck={false}
-                            className="h-6 border border-[#808080] bg-white px-1 font-mono text-[11px] shadow-[inset_1px_1px_0_#aaa,inset_-1px_-1px_0_#fff]"
-                          />
-                        </label>
-                        <p className="mt-1 text-[10px] text-[#404040]">
-                          {prodiaKey ? 'Imaging service configured.' : 'No key set. Image generation is disabled.'}
-                        </p>
                       </div>
                     </div>
                   ) : controlPanelSelection === 'Add/Remove Programs' ? (

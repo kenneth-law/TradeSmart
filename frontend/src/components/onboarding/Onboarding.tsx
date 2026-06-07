@@ -26,7 +26,7 @@ const SYSTEM_POINTS = [
   'Screen equities and sector moves from a private research terminal.',
   'Inspect stock detail pages with price action, technicals, peers, and financial context.',
   'Run backtests and integrated strategy workflows without leaving the app shell.',
-  'Use an optional OpenAI key for Daily Lineup, strategy briefs, and stock chat.',
+  'Use optional OpenAI and Prodia keys for AI assistance and VibeOS image generation.',
 ]
 
 const inputClassName = 'min-h-[44px] w-full rounded-[8px] border border-border bg-black px-4 py-3 text-sm text-text outline-none transition-colors placeholder:text-dim focus-visible:border-white'
@@ -694,8 +694,10 @@ export function AppIntroOverlay({ onComplete }: { onComplete: () => void }) {
 export default function Onboarding({ onComplete }: { onComplete: () => void }) {
   const storedSettings = useAppStore(s => s.settings)
   const openaiKey = useAppStore(s => s.openaiKey)
+  const prodiaKey = useAppStore(s => s.prodiaKey)
   const setSettings = useAppStore(s => s.setSettings)
   const setOpenAIKey = useAppStore(s => s.setOpenAIKey)
+  const setProdiaKey = useAppStore(s => s.setProdiaKey)
 
   const [showSplash, setShowSplash] = useState(true)
   const [introMounted, setIntroMounted] = useState(true)
@@ -709,7 +711,9 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
   const [passwordDraft, setPasswordDraft] = useState('')
   const [demoMode, setDemoMode] = useState(false)
   const [keyDraft, setKeyDraft] = useState(openaiKey)
+  const [prodiaKeyDraft, setProdiaKeyDraft] = useState(prodiaKey)
   const [showKey, setShowKey] = useState(false)
+  const [showProdiaKey, setShowProdiaKey] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
 
   useEffect(() => {
@@ -744,7 +748,8 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
     ['Refresh', `${draft.marketRefreshSeconds} sec`],
     ['AI model', draft.openaiModel],
     ['OpenAI key', keyDraft.trim() ? 'Will be saved locally' : 'Skipped for now'],
-  ], [demoMode, draft, keyDraft, userIdDraft])
+    ['Prodia key', prodiaKeyDraft.trim() ? 'Will be saved locally' : 'Skipped for now'],
+  ], [demoMode, draft, keyDraft, prodiaKeyDraft, userIdDraft])
 
   function update(patch: Partial<SystemSettings>) {
     setDraft(current => ({ ...current, ...patch }))
@@ -761,6 +766,7 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
   function finish() {
     setSettings(draft)
     setOpenAIKey(keyDraft)
+    setProdiaKey(prodiaKeyDraft)
     setTransitionLayerVisible(false)
     setExitPhase('transition-crossfade')
     window.requestAnimationFrame(() => setTransitionLayerVisible(true))
@@ -887,18 +893,28 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
 
               {activeStep === 'keys' && (
                 <div className="max-w-3xl">
-                <h2 className="text-base font-semibold text-white">Connect the key used by browser AI features.</h2>
+                <h2 className="text-base font-semibold text-white">Connect the keys used by browser AI features.</h2>
                 <p className="mt-3 text-xs leading-6 text-muted">
-                  The OpenAI key is stored in localStorage on this browser. It is used for Daily Lineup, strategy briefs, and stock chat.
+                  OpenAI and Prodia keys are stored in localStorage on this browser. OpenAI powers Daily Lineup, strategy briefs, and stock chat. Prodia enables VibeOS image generation.
                 </p>
-                <a
-                  href="https://platform.openai.com/api-keys"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-4 inline-flex text-xs font-medium text-white underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/60"
-                >
-                  Open OpenAI dashboard to create an API key
-                </a>
+                <div className="mt-4 flex flex-wrap gap-4">
+                  <a
+                    href="https://platform.openai.com/api-keys"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex text-xs font-medium text-white underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/60"
+                  >
+                    Open OpenAI dashboard to create an API key
+                  </a>
+                  <a
+                    href="https://app.prodia.com/api"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex text-xs font-medium text-white underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/60"
+                  >
+                    Open Prodia dashboard to create an API key
+                  </a>
+                </div>
 
                 <div className="mt-8 space-y-3">
                   <label htmlFor="onboarding-openai-key" className={fieldLabelClassName}>
@@ -927,10 +943,37 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
                   </div>
                 </div>
 
+                <div className="mt-6 space-y-3">
+                  <label htmlFor="onboarding-prodia-key" className={fieldLabelClassName}>
+                    Prodia API key
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      id="onboarding-prodia-key"
+                      type={showProdiaKey ? 'text' : 'password'}
+                      value={prodiaKeyDraft}
+                      onChange={event => setProdiaKeyDraft(event.target.value)}
+                      placeholder="prodia-..."
+                      spellCheck={false}
+                      autoComplete="off"
+                      className={`${inputClassName} flex-1 text-xs tabnum`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowProdiaKey(value => !value)}
+                      className="flex min-h-[44px] w-12 shrink-0 items-center justify-center rounded-[8px] bg-white/5 text-muted transition-colors hover:bg-white/10 hover:text-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/60"
+                      aria-label={showProdiaKey ? 'Hide Prodia key' : 'Show Prodia key'}
+                      title={showProdiaKey ? 'Hide key' : 'Show key'}
+                    >
+                      {showProdiaKey ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
+                    </button>
+                  </div>
+                </div>
+
                 <div className="mt-8 border-y border-white/10 bg-white/[0.035] py-4">
                   <p className="text-sm font-medium text-white">Live market feed keys</p>
                   <p className="mt-2 text-2xs leading-5 text-muted">
-                    Alpaca live data is configured on the server with environment variables. This setup keeps browser credentials limited to the OpenAI key the frontend actually uses.
+                    Alpaca live data is configured on the server with environment variables. This setup keeps browser credentials limited to the OpenAI and Prodia keys the frontend actually uses.
                   </p>
                 </div>
               </div>

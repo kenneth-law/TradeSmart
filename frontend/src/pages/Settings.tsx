@@ -242,8 +242,8 @@ const SETTINGS_NAV: Array<{
   },
   {
     id: 'api-key',
-    title: 'API Key',
-    description: 'Local OpenAI credential',
+    title: 'API Keys',
+    description: 'Local AI credentials',
   },
 ]
 
@@ -507,8 +507,12 @@ export default function Settings() {
   const resetSettings = useAppStore(s => s.resetSettings)
   const openaiKey = useAppStore(s => s.openaiKey)
   const setOpenAIKey = useAppStore(s => s.setOpenAIKey)
+  const prodiaKey = useAppStore(s => s.prodiaKey)
+  const setProdiaKey = useAppStore(s => s.setProdiaKey)
   const [keyDraft, setKeyDraft] = useState(openaiKey)
+  const [prodiaKeyDraft, setProdiaKeyDraft] = useState(prodiaKey)
   const [showKey, setShowKey] = useState(false)
+  const [showProdiaKey, setShowProdiaKey] = useState(false)
   const [activeCategory, setActiveCategory] = useState<SettingsCategoryId>('appearance')
 
   function update(patch: Partial<SystemSettings>) {
@@ -522,6 +526,15 @@ export default function Settings() {
   function clearKey() {
     setKeyDraft('')
     setOpenAIKey('')
+  }
+
+  function saveProdiaKey() {
+    setProdiaKey(prodiaKeyDraft)
+  }
+
+  function clearProdiaKey() {
+    setProdiaKeyDraft('')
+    setProdiaKey('')
   }
 
   return (
@@ -823,8 +836,8 @@ export default function Settings() {
           {activeCategory === 'api-key' && (
             <SettingsSection
               id="api-key"
-              title="API Key"
-              caption="Manage the OpenAI key stored locally in this browser."
+              title="API Keys"
+              caption="Manage AI service keys stored locally in this browser."
             >
             <FieldRow
               title="OpenAI API key"
@@ -871,6 +884,71 @@ export default function Settings() {
                   <span className="text-2xs text-dim">
                     {openaiKey ? 'Key saved' : 'No key saved'}
                   </span>
+                  <a
+                    href="https://platform.openai.com/api-keys"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-2xs font-medium text-accent hover:text-text"
+                  >
+                    Get OpenAI key
+                  </a>
+                </div>
+              </div>
+            </FieldRow>
+
+            <FieldRow
+              title="Prodia API key"
+              caption="Stored only in localStorage. Used by VibeOS for generated wallpapers, app icons, and in-app imagery."
+            >
+              <div className="flex w-full flex-col gap-3">
+                <div className="flex w-full items-center gap-2">
+                  <input
+                    type={showProdiaKey ? 'text' : 'password'}
+                    value={prodiaKeyDraft}
+                    onChange={event => setProdiaKeyDraft(event.target.value)}
+                    placeholder="prodia-..."
+                    spellCheck={false}
+                    autoComplete="off"
+                    className={`${inputClassName} flex-1 text-xs tabnum`}
+                    aria-label="Prodia API key"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowProdiaKey(v => !v)}
+                    className="min-h-[44px] shrink-0 rounded-[8px] border border-border bg-bg px-4 py-2 text-2xs font-medium text-muted transition-colors hover:border-border-strong hover:bg-s2 hover:text-text"
+                  >
+                    {showProdiaKey ? 'Hide' : 'Show'}
+                  </button>
+                </div>
+                <div className="flex items-center gap-2 max-sm:flex-wrap">
+                  <button
+                    type="button"
+                    onClick={saveProdiaKey}
+                    disabled={prodiaKeyDraft === prodiaKey}
+                    className="min-h-[44px] rounded-[8px] border border-accent bg-accent px-4 py-2 text-2xs font-medium text-bg transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {prodiaKey && prodiaKeyDraft === prodiaKey ? 'Saved' : 'Save key'}
+                  </button>
+                  {prodiaKey && (
+                    <button
+                      type="button"
+                      onClick={clearProdiaKey}
+                      className="min-h-[44px] rounded-[8px] border border-border bg-bg px-4 py-2 text-2xs font-medium text-muted transition-colors hover:border-border-strong hover:bg-s2 hover:text-down"
+                    >
+                      Clear
+                    </button>
+                  )}
+                  <span className="text-2xs text-dim">
+                    {prodiaKey ? 'Key saved' : 'No key saved'}
+                  </span>
+                  <a
+                    href="https://app.prodia.com/api"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-2xs font-medium text-accent hover:text-text"
+                  >
+                    Get Prodia key
+                  </a>
                 </div>
               </div>
             </FieldRow>

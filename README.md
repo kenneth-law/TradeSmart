@@ -1,296 +1,228 @@
 # TradeSmart Analytics
 
-TradeSmart Analytics is an advanced stock analysis tool designed to identify day trading opportunities through comprehensive technical analysis, volatility measures, news sentiment analysis, and machine learning. The platform uses Gradient Boosted Decision Trees (GBDT) to find non-linear relationships in market data, provides industrial-grade backtesting capabilities, and includes portfolio management tools to optimize trading performance. The application provides a user-friendly web interface for analysing stocks, particularly focused on the Australian Securities Exchange (ASX).
+TradeSmart Analytics is a private investment research terminal for systematic equity strategy development, market analysis, backtesting, and portfolio review. It brings together a React research workspace, a Flask analytics API, market data pipelines, Gradient Boosted Decision Tree models, risk analytics, and strategy simulation tools into one platform for exploring equity ideas across technical, fundamental, sentiment, and portfolio contexts.
 
-<img width="1673" height="1258" alt="fa5847cf-e529-4c6b-9b2d-2c3b58599e18" src="https://github.com/user-attachments/assets/92c18a8a-b388-4c5e-bc79-a54437da0459" />
+The project is designed as a personal quantitative research environment rather than a single-purpose stock screener. It supports ticker-level research, strategy scoring, model-driven signal generation, historical performance simulation, portfolio diagnostics, and market status monitoring, with an emphasis on repeatable research workflows and realistic assumptions.
 
-
-
+<img width="1728" height="1117" alt="TradeSmart Analytics private research terminal" src="https://github.com/user-attachments/assets/5e62e969-008a-4349-ad9c-30eb7bea8081" />
 
 [System Architecture](https://tradevision.up.railway.app/documentation/system_architecture)
-<img width="100%" alt="image" src="https://github.com/user-attachments/assets/e712bc85-26ab-440d-8da8-5ccf1cd5113e" />
+
+<img width="100%" alt="TradeSmart system architecture" src="https://github.com/user-attachments/assets/e712bc85-26ab-440d-8da8-5ccf1cd5113e" />
+
+## Overview
+
+TradeSmart Analytics is built around the research process used to develop and evaluate systematic equity strategies:
+
+- **Market research terminal**: Search and inspect equities, review price history, fundamentals, peers, market context, watchlists, and recent research activity.
+- **Quantitative signal development**: Combine technical indicators, volatility measures, returns, volume behavior, sentiment features, and model outputs into explainable stock-level signals.
+- **Machine learning scoring**: Use Gradient Boosted Decision Tree models to identify non-linear relationships across engineered market features and produce regression or classification outputs.
+- **Backtesting and strategy validation**: Simulate strategy ideas across historical periods with transaction costs, drawdown analysis, benchmarks, position-level diagnostics, and walk-forward style evaluation.
+- **Portfolio analytics**: Review position sizing, concentration, sector exposure, risk metrics, Sharpe/Sortino ratios, VaR-style measures, drawdowns, and portfolio-level context.
+- **Execution research**: Model spread, fees, market impact, and participation logic for strategy capacity and implementation-cost analysis.
+
+<img width="1728" height="1117" alt="TradeSmart ticker research page" src="https://github.com/user-attachments/assets/44869f48-bd98-40d7-94ab-9ed53d828e03" />
+<img width="1728" height="1117" alt="TradeSmart analytics workspace" src="https://github.com/user-attachments/assets/007ab30e-f6b3-4431-b35f-765c9faf72aa" />
+
+## Core Modules
+
+### Research Terminal
+
+- Search any supported ticker and inspect live market data, charts, financials, peer context, and system-generated signals.
+- Maintain a private watchlist and recent-search workflow for ongoing research.
+- Monitor backend, market data, model, and live data status from the application shell.
+
+<img width="1728" height="1117" alt="Screenshot 2026-05-21 at 17 55 06" src="https://github.com/user-attachments/assets/2cba66a6-767c-4b83-9ac7-c7c804e25622" />
+<img width="1728" height="1117" alt="TradeSmart market research dashboard" src="https://github.com/user-attachments/assets/150dbbac-6aa7-4daa-9f60-3be425d91a35" />
 
 
-## DISCLAIMER:
-This software is provided for educational and informational purposes only.
-The author(s) are not registered investment advisors and do not provide financial advice.
-This software does not guarantee accuracy of data and should not be the sole basis for any investment decision.
-Users run and use this software at their own risk. The author(s) accept no liability for any loss or damage 
-resulting from its use. Always consult with a qualified financial professional before making investment decisions.
+### Signal and Scoring Engine
 
-## Terms of Use
+- Calculates technical, volatility, return, trend, volume, and sentiment features.
+- Produces stock-level scores using both heuristic scoring and machine learning models.
+- Supports explainable model output through feature importance and stored model metadata.
+- Separates training and inference paths to reduce leakage risk in model evaluation.
 
-By using this software, you agree:
-1. To use it at your own risk
-2. Not to hold the author(s) liable for any damages
-3. To comply with the terms of the [LICENSE]([LICENSE](https://www.apache.org/licenses/LICENSE-2.0.txt))
-4. That this is not financial advice
+### Machine Learning Research
 
-This project is not affiliated with the ASX or any financial institution.
+The machine learning layer uses Gradient Boosted Decision Trees for alpha signal research and model-based scoring.
 
-## License
+- **Model types**: Regression scoring and classification-style signal generation.
+- **Feature engineering**: Technical indicators, volatility features, trend metrics, return windows, volume behavior, and derived market features.
+- **Preprocessing**: Robust scaling, feature selection, PCA support, and scikit-learn pipelines.
+- **Validation**: Time-series-aware train/test separation with expanding-window style evaluation.
+- **Model artifacts**: Stored model files, scalers, selected features, PCA objects, metadata, and trained-model status endpoints.
+- **Adaptability**: Global and per-ticker model support for comparing broad-market and instrument-specific behavior.
 
-This project is licensed under the Apache License 2.0 - see the [LICENSE]([LICENSE](https://www.apache.org/licenses/LICENSE-2.0.txt)) file for details.
+<img width="1728" height="1117" alt="TradeSmart model and signal analytics" src="https://github.com/user-attachments/assets/8620e644-86e5-4d33-a59b-dea40898494d" />
 
-## Features
+### Backtesting Engine
 
-- **Comprehensive Stock Analysis**: Analyzes stocks using multiple technical indicators, volatility measures, and news sentiment
-- **Real-time Progress Updates**: Provides real-time feedback during analysis with a terminal-like display
-- **Interactive Visualizations**: Generates multiple charts and visualizations to help understand the data
-- **Machine Learning-Based Scoring**: Uses gradient boosted trees to discover non-linear relationships in market data
-- **Industrial-Grade Backtesting**: Provides realistic backtesting with transaction cost modeling and point-in-time integrity
-- **Portfolio Construction**: Implements risk management and position sizing based on expected edge and volatility
-- **Low-Slippage Execution**: Integrates with execution algorithms (TWAP, VWAP) to minimize market impact
-- **Watchlist Generation**: Creates a curated watchlist of the most promising stocks
-- **Detailed Stock Information**: Provides in-depth analysis of individual stocks
-- **News Sentiment Analysis**: Incorporates news sentiment into the analysis
-- **Data Export**: Allows downloading analysis results as CSV
+The backtesting system is designed for strategy research rather than simple historical chart replay.
 
-<img width="1691" height="1278" alt="594a8ad1-9467-4435-91ea-3e6e7675dd33" src="https://github.com/user-attachments/assets/9327e220-9bc2-4069-bdca-057653794e4a" />
+- Simulates strategy behavior over historical windows.
+- Models transaction costs, spreads, market impact, and fees.
+- Tracks equity curves, drawdowns, trades, win rate, Sharpe ratio, Sortino ratio, and alpha verdicts.
+- Supports passive benchmark comparison over the same test window.
+- Streams progress to the frontend through server-sent events.
+- Supports ML-driven strategies, technical baselines, and custom strategy functions.
 
+<img width="1728" height="1117" alt="TradeSmart backtesting configuration" src="https://github.com/user-attachments/assets/a339949e-400d-4e28-8552-b56108ed7dfc" />
+<img width="1728" height="1117" alt="TradeSmart backtesting results" src="https://github.com/user-attachments/assets/eb64484f-5360-4e13-821a-c32159fcd729" />
+<img width="1728" height="1117" alt="TradeSmart strategy diagnostics" src="https://github.com/user-attachments/assets/ee9d3167-4a72-4b6d-bd85-fb492246e2ea" />
 
-## Technical Indicators Used
+### Portfolio and Risk Analytics
 
-### Short-Term Indicators
-- **RSI (Relative Strength Index)**: Measures the speed and change of price movements
-- **MACD (Moving Average Convergence Divergence)**: Trend-following momentum indicator
-- **Short-Term Moving Averages (5, 10, 20-day)**: Identifies short-term trend direction
-- **ATR (Average True Range)**: Measures market volatility
-- **Bollinger Bands**: Indicates overbought or oversold conditions
-- **Volume Analysis**: Compares current volume to average volume
-- **Stochastic Oscillator**: Compares a security's closing price to its price range over a specific period
-- **On-Balance Volume (OBV)**: Relates volume to price change to predict trend strength
+- Position sizing based on expected edge, volatility, and risk constraints.
+- Sector and single-name concentration checks.
+- Drawdown and risk monitoring.
+- Sharpe, Sortino, win-rate, and return analysis.
+- Research-oriented portfolio context for comparing strategy outputs against capital allocation constraints.
 
-### Long-Term Performance Metrics
-- **Long-Term Moving Averages (50, 200-day)**: Identifies medium and long-term trend direction
-- **Golden Cross/Death Cross**: Signals major trend changes (50-day MA crossing 200-day MA)
-- **Extended Historical Data (180 days)**: Provides more context for analysis
-- **Medium and Long-Term Returns (30-day, 90-day)**: Measures performance over longer periods
+<img width="3444" height="1806" alt="image" src="https://github.com/user-attachments/assets/f7fd92b5-c76e-435b-9bd5-205ae946b7f9" />
 
-## Scoring System
+### Market Data and Integrations
 
-The application offers two scoring systems to evaluate stocks:
+- Yahoo Finance data retrieval with caching and cookie/session handling.
+- Optional Alpaca live market data status and snapshot support.
+- OpenAI-supported research and sentiment workflows where configured.
+- API endpoints for stock history, financials, peers, market overview, trained models, portfolio data, backtests, and documentation.
 
-### Traditional Heuristic Scoring
-- **Technical Score (35%)**: Evaluates short-term technical indicators including RSI, MACD, Bollinger Bands, Stochastic Oscillator, and recent price movements
-- **Long-Term Score (15%)**: Assesses long-term performance using 50/200-day moving averages, golden/death crosses, and 30/90-day returns
-- **Volatility Score (20%)**: Measures price volatility using ATR and intraday range
-- **News Sentiment Score (10%)**: Analyzes recent news sentiment using natural language processing
-- **Gap Potential Score (10%)**: Evaluates potential for gap trading based on pre-market movement and gap frequency
-- **Volume Score (10%)**: Assesses trading volume relative to average
-
-### Machine Learning-Based Scoring
-The ML-based scoring system uses Gradient Boosted Decision Trees (GBDT) to:
-- Discover non-linear relationships in market data
-- Automatically adjust to changing market conditions
-- Prevent overfitting through model complexity reduction and proper validation
-- Provide more stable signals with lower turnover
-- Generate explainable predictions with feature importance
-
-<img width="1692" height="1274" alt="680ed0da-48ff-4753-9c8c-e0f2ccb6ece1" src="https://github.com/user-attachments/assets/ff9bd394-6ff6-47ea-b826-2667d7554b59" />
+<img width="357" height="229" alt="Screenshot 2026-06-16 at 00 50 31" src="https://github.com/user-attachments/assets/81543a0d-40d9-4086-8cf9-d2f8c6da1cbc" />
 
 
-#### GBDT Implementation Details
-- **Model Types**: Supports both regression (score prediction) and classification (buy/sell signals)
-- **Feature Engineering**: Extracts 30+ technical indicators as features
-- **Preprocessing Pipeline**:
-  - Robust scaling to handle outliers
-  - Feature selection using mutual information
-  - Dimensionality reduction with PCA to reduce multicollinearity
-  - Proper scikit-learn Pipeline to ensure preprocessing is only fit on training data
-- **Training Process**:
-  - Proper time-series cross-validation with expanding windows and gaps
-  - Reduced model complexity to prevent overfitting:
-    - Fewer estimators (300 vs 500)
-    - Reduced tree depth (3 vs 5)
-    - Increased min_samples for splits and leaves
-    - Reduced subsample ratio (0.7 vs 0.8)
-  - L1 regularization and Huber loss for robustness
-- **Per-Ticker Models**: Supports individual models for each ticker for more accurate predictions
-- **Automatic Retraining**: Models can be scheduled for periodic retraining to adapt to changing market conditions
-- **Data Leakage Prevention**: Strict time separation between training and testing periods with verification
+## Technical Indicators and Features
 
-### Strategy Classification
-Stocks are classified into strategies (Strong Buy, Buy, Neutral/Watch, Sell, Strong Sell) based on their overall score, with strategy details that consider both short-term and long-term performance metrics.
+TradeSmart uses a broad feature set for research and model development:
 
-## Advanced Trading Features
+- **Momentum and trend**: RSI, MACD, stochastic oscillator, moving averages, 30/90-day returns, golden/death cross context.
+- **Volatility and range**: ATR, Bollinger Bands, intraday range, historical volatility, drawdown behavior.
+- **Volume and liquidity**: Relative volume, on-balance volume, spread and liquidity proxies.
+- **Fundamental context**: Financial statement data and ticker-level company information where available.
+- **Sentiment and catalyst context**: News sentiment analysis and qualitative context where configured.
+- **Portfolio context**: Risk, concentration, exposure, and allocation diagnostics.
 
-### Backtesting Framework
-- **Point-in-Time Integrity**: Includes delisted tickers to avoid survivorship bias
-- **Transaction Cost Modeling**: Models spread, market impact, and fees based on liquidity
-- **Walk-Forward Testing**: Tests strategy robustness across different time periods
-- **Monte Carlo Simulation**: Assesses strategy performance under various market conditions
+## Architecture
 
-<img width="1271" height="1227" alt="b139c3bb-ad40-4197-b3e1-fa826779d178" src="https://github.com/user-attachments/assets/8a62f510-04d8-40af-8f0a-cbbc0803440c" />
+TradeSmart is split into a modern React frontend and a Python analytics backend.
 
-<img width="1233" height="1270" alt="770b615a-47c9-4fa0-b42f-2317a105ba95" src="https://github.com/user-attachments/assets/2f30f77b-8057-45ba-9dc6-38e499f7706d" />
-
-
-
-#### Backtesting System Architecture
-- **Backtester Class**: Core engine that simulates trading over historical data
-  - Day-by-day simulation with realistic order execution
-  - Support for custom strategy functions
-  - Integration with ML scoring for model-driven strategies
-- **Transaction Cost Model**: Realistic modeling of trading costs
-  - Spread estimation based on price, volume, and volatility
-  - Market impact calculation for larger orders
-  - Fee structure modeling for different exchanges
-- **BacktestResult Class**: Comprehensive performance analysis
-  - Equity curve tracking and drawdown analysis
-  - Trade-by-trade record keeping
-  - Performance metrics calculation (Sharpe, Sortino, Win Rate, etc.)
-  - Detailed reporting with visualizations
-- **Strategy Functions**:
-  - ML-based strategy using GBDT predictions with risk management
-  - Technical indicator strategies for benchmarking
-  - Custom strategy support through function interface
-
-
-
-### Portfolio Management
-- **Position Sizing**: Calculates optimal position sizes based on expected edge and volatility
-- **Risk Controls**: Implements sector and single-name concentration limits
-- **Market Neutrality**: Maintains market-neutral or beta-targeted exposures
-- **Drawdown Protection**: Activates kill switches when drawdowns exceed thresholds
-
-<img width="1683" height="1275" alt="1fd510b3-1ced-40c7-aa5c-aefd0e83085d" src="https://github.com/user-attachments/assets/0c89d300-f6a0-4e9d-95fb-fd7d801cfc6d" />
-
-
-### Execution Algorithms
-- **TWAP (Time-Weighted Average Price)**: Divides orders into equal-sized slices over time
-- **VWAP (Volume-Weighted Average Price)**: Executes orders based on expected volume profile
-- **Smart Order Routing**: Minimizes market impact through intelligent order placement
-- **Dynamic Participation**: Adjusts participation rates based on market liquidity
-
-## Installation
-
-1. Clone the repository:
-   ```
-   git clone <repository-url>
-   ```
-
-2. Create and activate a virtual environment:
-   ```
-   python -m venv .venv
-   .venv\Scripts\activate
-   ```
-
-3. Install the required dependencies:
-   ```
-   pip install -r requirements.txt
-   ```
-
-4. Set up your OpenAI API key (for sentiment analysis):
-   ```
-   set OPENAI_API_KEY=your-api-key
-   ```
-
-## Usage
-
-### Local Development
-
-1. Start the Flask application:
-   ```
-   python app.py
-   ```
-
-2. Open your web browser and navigate to:
-   ```
-   http://localhost:8080
-   ```
-
-3. Enter ticker symbols for analysis (comma-separated) or use the "Load ASX 200" button to populate with Australian stocks.
-
-4. Click "Analyze Stocks" and wait for the analysis to complete.
-
-5. Explore the results, including:
-   - Strategy distribution
-   - Day trading watchlist
-   - Technical indicator charts
-   - Detailed metrics table
-
-## Deployment
-
-### Deploying to Railway
-
-The application is configured to be deployed to Railway, a platform for deploying web applications.
-
-1. Create a Railway account at [railway.app](https://railway.app/)
-
-2. Install the Railway CLI:
-   ```
-   npm i -g @railway/cli
-   ```
-
-3. Login to Railway:
-   ```
-   railway login
-   ```
-
-4. Initialize a new Railway project:
-   ```
-   railway init
-   ```
-
-5. Deploy the application:
-   ```
-   railway up
-   ```
-
-6. Open the deployed application:
-   ```
-   railway open
-   ```
-
-The application uses the following files for deployment:
-- `wsgi.py`: Entry point for the WSGI server
-- `Procfile`: Tells Railway how to run the application
-- `requirements.txt`: Lists all dependencies, including Gunicorn
-
-You can also deploy directly from GitHub by connecting your repository to Railway.
+- **Frontend**: React, TypeScript, Vite, Tailwind CSS, React Router, React Query, Zustand, Recharts, and lightweight-charts.
+- **Backend**: Flask API served by Gunicorn in production.
+- **Analytics modules**: Python modules for market data, technical analysis, ML scoring, backtesting, portfolio management, execution research, reporting, and visualization.
+- **Deployment**: Railway-compatible configuration with frontend build output served from `static/dist`.
 
 ## Project Structure
 
-- **app.py**: Main Flask application with routes and chart generation
-- **wsgi.py**: Entry point for WSGI servers in production
-- **Procfile**: Configuration file for Railway deployment
-- **stock_analysis.py**: Core stock analysis functionality
-- **yfinance_cookie_patch.py**: Patch for the yfinance library to handle cookies properly
-- **templates/**: HTML templates for the web interface
-- **static/**: CSS, JavaScript, and generated charts
-- **cache/**: Cached stock data for improved performance
-- **modules/**: Modular components for advanced functionality
-  - **ml_scoring.py**: Machine learning-based scoring system
-  - **backtesting.py**: Industrial-grade backtesting framework
-  - **portfolio_management.py**: Risk management and portfolio construction
-  - **execution.py**: Low-slippage execution algorithms
-  - **technical_analysis.py**: Technical indicators and analysis
-  - **data_retrieval.py**: Data retrieval and caching
-  - **utils.py**: Utility functions
+```text
+.
+├── app.py                         # Flask API and SPA serving entry point
+├── wsgi.py                        # Gunicorn production entry point
+├── modules/
+│   ├── trading_system.py          # Integrated research and strategy workflow
+│   ├── ml_scoring.py              # GBDT scoring and model pipeline
+│   ├── backtesting.py             # Historical strategy simulation
+│   ├── portfolio_management.py    # Portfolio construction and risk controls
+│   ├── execution.py               # Cost and execution research utilities
+│   ├── market_data.py             # Market overview data
+│   ├── data_retrieval.py          # Price/history retrieval and caching
+│   └── technical_analysis.py      # Indicator calculations
+├── frontend/
+│   ├── src/pages/                 # React terminal pages
+│   ├── src/components/            # Layout, charts, data, onboarding, strategy UI
+│   ├── src/hooks/                 # API, SSE, live quotes, and analysis hooks
+│   └── vite.config.ts             # Builds frontend into static/dist
+├── docs/                          # Documentation surfaced in the app
+├── templates/                     # Legacy Flask templates and documentation views
+├── requirements.txt               # Python dependencies
+├── railpack.json                  # Railway/Railpack deployment build config
+├── nixpacks.toml                  # Nixpacks deployment build config
+└── Procfile                       # Gunicorn startup command
+```
 
-## Dependencies
+## Local Development
 
-- Flask: Web framework
-- Gunicorn: WSGI HTTP server for production deployment
-- Pandas & NumPy: Data manipulation
-- yfinance: Yahoo Finance API for stock data
-- Plotly: Interactive charts and visualisations
-- OpenAI: News sentiment analysis
-- Requests & BeautifulSoup: Web scraping and HTTP requests
-- scikit-learn: Machine learning algorithms and preprocessing
-- matplotlib: Data visualization for backtesting results
-- joblib: Model serialization and persistence
+### Backend
 
-## Notes
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python app.py
+```
 
-- The application is optimised for analysing 5-200 stocks at a time
-- For ASX stocks, use the format: WBC.AX, CBA.AX, etc.
-- Re-run analysis before market open for fresh data
-- Check news sentiment for potential catalysts
+By default, the Flask backend runs on:
 
+```text
+http://localhost:8080
+```
+
+To use the Vite development proxy, run the backend on port `5001`:
+
+```bash
+PORT=5001 python app.py
+```
+
+### Frontend
+
+```bash
+cd frontend
+npm ci
+npm run dev
+```
+
+The Vite development server runs on:
+
+```text
+http://localhost:5173
+```
+
+### Production-style Build
+
+```bash
+cd frontend
+npm ci
+npm run build
+cd ..
+python app.py
+```
+
+The frontend build is written to `static/dist`, which the Flask app serves for production-style local testing.
+
+## Environment Variables
+
+- `PORT`: Port used by Flask/Gunicorn.
+- `FLASK_ENV`: Set to `production` for production behavior.
+- `OPENAI_API_KEY`: Optional, used by sentiment and AI-assisted research workflows where enabled.
+- Alpaca credentials may be configured for live market data features if supported by the local environment.
+
+## Deployment
+
+The project is configured for Railway-style deployment.
+
+- `railpack.json` installs Node 20 and builds the React frontend.
+- `nixpacks.toml` installs Python and Node dependencies, then builds the frontend.
+- `Procfile` starts the app through Gunicorn:
+
+```bash
+gunicorn wsgi:app --bind 0.0.0.0:$PORT --workers 2 --worker-class gthread --threads 4 --timeout 120
+```
+
+The deployed Flask service serves the compiled React app from `static/dist` and exposes the API endpoints used by the terminal.
+
+## Disclaimer
+
+This software is provided for educational, research, and informational purposes only. The author is not a registered investment adviser and this project does not provide financial advice, investment recommendations, or guarantees of market performance.
+
+Market data, model outputs, scores, backtests, and portfolio analytics may be incomplete, delayed, inaccurate, or unsuitable for real investment decisions. Backtested performance is hypothetical and does not guarantee future results. Use this software at your own risk and consult a qualified financial professional before making investment decisions.
+
+This project is not affiliated with the ASX, Yahoo Finance, Alpaca, OpenAI, Railway, or any financial institution.
+
+## License
+
+This project is licensed under the Apache License 2.0. See the [LICENSE](https://www.apache.org/licenses/LICENSE-2.0.txt) for details.
 
 ## Acknowledgements
 
-- Yahoo Finance for providing stock data
-- OpenAI for sentiment analysis capabilities
+- Yahoo Finance for market data access.
+- OpenAI for AI and language-model capabilities where configured.
+- The Python, Flask, React, Vite, and scikit-learn ecosystems that power the research stack.

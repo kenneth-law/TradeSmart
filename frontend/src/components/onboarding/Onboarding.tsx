@@ -29,9 +29,11 @@ const SYSTEM_POINTS = [
   'Use an optional OpenAI key for Daily Lineup, strategy briefs, and stock chat.',
 ]
 
-const inputClassName = 'min-h-[44px] w-full rounded-[8px] border border-border bg-black px-4 py-3 text-sm text-text outline-none transition-colors placeholder:text-dim focus-visible:border-white'
+const inputClassName = 'h-[48px] w-full rounded-[8px] border border-border bg-black px-4 text-sm text-text outline-none transition-colors placeholder:text-dim focus-visible:border-white'
 const fieldLabelClassName = 'block text-2xs font-medium uppercase leading-none tracking-[0.2em] text-muted'
-const formGroupClassName = 'space-y-3'
+const formGroupClassName = 'space-y-4'
+const iconButtonClassName = 'flex h-[48px] w-12 shrink-0 items-center justify-center rounded-[8px] bg-white/5 text-muted transition-colors hover:bg-white/10 hover:text-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/60'
+const footerButtonClassName = 'inline-flex h-[44px] min-w-[108px] items-center justify-center rounded-[8px] px-6 text-xs font-medium transition-colors'
 const ASCII_VIDEO_PLAYBACK_RATE = 0.45
 const ASCII_CELL_WIDTH_MOBILE = 4
 const ASCII_CELL_WIDTH_DESKTOP = 8
@@ -51,16 +53,16 @@ type ExitPhase = 'idle' | 'transition-crossfade' | 'homepage-fade'
 
 function StepRail({ activeIndex }: { activeIndex: number }) {
   return (
-    <nav className="flex min-h-0 gap-1 overflow-x-auto border-b border-white/10 px-5 py-3 md:flex-col md:overflow-y-auto md:border-b-0 md:border-r md:px-0 md:py-0" aria-label="Onboarding steps">
+    <nav className="flex min-h-0 gap-1 overflow-x-auto border-b border-white/10 px-6 py-3 md:flex-col md:overflow-y-auto md:border-b-0 md:border-r md:px-0 md:py-0" aria-label="Onboarding steps">
       {STEPS.map((step, index) => (
         <div
           key={step.id}
           className={[
-            'flex min-w-28 items-center gap-3 px-4 py-3 text-left text-2xs transition-colors md:min-w-0',
+            'flex min-w-28 items-center gap-3 px-4 py-3 text-left text-2xs leading-none transition-colors md:min-w-0',
             activeIndex === index ? 'bg-white/[0.08] text-white' : index < activeIndex ? 'text-text' : 'text-muted',
           ].join(' ')}
         >
-          <span className="flex h-5 w-5 shrink-0 items-center justify-center text-[0.68rem] tabnum text-current">
+          <span className="flex h-[20px] w-[20px] shrink-0 items-center justify-center text-[0.68rem] tabnum text-current">
             {index < activeIndex ? '✓' : index + 1}
           </span>
           <span className="font-medium">{step.label}</span>
@@ -117,7 +119,7 @@ function BooleanRow({
   onChange: (checked: boolean) => void
 }) {
   return (
-    <div className="flex items-center justify-between gap-5 border-b border-white/10 py-4 last:border-b-0">
+    <div className="flex items-center justify-between gap-6 py-4">
       <span className="min-w-0">
         <span className="block text-sm font-medium text-text">{title}</span>
         <span className="mt-1 block text-2xs leading-5 text-muted">{caption}</span>
@@ -160,7 +162,7 @@ function SegmentButton<T extends string>({
       type="button"
       onClick={() => onSelect(value)}
       className={[
-        'min-h-[40px] rounded-[8px] border px-4 py-2 text-2xs font-medium transition-colors',
+        'inline-flex h-[40px] items-center justify-center rounded-[8px] border px-4 text-2xs font-medium leading-none transition-colors',
         selected ? 'border-white bg-white text-black' : 'border-white/20 bg-black text-muted hover:border-white/45 hover:text-text',
       ].join(' ')}
       aria-pressed={selected}
@@ -768,6 +770,7 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
 
   const isExiting = exitPhase !== 'idle'
   const showTransitionVideo = isExiting
+  const continueDisabled = (activeStep === 'account' && !demoMode) || isExiting
 
   return (
     <div
@@ -795,11 +798,11 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
         aria-labelledby="onboarding-title"
         aria-hidden={showSplash || isExiting}
       >
-        <section className="grid max-h-[calc(100dvh-2rem)] w-full min-h-0 overflow-hidden border border-white/15 bg-black/68 shadow-2xl shadow-black/35 backdrop-blur-xl md:max-h-[calc(100dvh-3rem)] md:grid-cols-[minmax(160px,220px)_minmax(0,1fr)]">
+        <section className="grid h-[calc(100dvh-2rem)] max-h-[760px] w-full min-h-0 overflow-hidden border border-white/15 bg-black/68 shadow-2xl shadow-black/35 backdrop-blur-xl md:h-[calc(100dvh-3rem)] md:grid-cols-[minmax(160px,220px)_minmax(0,1fr)]">
           <StepRail activeIndex={activeIndex} />
 
-          <div className="flex min-h-0 flex-col p-5 sm:p-8">
-            <div className="mb-5 flex shrink-0 items-start justify-between gap-6 border-b border-white/10 pb-5">
+          <div className="flex min-h-0 flex-col p-6 sm:p-8">
+            <div className="mb-6 flex shrink-0 items-start justify-between gap-6">
               <div>
                 <p className="text-2xs font-medium uppercase tracking-[0.28em] text-muted">First run</p>
                 <h1 id="onboarding-title" className="mt-2 text-xl font-semibold text-white">TradeSmart setup</h1>
@@ -811,7 +814,7 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
 
             <div className="min-h-0 flex-1 overflow-y-auto pr-1">
               {activeStep === 'overview' && (
-                <div className="grid gap-9 lg:grid-cols-[minmax(0,1.05fr)_minmax(260px,0.95fr)]">
+                <div className="grid gap-10 lg:grid-cols-[minmax(0,1.05fr)_minmax(260px,0.95fr)]">
                 <div>
                   <h2 className="text-base font-semibold text-white">A private research terminal for market work.</h2>
                   <p className="mt-3 max-w-2xl text-xs leading-6 text-muted">
@@ -836,10 +839,10 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
               )}
 
               {activeStep === 'account' && (
-                <div className="max-w-3xl">
+                <div className="max-w-2xl">
                   <h2 className="text-base font-semibold text-white">Enter your TradeSmart account details.</h2>
 
-                <div className="mt-8 grid gap-5">
+                <div className="mt-10 grid gap-8">
                     <TextField
                       id="onboarding-user-id"
                       label="User ID"
@@ -866,7 +869,7 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
                         <button
                           type="button"
                           onClick={() => setShowPassword(value => !value)}
-                          className="flex min-h-[44px] w-12 shrink-0 items-center justify-center rounded-[8px] bg-white/5 text-muted transition-colors hover:bg-white/10 hover:text-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/60"
+                          className={iconButtonClassName}
                           aria-label={showPassword ? 'Hide password' : 'Show password'}
                           title={showPassword ? 'Hide password' : 'Show password'}
                         >
@@ -895,7 +898,7 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
                   href="https://platform.openai.com/api-keys"
                   target="_blank"
                   rel="noreferrer"
-                  className="mt-4 inline-flex text-xs font-medium text-white underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/60"
+                  className="mt-4 inline-flex text-xs font-medium text-white underline underline-offset-4 hover:text-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/60"
                 >
                   Open OpenAI dashboard to create an API key
                 </a>
@@ -918,7 +921,7 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
                     <button
                       type="button"
                       onClick={() => setShowKey(value => !value)}
-                      className="flex min-h-[44px] w-12 shrink-0 items-center justify-center rounded-[8px] bg-white/5 text-muted transition-colors hover:bg-white/10 hover:text-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/60"
+                      className={iconButtonClassName}
                       aria-label={showKey ? 'Hide OpenAI key' : 'Show OpenAI key'}
                       title={showKey ? 'Hide key' : 'Show key'}
                     >
@@ -930,19 +933,35 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
                 <div className="mt-8 border-y border-white/10 bg-white/[0.035] py-4">
                   <p className="text-sm font-medium text-white">Live market feed keys</p>
                   <p className="mt-2 text-2xs leading-5 text-muted">
-                    Alpaca live data is configured on the server with environment variables. This setup keeps browser credentials limited to the OpenAI key the frontend actually uses.
+                    Alpaca live data is included with the demo mode, you do not need to enter a key to use it.
                   </p>
                 </div>
+
+	                <div className="mt-8 space-y-3">
+	                  <label htmlFor="onboarding-alpaca-key" className={fieldLabelClassName}>
+	                    Alpaca API key
+	                  </label>
+	                  <input
+	                    id="onboarding-alpaca-key"
+	                    type="text"
+	                    placeholder="Provided"
+	                    disabled
+	                    aria-disabled="true"
+	                    className={`${inputClassName} cursor-not-allowed border-white/10 bg-white/[0.035] text-xs text-dim opacity-55 placeholder:text-dim`}
+	                  />
+	                </div>
+
               </div>
               )}
 
               {activeStep === 'preferences' && (
                 <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(260px,340px)]">
-                <div>
-                  <h2 className="text-base font-semibold text-white">Set the defaults before the workspace opens.</h2>
-                  <p className="mt-3 text-xs leading-6 text-muted">These preferences are saved in the settings cookie and can be changed later.</p>
+                <div className="grid content-start gap-10">
+                  <div>
+                    <h2 className="text-base font-semibold text-white">Set the defaults before the workspace opens, these can be changed later in settings.</h2>
+                  </div>
 
-                  <div className="mt-9 grid gap-8">
+                  <div className="grid gap-10">
                     <div className={formGroupClassName}>
                       <p className={fieldLabelClassName}>Accent</p>
                       <div className="flex flex-wrap gap-2">
@@ -952,7 +971,7 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
                             type="button"
                             onClick={() => update({ accentColor: option.value as AccentColor })}
                             className={[
-                              'flex min-h-[40px] items-center gap-2 rounded-[8px] border px-3 py-2 text-2xs font-medium transition-colors',
+                              'inline-flex h-[40px] items-center justify-center gap-2 rounded-[8px] border px-3 text-2xs font-medium leading-none transition-colors',
                               draft.accentColor === option.value ? 'border-white bg-white text-black' : 'border-white/20 bg-black text-muted hover:border-white/45 hover:text-text',
                             ].join(' ')}
                             aria-pressed={draft.accentColor === option.value}
@@ -1069,12 +1088,12 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
               )}
             </div>
 
-            <div className="sticky bottom-0 z-10 mt-5 flex shrink-0 items-center justify-between gap-3 border-t border-white/10 bg-black/90 pt-5 backdrop-blur-xl">
+            <div className="sticky bottom-0 z-10 mt-6 flex shrink-0 items-center justify-between gap-3 bg-black/90 pt-4 backdrop-blur-xl">
               <button
                 type="button"
                 onClick={goBack}
                 disabled={activeIndex === 0}
-                className="flex h-[44px] min-w-[96px] items-center justify-center rounded-[8px] bg-white/5 px-5 text-xs font-medium text-muted transition-colors hover:bg-white/10 hover:text-text disabled:cursor-not-allowed disabled:opacity-35"
+                className={`${footerButtonClassName} bg-white/5 text-muted hover:bg-white/10 hover:text-text disabled:cursor-not-allowed disabled:opacity-35`}
               >
                 Back
               </button>
@@ -1082,8 +1101,8 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
                 <button
                   type="button"
                   onClick={finish}
-                  disabled={isExiting}
-                  className="flex h-[44px] min-w-[132px] items-center justify-center rounded-[8px] bg-white px-5 text-xs font-semibold text-black transition-opacity hover:opacity-90"
+                  disabled={continueDisabled}
+                  className={`${footerButtonClassName} min-w-[132px] bg-white font-semibold text-black hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50`}
                 >
                   Continue
                 </button>
@@ -1091,7 +1110,8 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
                 <button
                   type="button"
                   onClick={goNext}
-                  className="flex h-[44px] min-w-[120px] items-center justify-center rounded-[8px] bg-white px-5 text-xs font-semibold text-black transition-opacity hover:opacity-90"
+                  disabled={continueDisabled}
+                  className={`${footerButtonClassName} min-w-[120px] bg-white font-semibold text-black hover:opacity-90 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-muted disabled:opacity-60`}
                 >
                   Continue
                 </button>

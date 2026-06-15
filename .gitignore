@@ -52,4 +52,7 @@ static/dist/
 
 # Cache and temporary data
 cache/
-.claude/plans/PLAN.md
+
+# Local agent/editor tooling
+.claude/
+.agents/

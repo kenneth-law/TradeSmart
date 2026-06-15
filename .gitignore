@@ -31,6 +31,10 @@ my_venv/
 # OS-generated files
 .DS_Store
 
+# Local secrets
+.env
+.env.local
+
 # Python-specific
 *.log
 *.tmp
@@ -38,3 +42,14 @@ local_settings.py
 db.sqlite3
 /day_trading_opportunities.csv
 /tests/
+
+# Frontend
+frontend/node_modules/
+static/dist/
+
+# Project virtualenv
+.venv/
+
+# Cache and temporary data
+cache/
+.claude/plans/PLAN.md

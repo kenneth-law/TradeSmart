@@ -4,10 +4,12 @@ import { api } from '../lib/api'
 
 const DOC_TYPES = [
   { key: 'readme',      label: 'README' },
+  { key: 'architecture', label: 'Architecture' },
+  { key: 'logic-flow',  label: 'Logic Flow' },
   { key: 'strategy',    label: 'Strategy' },
   { key: 'backtest',    label: 'Backtest' },
-  { key: 'integrated',  label: 'Integrated' },
   { key: 'api',         label: 'API' },
+  { key: 'about',       label: 'About' },
 ]
 
 export default function Documentation() {
@@ -104,6 +106,58 @@ export default function Documentation() {
           color: #5A5A63; font-style: normal;
         }
         .prose-terminal hr { border: none; border-top: 1px solid #1F1F23; margin: 1.5em 0; }
+        .prose-terminal .doc-flowchart {
+          margin: 1rem 0 1.4rem;
+          overflow-x: auto;
+          border: 1px solid #2A2A30;
+          background: #09090B;
+          padding: 14px;
+        }
+        .prose-terminal .doc-flowchart svg {
+          min-width: 760px;
+          width: 100%;
+          height: auto;
+          color: #E89B2C;
+          display: block;
+        }
+        .prose-terminal .flow-lane rect,
+        .prose-terminal .flow-step circle,
+        .prose-terminal .flow-note {
+          fill: #141418;
+          stroke: #E89B2C;
+          stroke-width: 1.5;
+        }
+        .prose-terminal .flow-note {
+          fill: #101014;
+          stroke: #2A2A30;
+        }
+        .prose-terminal .flow-edge {
+          stroke: #E89B2C;
+          stroke-width: 1.6;
+          fill: none;
+        }
+        .prose-terminal .flow-edge.muted {
+          stroke: #5A5A63;
+        }
+        .prose-terminal .flow-lane text,
+        .prose-terminal .flow-step text,
+        .prose-terminal .flow-note-text {
+          fill: #E6E6E6;
+          font-family: 'Segoe UI', system-ui, sans-serif;
+          font-size: 13px;
+          text-anchor: middle;
+          dominant-baseline: middle;
+        }
+        .prose-terminal .flow-lane text + text,
+        .prose-terminal .flow-note-text + .flow-note-text {
+          fill: #A1A1AA;
+          font-size: 11px;
+        }
+        .prose-terminal .flow-step text:first-of-type {
+          fill: #E89B2C;
+          font-size: 15px;
+          font-weight: 600;
+        }
       `}</style>
     </div>
   )

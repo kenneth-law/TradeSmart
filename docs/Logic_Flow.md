@@ -1,150 +1,68 @@
+# Logic Flow
 
-# Integrated Trading System Logic Flow
+The integrated workflow combines ticker research, signal scoring, model context, backtesting, and portfolio analytics into a single research pass.
 
-When a user runs the Integrated Trading System with example stocks like APX.AX and ABM.AX, the system follows a comprehensive workflow that combines data retrieval, technical analysis, machine learning, portfolio management, and trade execution. Here's a detailed walkthrough of the entire process:
+## End-to-End Workflow
 
-## 1. User Interface Interaction
+<div class="doc-flowchart">
+<svg viewBox="0 0 980 420" role="img" aria-label="Integrated system logic flow">
+  <defs>
+    <marker id="arrow-logic" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="currentColor" />
+    </marker>
+  </defs>
+  <g class="flow-lane"><rect x="50" y="36" width="160" height="68" rx="6" /><text x="130" y="66">Ticker Set</text><text x="130" y="87">research universe</text></g>
+  <g class="flow-lane"><rect x="280" y="36" width="160" height="68" rx="6" /><text x="360" y="66">Data Retrieval</text><text x="360" y="87">price + context</text></g>
+  <g class="flow-lane"><rect x="510" y="36" width="160" height="68" rx="6" /><text x="590" y="66">Feature Build</text><text x="590" y="87">technical + risk</text></g>
+  <g class="flow-lane"><rect x="740" y="36" width="160" height="68" rx="6" /><text x="820" y="66">Signal Score</text><text x="820" y="87">heuristic + ML</text></g>
+  <path class="flow-edge" d="M210 70 H280" marker-end="url(#arrow-logic)" />
+  <path class="flow-edge" d="M440 70 H510" marker-end="url(#arrow-logic)" />
+  <path class="flow-edge" d="M670 70 H740" marker-end="url(#arrow-logic)" />
 
-1. The user navigates to the `/integrated_system` route in the web application.
-2. They enter the ticker symbols (APX.AX and ABM.AX) in the input form.
-3. They select options like whether to use ML scoring and whether to execute trades.
-4. Upon submission, the form data is sent to the `/run_integrated_system` endpoint.
+  <g class="flow-lane"><rect x="164" y="176" width="170" height="72" rx="6" /><text x="249" y="206">Ranked Signals</text><text x="249" y="228">watchlist candidates</text></g>
+  <g class="flow-lane"><rect x="405" y="176" width="170" height="72" rx="6" /><text x="490" y="206">Portfolio Review</text><text x="490" y="228">sizing + exposure</text></g>
+  <g class="flow-lane"><rect x="646" y="176" width="170" height="72" rx="6" /><text x="731" y="206">Backtest</text><text x="731" y="228">costs + benchmark</text></g>
+  <path class="flow-edge" d="M820 104 C760 146, 626 157, 490 176" marker-end="url(#arrow-logic)" />
+  <path class="flow-edge" d="M820 104 C760 142, 735 154, 731 176" marker-end="url(#arrow-logic)" />
+  <path class="flow-edge" d="M820 104 C650 146, 400 152, 249 176" marker-end="url(#arrow-logic)" />
 
-## 2. System Initialization
+  <g class="flow-lane"><rect x="202" y="318" width="190" height="72" rx="6" /><text x="297" y="348">Diagnostics</text><text x="297" y="370">returns, drawdown, risk</text></g>
+  <g class="flow-lane"><rect x="588" y="318" width="190" height="72" rx="6" /><text x="683" y="348">Research Output</text><text x="683" y="370">decision context</text></g>
+  <path class="flow-edge" d="M249 248 C260 286, 276 300, 297 318" marker-end="url(#arrow-logic)" />
+  <path class="flow-edge" d="M490 248 C452 286, 370 300, 297 318" marker-end="url(#arrow-logic)" />
+  <path class="flow-edge" d="M731 248 C690 286, 620 300, 683 318" marker-end="url(#arrow-logic)" />
+  <path class="flow-edge" d="M392 354 H588" marker-end="url(#arrow-logic)" />
+</svg>
+</div>
 
-1. The application creates a unique session ID based on the current timestamp.
-2. It initializes a new `TradingSystem` instance with parameters:
-   - `initial_capital=100000.0` (starting with $100,000)
-   - `market_neutral=True` (aiming for a beta-neutral portfolio)
+## 1. User Input
 
-## 3. Complete Workflow Execution
+The user selects tickers, model options, backtest settings, and portfolio assumptions from the React terminal. Long-running workflows return an ID immediately and stream progress through server-sent events.
 
-The system calls the `run_complete_workflow()` method with the provided tickers (APX.AX and ABM.AX), which executes the following steps:
+## 2. Data Retrieval
 
-### Step 1: ML Model Training (if using ML scoring)
+The backend retrieves market data, ticker metadata, historical bars, financial context, and provider status. Yahoo Finance is the fallback data source; Alpaca can provide live-data context where credentials are configured.
 
-1. If ML scoring is enabled and the model isn't already trained, the system calls `train_ml_model()`.
-2. This collects historical data for the stocks using `collect_training_data()`.
-3. The ML model (GradientBoostingRegressor) is trained to predict future price movements.
-4. The trained model is saved to disk for future use.
+## 3. Feature Engineering
 
-### Step 2: Stock Analysis
+The technical analysis layer calculates trend, momentum, volatility, volume, return, and risk features. These features are used by both heuristic scoring and model-assisted research.
 
-1. For each ticker (APX.AX and ABM.AX), the system:
-   - Retrieves stock information using `get_stock_info()` from Yahoo Finance.
-   - Fetches historical price data using `get_stock_history()`.
-   - Calculates technical indicators using `get_stock_data()`, including:
-     - Moving averages (MA5, MA10, MA20, MA50, MA200)
-     - Volatility measures (ATR, Bollinger Bands)
-     - Momentum indicators (RSI, MACD)
-     - Volume analysis
-     - Support and resistance levels
-     - Pattern recognition (gaps, breakouts)
-   - If ML scoring is enabled, applies `score_stock_ml()` to get a predicted return percentage.
-   - Converts the predicted return to a 0-100 score.
-   - Determines a trading strategy based on the score (Strong Buy, Buy, Neutral, Sell, Strong Sell).
-   - Updates market data for execution and portfolio management.
+## 4. Model Context
 
-2. The stocks are then ranked by their day trading score, with higher scores indicating more favorable trading opportunities.
+Where enabled, the GBDT scorer loads trained artifacts, feature metadata, and preprocessing components. Model outputs are treated as research signals and compared with traditional indicator-based scores.
 
-### Step 3: Watchlist Generation
+## 5. Signal Ranking
 
-1. The system generates a watchlist from the ranked stocks using `generate_watchlist()`.
-2. Stocks with scores above the minimum threshold (default 60) are included.
-3. The watchlist is limited to a maximum number of stocks (default 20).
+Tickers are ranked into research candidates using score, volatility, technical context, and model output. The result is a watchlist-like research set rather than a guarantee or recommendation.
 
-### Step 4: Portfolio Update
+## 6. Portfolio Review
 
-1. The system updates the current portfolio values using `update_portfolio()`.
-2. This retrieves current market prices for all holdings.
-3. It calculates the current portfolio value, including cash and invested positions.
-4. It updates sector exposures and portfolio beta.
+Portfolio logic checks sizing, concentration, exposure, cash allocation, and risk limits. This step helps answer whether a signal is usable inside a capital allocation framework.
 
-### Step 5: Trade Recommendation Generation
+## 7. Backtest and Diagnostics
 
-1. The system generates trade recommendations using `generate_trade_recommendations()`.
-2. The portfolio manager analyzes the ranked stocks and current portfolio to determine:
-   - Buy recommendations for new positions or to increase existing positions.
-   - Sell recommendations for underperforming positions.
-   - Hold recommendations for adequately sized positions with good scores.
-   - Rebalance recommendations to maintain sector and beta targets.
+The backtest engine simulates the selected rules over the chosen historical window. It reports returns, drawdown, Sharpe/Sortino ratios, trade count, benchmarks, and position-level diagnostics.
 
-3. For buy recommendations:
-   - Stocks with high scores (>60) are considered.
-   - Position sizing is calculated based on score, volatility, and sector exposure.
-   - Available capital is allocated across candidates.
+## 8. Research Output
 
-4. For sell recommendations:
-   - Positions with low scores (<40) are flagged for selling.
-   - The system may also recommend partial selling to reduce overexposed positions.
-
-### Step 6: Trade Execution (if enabled)
-
-1. If trade execution is enabled, the system calls `execute_trades()` with the recommendations.
-2. For each buy recommendation:
-   - Creates a market order using `create_order()`.
-   - Submits the order through `submit_order()`.
-   - If the order is filled, updates the portfolio by adding the new position.
-
-3. For each sell recommendation:
-   - Creates a market order to sell.
-   - Submits the order.
-   - If the order is filled, updates the portfolio by reducing or removing the position.
-
-4. After trades are executed, the portfolio is updated again to reflect the changes.
-
-### Step 7: System State Saving
-
-1. The system saves its current state using `save_system_state()`.
-2. This includes portfolio positions, cash balance, trade history, and other system parameters.
-3. The state is saved to a JSON file for future reference and to enable system continuity.
-
-### Step 8: Backtest on Watchlist
-
-1. The system runs a backtest on the top watchlist stocks using `run_backtest()`.
-2. This simulates how the selected strategy would have performed over the past 180 days.
-3. The backtest calculates metrics like total return, Sharpe ratio, and maximum drawdown.
-
-### Step 9: Individual Stock Return Calculation
-
-1. For each stock in the watchlist, the system runs an individual backtest.
-2. This calculates the historical return percentage for each stock.
-3. The return percentages are stored with the stock data for reference.
-
-## 4. Results Presentation
-
-1. The system creates charts and visualizations using `create_trading_system_charts()`.
-2. The results are rendered in the 'integrated_results.html' template, showing:
-   - Portfolio summary (total value, cash, invested value)
-   - Watchlist of top-ranked stocks
-   - Trade recommendations
-   - Executed orders (if any)
-   - Performance metrics and charts
-   - Backtest results
-
-## Example for APX.AX and ABM.AX
-
-For the specific example of APX.AX (Appen Limited) and ABM.AX (ABM Resources):
-
-1. **Data Retrieval**: The system fetches current and historical price data for both stocks from Yahoo Finance.
-
-2. **Technical Analysis**: 
-   - Calculates indicators like RSI, MACD, Bollinger Bands for both stocks
-   - Identifies patterns like breakouts, support/resistance levels
-   - Analyzes volume trends and price momentum
-
-3. **ML Scoring** (if enabled):
-   - Predicts potential returns for each stock based on historical patterns
-   - Converts predictions to actionable scores (0-100)
-   - Determines if each stock is a buy, sell, or hold candidate
-
-4. **Portfolio Management**:
-   - If either stock is already in the portfolio, evaluates whether to increase, decrease, or maintain the position
-   - If not in portfolio, evaluates whether to add them based on scores and available capital
-   - Ensures proper diversification and risk management
-
-5. **Trade Execution** (if enabled):
-   - Places market orders for the recommended trades
-   - Updates the portfolio with the new positions or adjustments
-
-The entire process provides a comprehensive analysis of APX.AX and ABM.AX, generating actionable trading recommendations based on both technical analysis and machine learning predictions, while managing portfolio risk and tracking performance over time.
+The terminal presents the combined output as a research artifact: ranked signals, charts, model status, portfolio context, and backtest evidence.

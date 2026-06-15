@@ -21,6 +21,7 @@ import { isReasoningModel, useAppStore } from '../store/useAppStore'
 type InterviewFormat = 'hirevue' | 'behavioral' | 'technical' | 'case' | 'motivational' | 'mixed'
 type PracticePhase = 'setup' | 'ready' | 'practice' | 'analyzing' | 'report'
 type PracticeMode = 'thinking' | 'speaking' | 'complete'
+type RoleSeniority = 'internship' | 'graduate' | 'experienced' | 'general'
 
 interface RoleDraft {
   company: string
@@ -363,6 +364,104 @@ function transcriptMetrics(transcript: string, durationSec: number, draft: RoleD
   }
 }
 
+function detectRoleSeniority(draft: RoleDraft): RoleSeniority {
+  const source = `${draft.roleTitle} ${draft.roleDetails}`.toLowerCase()
+  if (/\b(intern|internship|summer analyst|summer associate|vacationer|placement|co-?op|work experience)\b/.test(source)) {
+    return 'internship'
+  }
+  if (/\b(graduate|new grad|grad program|graduate program|entry[- ]level|junior|analyst program|rotational)\b/.test(source)) {
+    return 'graduate'
+  }
+  if (/\b(senior|lead|principal|manager|director|head of|vp|vice president|experienced|staff)\b/.test(source)) {
+    return 'experienced'
+  }
+  return 'general'
+}
+
+function scoringCalibration(draft: RoleDraft, question: InterviewQuestion, durationSec: number) {
+  const seniority = detectRoleSeniority(draft)
+  const minutes = Math.max(1, Math.round(durationSec / 15) / 4)
+  const shared = {
+    seniority,
+    answerLength: `${minutes} minutes`,
+    questionSpeakingLimitSec: question.speakingTimeSec,
+    universalRule: 'Score the answer against the role level and the time limit. Reward clear prioritisation and do not expect an exhaustive textbook answer in a short HireVue response.',
+  }
+
+  if (seniority === 'internship') {
+    return {
+      ...shared,
+      evaluatorMode: 'supportive internship assessor',
+      expectedStandard: [
+        'Evaluate potential, structured thinking, teachability, and directionally correct reasoning.',
+        'For a 90-120 second answer, a strong response can cover a practical sequence, 2-3 core concepts, and one clear communication/risk point.',
+        'Do not require specialist desk-level details, live market levels, flows, swaps jargon, or every possible product linkage unless the question explicitly asks for them.',
+        'Treat missing advanced nuance as coaching feedback, not as a major score penalty when the core logic is sound.',
+      ],
+      scoreGuide: {
+        '80-89': 'strong internship answer; clear framework, mostly correct logic, good communication, minor gaps',
+        '70-79': 'solid internship answer with useful substance and fixable gaps',
+        '60-69': 'developing but plausible; some structure or content issues, still shows potential',
+        '<60': 'mostly off-question, seriously unclear, or technically misleading',
+      },
+      feedbackStyle: 'Be honest but not harsh. Keep criticalFeedback to the highest-leverage 3-4 items and avoid phrasing that implies experienced-professional expectations.',
+    }
+  }
+
+  if (seniority === 'graduate') {
+    return {
+      ...shared,
+      evaluatorMode: 'balanced graduate-role assessor',
+      expectedStandard: [
+        'Expect a clearer framework and more specific examples than an internship answer.',
+        'For a short answer, prioritise the most important concepts rather than exhaustive coverage.',
+        'Missing depth should reduce the score only when it weakens the main answer or communication.',
+      ],
+      scoreGuide: {
+        '80-89': 'strong graduate answer; structured, specific, and role-aware',
+        '70-79': 'ready or close; clear core answer with some missing specificity',
+        '60-69': 'developing; understandable but too generic or uneven',
+        '<60': 'substantial gaps, unclear communication, or weak role fit',
+      },
+      feedbackStyle: 'Be direct and practical, with criticism framed as the next improvement step.',
+    }
+  }
+
+  if (seniority === 'experienced') {
+    return {
+      ...shared,
+      evaluatorMode: 'experienced-hire assessor',
+      expectedStandard: [
+        'Expect sharper judgment, prioritisation, domain fluency, and stakeholder-ready communication.',
+        'For a short answer, still reward concise tradeoffs rather than exhaustive detail.',
+      ],
+      scoreGuide: {
+        '80-89': 'strong professional answer; specific, credible, and decision-ready',
+        '70-79': 'competent with notable gaps',
+        '60-69': 'below expected experienced-hire standard',
+        '<60': 'major gaps for the level',
+      },
+      feedbackStyle: 'Be candid and specific, but avoid piling on low-value criticisms.',
+    }
+  }
+
+  return {
+    ...shared,
+    evaluatorMode: 'balanced role-level assessor',
+    expectedStandard: [
+      'Infer the likely level from the role context and avoid applying senior professional standards by default.',
+      'For a short answer, reward strong prioritisation over exhaustive detail.',
+    ],
+    scoreGuide: {
+      '80-89': 'strong answer for the apparent level',
+      '70-79': 'solid answer with fixable gaps',
+      '60-69': 'developing answer',
+      '<60': 'major clarity, relevance, or correctness issues',
+    },
+    feedbackStyle: 'Be useful, specific, and proportionate.',
+  }
+}
+
 function buildFallbackReport({
   draft,
   question,
@@ -434,19 +533,45 @@ function buildFallbackReport({
 function normaliseReport(value: unknown, fallback: InterviewReport): InterviewReport {
   const raw = value && typeof value === 'object' ? value as Partial<InterviewReport> : {}
   const rawScores = raw.scores && typeof raw.scores === 'object' ? raw.scores : {}
+  const scores = Object.fromEntries(
+    Object.keys(fallback.scores).map(key => {
+      const rawScore = Number((rawScores as Record<string, unknown>)[key])
+      return [key, Number.isFinite(rawScore) ? clamp(rawScore) : 0]
+    }),
+  )
+  for (const [key, value] of Object.entries(rawScores as Record<string, unknown>)) {
+    if (key in scores) continue
+    const rawScore = Number(value)
+    if (Number.isFinite(rawScore)) scores[key] = clamp(rawScore)
+  }
+  const scoreValues = Object.values(scores)
+  const fallbackOverall = scoreValues.length
+    ? clamp(scoreValues.reduce((sum, value) => sum + value, 0) / scoreValues.length)
+    : 0
+  const rawOverall = Number(raw.overallScore)
+  const cleanList = (items: unknown, emptyMessage: string) => {
+    const values = Array.isArray(items) ? items.filter((v): v is string => typeof v === 'string' && Boolean(v.trim())).slice(0, 6) : []
+    return values.length ? values : [emptyMessage]
+  }
+
   return {
-    overallScore: clamp(Number(raw.overallScore) || fallback.overallScore),
-    scores: Object.fromEntries(
-      Object.entries({ ...fallback.scores, ...rawScores })
-        .map(([key, value]) => [key, clamp(Number(value) || fallback.scores[key] || 0)]),
-    ),
+    overallScore: Number.isFinite(rawOverall) ? clamp(rawOverall) : fallbackOverall,
+    scores,
     transcriptMetrics: fallback.transcriptMetrics,
     videoMetrics: fallback.videoMetrics,
-    strengths: Array.isArray(raw.strengths) ? raw.strengths.filter((v): v is string => typeof v === 'string').slice(0, 5) : fallback.strengths,
-    criticalFeedback: Array.isArray(raw.criticalFeedback) ? raw.criticalFeedback.filter((v): v is string => typeof v === 'string').slice(0, 6) : fallback.criticalFeedback,
-    improvementPlan: Array.isArray(raw.improvementPlan) ? raw.improvementPlan.filter((v): v is string => typeof v === 'string').slice(0, 6) : fallback.improvementPlan,
-    report: typeof raw.report === 'string' && raw.report.trim() ? raw.report.trim() : fallback.report,
+    strengths: cleanList(raw.strengths, 'AI returned no strengths for this report. Retry generation for a complete assessment.').slice(0, 5),
+    criticalFeedback: cleanList(raw.criticalFeedback, 'AI returned no critical feedback for this report. Retry generation for a complete assessment.'),
+    improvementPlan: cleanList(raw.improvementPlan, 'Retry the AI report after confirming transcript capture and the OpenAI key.'),
+    report: typeof raw.report === 'string' && raw.report.trim()
+      ? raw.report.trim()
+      : 'AI returned structured scores without a written summary. Retry generation for a complete narrative report.',
   }
+}
+
+function missingTranscriptNotice(canUseSpeechRecognition: boolean) {
+  return canUseSpeechRecognition
+    ? 'No final speech transcript was captured for this attempt. The AI report will evaluate observable delivery signals and mark content-based scoring as limited.'
+    : 'This browser did not provide live speech recognition. The AI report will evaluate timing and video delivery metrics, but content-based scoring is limited.'
 }
 
 function emptyVideoMetrics(): VideoMetrics {
@@ -534,7 +659,7 @@ export default function HireVuePrep() {
 
   async function generatePlan() {
     setErrorMessage('')
-    setStatusMessage(openaiKey ? 'Generating structured interview JSON...' : 'Generating deterministic local interview JSON...')
+    setStatusMessage(openaiKey ? 'Generating structured interview JSON...' : 'Generating local practice JSON...')
     setReport(null)
     setRecordingUrl('')
     setTranscript('')
@@ -577,7 +702,7 @@ export default function HireVuePrep() {
       setTimeLeft(nextPlan.questions[0]?.thinkingTimeSec ?? draft.thinkingTimeSec)
       setMode('thinking')
       setPhase('ready')
-      setStatusMessage(openaiKey ? 'AI JSON ready.' : 'Local JSON ready. Add an OpenAI key in Settings for role-specific generation.')
+      setStatusMessage(openaiKey ? 'AI JSON ready.' : 'Local JSON ready. Add an OpenAI key in Settings for AI reports.')
     } catch (error) {
       if (controller.signal.aborted) return
       setErrorMessage(error instanceof Error ? error.message : 'Unable to generate interview JSON.')
@@ -587,7 +712,7 @@ export default function HireVuePrep() {
       setTimeLeft(nextPlan.questions[0].thinkingTimeSec)
       setMode('thinking')
       setPhase('ready')
-      setStatusMessage('OpenAI failed, so a deterministic local JSON plan was generated.')
+      setStatusMessage('OpenAI failed, so a local question plan was generated.')
     }
   }
 
@@ -698,7 +823,7 @@ export default function HireVuePrep() {
     setMode('complete')
     if (autoAnalyze) {
       setPhase('analyzing')
-      setStatusMessage('Analyzing transcript and video metrics...')
+      setStatusMessage(openaiKey ? 'Generating AI report from transcript and delivery metrics...' : 'OpenAI key required for an AI report.')
       await analyzeAttempt()
     }
   }
@@ -716,41 +841,53 @@ export default function HireVuePrep() {
       videoMetrics,
     })
 
+    if (!openaiKey) {
+      setReport(null)
+      setPhase('ready')
+      setStatusMessage('Recording saved. Add an OpenAI key in Settings to generate the report.')
+      setErrorMessage('AI report generation requires an OpenAI key. No deterministic report was generated.')
+      return
+    }
+
     try {
-      let nextReport = fallback
-      if (openaiKey && finalTranscript) {
-        const response = await requestJson<InterviewReport>({
-          apiKey: openaiKey,
-          model: settings.openaiModel,
-          temperature: 0.1,
-          system: [
-            'You are a strict HireVue interview evaluator.',
-            'Return only valid JSON using this schema: { "overallScore": number, "scores": object, "strengths": string[], "criticalFeedback": string[], "improvementPlan": string[], "report": string }.',
-            'Scores must be repeatable, evidence-based, and anchored to the supplied transcript metrics and video metrics.',
-            'Be realistic and critical. Do not inflate scores for generic answers.',
-          ].join(' '),
-          user: JSON.stringify({
-            role: draft,
-            question: activeQuestion,
-            transcript: finalTranscript,
-            transcriptMetrics: fallback.transcriptMetrics,
-            videoMetrics,
-            scoringArchitecture: {
-              dimensions: Object.keys(fallback.scores),
-              scale: '0-100',
-              rule: 'Score only observable content, transcript metrics, and deterministic video metrics.',
-            },
-          }),
-        })
-        nextReport = normaliseReport(response, fallback)
-      }
+      const calibration = scoringCalibration(draft, activeQuestion, durationSec)
+      const response = await requestJson<InterviewReport>({
+        apiKey: openaiKey,
+        model: settings.openaiModel,
+        temperature: 0.1,
+        system: [
+          'You are a calibrated HireVue interview evaluator.',
+          'Return only valid JSON using this schema: { "overallScore": number, "scores": object, "strengths": string[], "criticalFeedback": string[], "improvementPlan": string[], "report": string }.',
+          'Scores must be evidence-based and anchored only to the supplied role context, question, transcript, transcript metrics, timing, and video metrics.',
+          'Use the supplied seniorityCalibration as the scoring standard. Do not apply graduate or experienced-hire standards to internship roles.',
+          'For short timed answers, reward good prioritisation. Do not penalize a candidate for failing to mention every possible nuance when the core answer is directionally sound.',
+          'If the transcript is unavailable, say that content scoring is limited, avoid inventing answer content, and grade structure, evidence, and role fit conservatively.',
+          'Be realistic, fair, and useful. Do not inflate generic or missing answers, but do not be harsher than the role level warrants.',
+        ].join(' '),
+        user: JSON.stringify({
+          role: draft,
+          question: activeQuestion,
+          transcript: finalTranscript || missingTranscriptNotice(canUseSpeechRecognition),
+          transcriptAvailable: Boolean(finalTranscript),
+          durationSec,
+          transcriptMetrics: fallback.transcriptMetrics,
+          videoMetrics,
+          seniorityCalibration: calibration,
+          scoringArchitecture: {
+            dimensions: Object.keys(fallback.scores),
+            scale: '0-100',
+            rule: 'Score only observable transcript content, timing, and deterministic video metrics. Do not use the deterministic fallback scores as the final report.',
+          },
+        }),
+      })
+      const nextReport = normaliseReport(response, fallback)
       setReport(nextReport)
       setPhase('report')
-      setStatusMessage(openaiKey && finalTranscript ? 'AI report ready.' : 'Deterministic local report ready.')
+      setStatusMessage(finalTranscript ? 'AI report ready.' : 'AI report ready with transcript limitations.')
     } catch (error) {
-      setReport(fallback)
-      setPhase('report')
-      setStatusMessage('OpenAI analysis failed, so the deterministic report was used.')
+      setReport(null)
+      setPhase('ready')
+      setStatusMessage('AI report generation failed. No deterministic report was generated.')
       setErrorMessage(error instanceof Error ? error.message : 'Unable to run OpenAI analysis.')
     }
   }
@@ -882,7 +1019,7 @@ export default function HireVuePrep() {
                 <div className="flex gap-2">
                   <Settings size={15} className="mt-0.5 shrink-0 text-warn" aria-hidden="true" />
                   <p className="text-2xs leading-relaxed text-muted">
-                    Local mode is deterministic. Add an OpenAI key in <Link to="/settings" className="text-accent hover:text-text">Settings</Link> for richer role-specific JSON and feedback.
+                    Local mode can prepare questions, but reports require OpenAI. Add an OpenAI key in <Link to="/settings" className="text-accent hover:text-text">Settings</Link> for real AI feedback.
                   </p>
                 </div>
               </div>
@@ -924,7 +1061,7 @@ export default function HireVuePrep() {
                 <div>
                   <div className="aspect-video overflow-hidden border border-border bg-black">
                     {phase === 'practice' ? (
-                      <video ref={videoRef} autoPlay muted playsInline className="h-full w-full object-cover" />
+                      <video ref={videoRef} autoPlay muted playsInline className="h-full w-full scale-x-[-1] object-cover" />
                     ) : recordingUrl ? (
                       <video src={recordingUrl} controls className="h-full w-full object-cover" />
                     ) : (
@@ -947,7 +1084,7 @@ export default function HireVuePrep() {
                       ) : (
                         canUseSpeechRecognition
                           ? 'Transcript will appear while you answer.'
-                          : 'This browser does not expose live speech recognition. You can still record and receive video/timing analysis.'
+                          : 'This browser does not expose live speech recognition. You can still record; AI reporting will use timing and video metrics only.'
                       )}
                     </p>
                   </div>

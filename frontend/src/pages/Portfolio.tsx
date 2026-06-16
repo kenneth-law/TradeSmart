@@ -21,7 +21,7 @@ type PaperRow = PaperPosition & Record<string, unknown> & {
 }
 
 const POSITION_COLUMNS: Column<PaperRow>[] = [
-  { key: 'label', label: 'INSTRUMENT', width: 150,
+  { key: 'label', label: 'INSTRUMENT', width: 300,
     render: r => (
       <div>
         <div className="text-sm text-text tabnum">{r.label}</div>
@@ -29,26 +29,26 @@ const POSITION_COLUMNS: Column<PaperRow>[] = [
       </div>
     )
   },
-  { key: 'quantity', label: 'QTY', width: 64, align: 'right',
+  { key: 'quantity', label: 'QTY', width: 110, align: 'right',
     render: r => <span className="tabnum">{r.quantity}</span>
   },
-  { key: 'costBasis', label: 'AVG COST', width: 86, align: 'right',
+  { key: 'costBasis', label: 'AVG COST', width: 140, align: 'right',
     render: r => <span className="tabnum">${r.costBasis.toFixed(2)}</span>
   },
-  { key: 'lastPrice', label: 'LAST', width: 86, align: 'right',
+  { key: 'lastPrice', label: 'LAST', width: 140, align: 'right',
     render: r => <span className="tabnum">${r.lastPrice.toFixed(2)}</span>
   },
-  { key: 'marketValue', label: 'VALUE', width: 100, align: 'right',
+  { key: 'marketValue', label: 'VALUE', width: 170, align: 'right',
     render: r => <span className="tabnum">${Math.round(r.marketValue).toLocaleString()}</span>
   },
-  { key: 'unrealizedPnl', label: 'P&L', width: 96, align: 'right',
+  { key: 'unrealizedPnl', label: 'P&L', width: 170, align: 'right',
     render: r => (
       <span className={`tabnum ${r.unrealizedPnl >= 0 ? 'text-up' : 'text-down'}`}>
         {r.unrealizedPnl >= 0 ? '+' : ''}${Math.round(r.unrealizedPnl).toLocaleString()}
       </span>
     )
   },
-  { key: 'unrealizedPnlPct', label: 'P&L%', width: 76, align: 'right',
+  { key: 'unrealizedPnlPct', label: 'P&L%', width: 120, align: 'right',
     render: r => (
       <span className={`tabnum ${r.unrealizedPnlPct >= 0 ? 'text-up' : 'text-down'}`}>
         {r.unrealizedPnlPct >= 0 ? '+' : ''}{r.unrealizedPnlPct.toFixed(2)}%
@@ -58,29 +58,29 @@ const POSITION_COLUMNS: Column<PaperRow>[] = [
 ]
 
 const ORDER_COLUMNS: Column<PaperOrder & Record<string, unknown>>[] = [
-  { key: 'timestamp', label: 'TIME', width: 132,
+  { key: 'timestamp', label: 'TIME', width: 150,
     render: r => <span className="tabnum">{new Date(r.timestamp).toLocaleString([], { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
   },
-  { key: 'action', label: 'ACTION', width: 92,
+  { key: 'action', label: 'ACTION', width: 90,
     render: r => <span className={r.action.startsWith('BUY') ? 'text-up' : 'text-down'}>{r.action.replace('_', ' ')}</span>
   },
-  { key: 'ticker', label: 'TICKER', width: 80 },
-  { key: 'quantity', label: 'QTY', width: 60, align: 'right',
+  { key: 'ticker', label: 'TICKER', width: 90 },
+  { key: 'quantity', label: 'QTY', width: 90, align: 'right',
     render: r => <span className="tabnum">{r.quantity}</span>
   },
-  { key: 'price', label: 'PRICE', width: 76, align: 'right',
+  { key: 'price', label: 'PRICE', width: 120, align: 'right',
     render: r => <span className="tabnum">${r.price.toFixed(2)}</span>
   },
-  { key: 'notional', label: 'NOTIONAL', width: 96, align: 'right',
+  { key: 'notional', label: 'NOTIONAL', width: 150, align: 'right',
     render: r => <span className="tabnum">${Math.round(r.notional).toLocaleString()}</span>
   },
-  { key: 'fee', label: 'COST', width: 74, align: 'right',
+  { key: 'fee', label: 'COST', width: 120, align: 'right',
     render: r => {
       const v = r.fee ?? 0
       return v > 0 ? <span className="tabnum text-accent">${v.toFixed(2)}</span> : <span className="text-dim">-</span>
     }
   },
-  { key: 'realizedPnl', label: 'REALIZED', width: 92, align: 'right',
+  { key: 'realizedPnl', label: 'REALIZED', width: 140, align: 'right',
     render: r => {
       const v = r.realizedPnl
       if (v == null) return <span className="text-dim">-</span>
@@ -93,6 +93,10 @@ function money(v: number) {
   return `$${Math.round(v).toLocaleString()}`
 }
 
+function cashInputValue(v: number) {
+  return Number.isFinite(v) ? v.toFixed(2) : '0.00'
+}
+
 export default function Portfolio() {
   const navigate = useNavigate()
   const settings = useAppStore(s => s.settings)
@@ -100,7 +104,7 @@ export default function Portfolio() {
   const setPaperCash = useAppStore(s => s.setPaperCash)
   const setPaperCostModel = useAppStore(s => s.setPaperCostModel)
   const resetPaperAccount = useAppStore(s => s.resetPaperAccount)
-  const [cashDraft, setCashDraft] = useState(String(account.cash))
+  const [cashDraft, setCashDraft] = useState(cashInputValue(account.cash))
   const [costDraft, setCostDraft] = useState({
     stockPerShare: String(account.costModel.stockPerShare),
     optionPerContract: String(account.costModel.optionPerContract),
@@ -108,7 +112,7 @@ export default function Portfolio() {
   })
 
   useEffect(() => {
-    setCashDraft(String(account.cash))
+    setCashDraft(cashInputValue(account.cash))
   }, [account.cash])
 
   useEffect(() => {
@@ -265,6 +269,7 @@ export default function Portfolio() {
             onRowClick={r => navigate(`/stock/${r.ticker}`)}
             emptyMessage="No paper positions. Open a stock detail page to place a paper order."
             virtualRows={rows.length > 50}
+            fitColumns
           />
           <div className="border-t border-border">
             <div className="px-4 py-2 text-2xs uppercase tracking-[0.2em] text-dim">Recent Orders</div>
@@ -274,7 +279,7 @@ export default function Portfolio() {
               rowKey={r => r.id}
               onRowClick={r => navigate(`/stock/${r.ticker}`)}
               emptyMessage="No paper orders yet."
-              virtualRows={account.orders.length > 30}
+              fitColumns
             />
           </div>
         </div>

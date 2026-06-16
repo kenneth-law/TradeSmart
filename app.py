@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_from_directory, Response
+from flask import Flask, request, jsonify, send_from_directory, Response, redirect
 import pandas as pd
 import plotly
 import plotly.graph_objects as go
@@ -7,6 +7,7 @@ import json
 from datetime import datetime, timedelta
 import os
 import math
+import markdown
 from curl_cffi import requests
 import re
 
@@ -1568,29 +1569,81 @@ def api_integrated_results(system_id):
     })
 
 
+DOCS_ROOT = os.path.dirname(os.path.abspath(__file__))
+
+DOC_ALIASES = {
+    "": "readme",
+    "readme": "readme",
+    "README": "readme",
+    "architecture": "architecture",
+    "system_architecture": "architecture",
+    "system-architecture": "architecture",
+    "flow": "logic-flow",
+    "logic": "logic-flow",
+    "logic_flow": "logic-flow",
+    "logic-flow": "logic-flow",
+    "integrated": "logic-flow",
+    "strategy": "strategy",
+    "backtest": "backtest",
+    "backtesting": "backtest",
+    "api": "api",
+    "about": "about",
+}
+
+DOC_MAP = {
+    "readme": ("README.md", "README - TradeSmart"),
+    "architecture": (os.path.join("docs", "system_architecture.md"), "System Architecture"),
+    "logic-flow": (os.path.join("docs", "Logic_Flow.md"), "Logic Flow"),
+    "strategy": (os.path.join("docs", "strategy.md"), "Strategy Research"),
+    "backtest": (os.path.join("docs", "backtest.md"), "Backtesting"),
+    "api": (os.path.join("docs", "api.md"), "API Reference"),
+    "about": (os.path.join("docs", "about.md"), "About"),
+}
+
+
+def _canonical_doc_type(doc_type):
+    return DOC_ALIASES.get((doc_type or "readme").strip(), None)
+
+
+@app.route('/api/documentation')
 @app.route('/api/documentation/<doc_type>')
 def api_documentation(doc_type='readme'):
-    """Return documentation as HTML for the React frontend"""
-    doc_map = {
-        'readme':     ('README.md',                      'README — TradeSmart'),
-        'strategy':   (os.path.join('docs', 'strategy.md'), 'Strategy Guide'),
-        'backtest':   (os.path.join('docs', 'backtest.md'), 'Backtesting'),
-        'integrated': (os.path.join('docs', 'Logic_Flow.md'), 'Integrated System'),
-        'api':        (os.path.join('docs', 'api.md'),    'API Reference'),
-    }
-    if doc_type not in doc_map:
-        return jsonify({"error": "Not found"}), 404
+    """Return documentation as HTML for the React frontend."""
+    canonical = _canonical_doc_type(doc_type)
+    if canonical not in DOC_MAP:
+        return jsonify({"error": "Documentation not found"}), 404
 
-    file_path, title = doc_map[doc_type]
+    relative_path, title = DOC_MAP[canonical]
+    file_path = os.path.join(DOCS_ROOT, relative_path)
+
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()
-        html_content = markdown.markdown(content, extensions=['tables', 'fenced_code'])
-        return jsonify({"title": title, "html_content": html_content})
+        html_content = markdown.markdown(
+            content,
+            extensions=['tables', 'fenced_code', 'toc', 'sane_lists'],
+        )
+        return jsonify({
+            "type": canonical,
+            "title": title,
+            "html_content": html_content,
+        })
     except FileNotFoundError:
-        return jsonify({"title": title, "html_content": "<p>Documentation not available.</p>"})
+        return jsonify({
+            "type": canonical,
+            "title": title,
+            "html_content": "<p>Documentation file is missing from this build.</p>",
+        }), 404
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route('/documentation')
+@app.route('/documentation/<doc_type>')
+def legacy_documentation_redirect(doc_type='readme'):
+    """Keep old Flask documentation links working after the React migration."""
+    canonical = _canonical_doc_type(doc_type) or "readme"
+    return redirect(f"/docs/{canonical}", code=302)
 
 
 @app.route('/healthcheck')

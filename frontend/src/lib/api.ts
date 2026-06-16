@@ -93,7 +93,7 @@ export const api = {
     ),
 
   getDocumentation: (docType: string = 'readme') =>
-    get<{ title: string; html_content: string }>(`/api/documentation/${docType}`),
+    get<{ type: string; title: string; html_content: string }>(`/api/documentation/${docType}`),
 
   healthcheck: () =>
     get<{ status: string; timestamp: string }>('/healthcheck'),

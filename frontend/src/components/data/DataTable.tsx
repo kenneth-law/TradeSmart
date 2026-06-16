@@ -19,6 +19,7 @@ interface DataTableProps<T extends Record<string, unknown>> {
   emptyMessage?: string
   virtualRows?: boolean
   rowHeight?: number
+  fitColumns?: boolean
 }
 
 export default function DataTable<T extends Record<string, unknown>>({
@@ -30,6 +31,7 @@ export default function DataTable<T extends Record<string, unknown>>({
   emptyMessage = 'No data.',
   virtualRows = false,
   rowHeight = 26,
+  fitColumns = false,
 }: DataTableProps<T>) {
   const [sortKey, setSortKey] = useState<string | null>(null)
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
@@ -52,6 +54,10 @@ export default function DataTable<T extends Record<string, unknown>>({
   }
 
   const parentRef = useRef<HTMLDivElement>(null)
+  const tableWidth = columns.reduce((sum, col) => sum + (col.width ?? 120), 0)
+  const tableStyle: React.CSSProperties = fitColumns
+    ? { width: tableWidth, minWidth: tableWidth }
+    : { minWidth: tableWidth }
   const virtualizer = useVirtualizer({
     count: sorted.length,
     getScrollElement: () => parentRef.current,
@@ -73,7 +79,7 @@ export default function DataTable<T extends Record<string, unknown>>({
             style={{ width: col.width }}
             className={[
               'px-4 py-1.5 text-2xs text-muted font-medium',
-              'border-b border-border bg-s2 select-none',
+              'sticky top-0 z-10 border-b border-border bg-s2 select-none',
               col.align === 'right' ? 'text-right' : 'text-left',
               col.sortable !== false ? 'cursor-pointer hover:text-text' : '',
             ].join(' ')}
@@ -92,7 +98,7 @@ export default function DataTable<T extends Record<string, unknown>>({
   if (sorted.length === 0) {
     return (
       <div>
-        <table className="w-full table-fixed">{header}</table>
+        <table className={fitColumns ? 'table-fixed' : 'w-full table-fixed'} style={tableStyle}>{header}</table>
         <p className="text-muted text-sm p-4">{emptyMessage}</p>
       </div>
     )
@@ -138,7 +144,7 @@ export default function DataTable<T extends Record<string, unknown>>({
   if (!virtualRows) {
     return (
       <div className="overflow-auto w-full">
-        <table className="w-full table-fixed">
+        <table className={fitColumns ? 'table-fixed' : 'w-full table-fixed'} style={tableStyle}>
           {header}
           <tbody>{sorted.map(row => renderRow(row))}</tbody>
         </table>
@@ -149,7 +155,7 @@ export default function DataTable<T extends Record<string, unknown>>({
   const vItems = virtualizer.getVirtualItems()
   return (
     <div ref={parentRef} className="overflow-auto w-full" style={{ maxHeight: 600 }}>
-      <table className="w-full table-fixed">
+      <table className={fitColumns ? 'table-fixed' : 'w-full table-fixed'} style={tableStyle}>
         {header}
         <tbody style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
           {vItems.map(vRow => {

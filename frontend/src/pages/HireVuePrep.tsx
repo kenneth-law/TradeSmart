@@ -632,6 +632,9 @@ export default function HireVuePrep() {
   const recorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
+  const transcriptRef = useRef('')
+  const interimTranscriptRef = useRef('')
+  const captureStartedRef = useRef(false)
   const startedAtRef = useRef<number>(0)
   const framesRef = useRef<Array<{ brightness: number; delta: number }>>([])
   const lastFrameRef = useRef<number[] | null>(null)
@@ -645,6 +648,13 @@ export default function HireVuePrep() {
 
   function updateDraft(patch: Partial<RoleDraft>) {
     setDraft(prev => ({ ...prev, ...patch }))
+  }
+
+  function clearTranscript() {
+    transcriptRef.current = ''
+    interimTranscriptRef.current = ''
+    setTranscript('')
+    setInterimTranscript('')
   }
 
   function attachCameraPreview() {
@@ -662,8 +672,7 @@ export default function HireVuePrep() {
     setStatusMessage(openaiKey ? 'Generating structured interview JSON...' : 'Generating local practice JSON...')
     setReport(null)
     setRecordingUrl('')
-    setTranscript('')
-    setInterimTranscript('')
+    clearTranscript()
     abortRef.current?.abort()
     const controller = new AbortController()
     abortRef.current = controller
@@ -720,8 +729,7 @@ export default function HireVuePrep() {
     if (!activeQuestion) return
     setErrorMessage('')
     setStatusMessage('Requesting camera and microphone...')
-    setTranscript('')
-    setInterimTranscript('')
+    clearTranscript()
     setReport(null)
     if (recordingUrl) URL.revokeObjectURL(recordingUrl)
     setRecordingUrl('')
@@ -736,6 +744,32 @@ export default function HireVuePrep() {
       const settings = videoTrack?.getSettings()
       resolutionRef.current = settings?.width && settings?.height ? `${settings.width}x${settings.height}` : 'available'
 
+      captureStartedRef.current = false
+      startedAtRef.current = 0
+      setMode('thinking')
+      setTimeLeft(activeQuestion.thinkingTimeSec)
+      setPhase('practice')
+      window.requestAnimationFrame(attachCameraPreview)
+      setStatusMessage('Camera ready. Recording and transcript capture will start when speaking time begins.')
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Camera or microphone permission failed.')
+      setStatusMessage('')
+    }
+  }
+
+  function startMediaRecording() {
+    if (recorderRef.current?.state === 'recording') return true
+    const stream = streamRef.current
+    if (!stream) {
+      setErrorMessage('Camera or microphone stream is not available.')
+      return false
+    }
+    if (typeof MediaRecorder === 'undefined') {
+      setErrorMessage('This browser does not support in-browser video recording.')
+      return false
+    }
+    try {
+      chunksRef.current = []
       const recorder = new MediaRecorder(stream)
       recorderRef.current = recorder
       recorder.ondataavailable = event => {
@@ -746,21 +780,27 @@ export default function HireVuePrep() {
         setRecordingUrl(URL.createObjectURL(blob))
       }
       recorder.start(1000)
-
-      startSpeechRecognition()
-      startedAtRef.current = Date.now()
-      setMode('thinking')
-      setTimeLeft(activeQuestion.thinkingTimeSec)
-      setPhase('practice')
-      window.requestAnimationFrame(attachCameraPreview)
-      setStatusMessage(canUseSpeechRecognition ? 'Recording started. Transcript capture is active.' : 'Recording started. Transcript capture is unavailable in this browser.')
+      return true
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Camera or microphone permission failed.')
-      setStatusMessage('')
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to start answer recording.')
+      return false
     }
   }
 
+  function startSpeakingCapture() {
+    if (!activeQuestion || captureStartedRef.current) return
+    const recordingStarted = startMediaRecording()
+    if (!recordingStarted) return
+    captureStartedRef.current = true
+    startedAtRef.current = Date.now()
+    startSpeechRecognition()
+    setMode('speaking')
+    setTimeLeft(activeQuestion.speakingTimeSec)
+    setStatusMessage(canUseSpeechRecognition ? 'Answer recording started. Transcript capture is active.' : 'Answer recording started. Transcript capture is unavailable in this browser.')
+  }
+
   function startSpeechRecognition() {
+    if (recognitionRef.current) return
     const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition
     if (!Recognition) return
     const recognition = new Recognition()
@@ -775,19 +815,57 @@ export default function HireVuePrep() {
         if (event.results[i].isFinal) finalText += `${part} `
         else interimText += `${part} `
       }
-      if (finalText) setTranscript(prev => `${prev} ${finalText}`.trim())
-      setInterimTranscript(interimText.trim())
+      if (finalText) {
+        setTranscript(prev => {
+          const next = `${prev} ${finalText}`.trim()
+          transcriptRef.current = next
+          return next
+        })
+      }
+      const nextInterim = interimText.trim()
+      interimTranscriptRef.current = nextInterim
+      setInterimTranscript(nextInterim)
     }
     recognition.onerror = () => setStatusMessage('Speech transcript paused. Recording continues.')
+    recognition.onend = () => {
+      recognitionRef.current = null
+      if (!captureStartedRef.current) return
+      window.setTimeout(() => {
+        if (captureStartedRef.current) startSpeechRecognition()
+      }, 250)
+    }
     recognitionRef.current = recognition
     try {
       recognition.start()
     } catch {
       // Some browsers throw if recognition starts too quickly after permission.
+      recognitionRef.current = null
     }
   }
 
+  function stopSpeechRecognition() {
+    const recognition = recognitionRef.current
+    if (!recognition) return Promise.resolve()
+    return new Promise<void>(resolve => {
+      let settled = false
+      const finish = () => {
+        if (settled) return
+        settled = true
+        recognitionRef.current = null
+        resolve()
+      }
+      recognition.onend = finish
+      try {
+        recognition.stop()
+      } catch {
+        finish()
+      }
+      window.setTimeout(finish, 700)
+    })
+  }
+
   function sampleVideoFrame() {
+    if (!captureStartedRef.current) return
     const video = videoRef.current
     if (!video || video.videoWidth === 0 || video.videoHeight === 0) return
     const canvas = document.createElement('canvas')
@@ -814,8 +892,8 @@ export default function HireVuePrep() {
   }
 
   async function stopPractice(autoAnalyze = true) {
-    recognitionRef.current?.stop()
-    recognitionRef.current = null
+    captureStartedRef.current = false
+    const speechStopped = stopSpeechRecognition()
     if (recorderRef.current?.state === 'recording') recorderRef.current.stop()
     streamRef.current?.getTracks().forEach(track => track.stop())
     streamRef.current = null
@@ -824,15 +902,17 @@ export default function HireVuePrep() {
     if (autoAnalyze) {
       setPhase('analyzing')
       setStatusMessage(openaiKey ? 'Generating AI report from transcript and delivery metrics...' : 'OpenAI key required for an AI report.')
+      await speechStopped
       await analyzeAttempt()
     }
   }
 
   async function analyzeAttempt() {
     if (!activeQuestion) return
-    const durationSec = Math.max(1, Math.round((Date.now() - startedAtRef.current) / 1000))
+    const startedAt = startedAtRef.current || Date.now()
+    const durationSec = Math.max(1, Math.round((Date.now() - startedAt) / 1000))
     const videoMetrics = summariseFrames(framesRef.current, resolutionRef.current)
-    const finalTranscript = `${transcript} ${interimTranscript}`.trim()
+    const finalTranscript = `${transcriptRef.current} ${interimTranscriptRef.current}`.trim()
     const fallback = buildFallbackReport({
       draft,
       question: activeQuestion,
@@ -897,8 +977,7 @@ export default function HireVuePrep() {
     setPhase(plan ? 'ready' : 'setup')
     setMode('thinking')
     setTimeLeft(activeQuestion?.thinkingTimeSec ?? draft.thinkingTimeSec)
-    setTranscript('')
-    setInterimTranscript('')
+    clearTranscript()
     setReport(null)
     setErrorMessage('')
     setStatusMessage('')
@@ -921,7 +1000,7 @@ export default function HireVuePrep() {
       setTimeLeft(prev => {
         if (prev > 1) return prev - 1
         if (mode === 'thinking' && activeQuestion) {
-          setMode('speaking')
+          startSpeakingCapture()
           return activeQuestion.speakingTimeSec
         }
         void stopPractice(true)
@@ -1125,10 +1204,7 @@ export default function HireVuePrep() {
                       Stop
                     </button>
                     <button type="button" className={BUTTON_CLASS} disabled={phase !== 'practice' || mode !== 'thinking'} onClick={() => {
-                      if (activeQuestion) {
-                        setMode('speaking')
-                        setTimeLeft(activeQuestion.speakingTimeSec)
-                      }
+                      startSpeakingCapture()
                     }}>
                       <Mic size={15} aria-hidden="true" />
                       Answer

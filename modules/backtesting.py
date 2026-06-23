@@ -24,6 +24,8 @@ from modules.data_retrieval import get_stock_history
 from modules.technical_analysis import get_stock_data
 from modules.ml_scoring import score_stock_ml
 
+from native import _backtesting_cpp
+
 # Create cache directory for backtest results if it doesn't exist
 os.makedirs('cache/backtest_results', exist_ok=True)
 

@@ -6,6 +6,7 @@ nixPkgs = ["nodejs_20", "gcc"]
 [phases.install]
 cmds = [
   "pip install -r requirements.txt",
+  "pip install ./modules/native",
   "cd frontend && npm ci"
 ]
 

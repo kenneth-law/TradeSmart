@@ -995,7 +995,8 @@ def _research_profile(info):
         'trailingPE', 'forwardPE', 'priceToBook', 'priceToSalesTrailing12Months', 'enterpriseToRevenue',
         'enterpriseToEbitda', 'pegRatio', 'trailingEps', 'forwardEps', 'bookValue', 'totalRevenue',
         'grossProfits', 'ebitda', 'netIncomeToCommon', 'totalCash', 'totalDebt', 'freeCashflow',
-        'operatingCashflow', 'dividendRate', 'dividendYield', 'payoutRatio', 'returnOnAssets',
+        'operatingCashflow', 'dividendRate', 'dividendYield', 'payoutRatio', 'exDividendDate',
+        'lastDividendDate', 'fiveYearAvgDividendYield', 'returnOnAssets',
         'returnOnEquity', 'grossMargins', 'operatingMargins', 'profitMargins', 'debtToEquity',
         'heldPercentInsiders', 'heldPercentInstitutions', 'auditRisk', 'boardRisk', 'compensationRisk',
         'shareHolderRightsRisk', 'overallRisk', 'governanceEpochDate',
@@ -1089,6 +1090,7 @@ def api_equity_research(ticker):
                 'sec_filings': _yf_records(_yf_call(ticker_obj, 'get_sec_filings', []), 80),
                 'upgrades_downgrades': _yf_records(_yf_call(ticker_obj, 'get_upgrades_downgrades', pd.DataFrame()), 80),
                 'calendar': _yf_records(_yf_call(ticker_obj, 'get_calendar', {})),
+                'earnings_dates': _yf_records(_yf_call(ticker_obj, 'get_earnings_dates', pd.DataFrame(), limit=40), 40),
                 'actions': _yf_records(_yf_call(ticker_obj, 'get_actions', pd.DataFrame()), 80),
             })
 

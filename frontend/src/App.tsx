@@ -10,6 +10,7 @@ import Research from './pages/Research'
 import DailyLineup from './pages/DailyLineup'
 import Documentation from './pages/Documentation'
 import Settings from './pages/Settings'
+import SupplyChain from './pages/SupplyChain'
 
 export default function App() {
   return (
@@ -26,6 +27,8 @@ export default function App() {
         <Route path="/research"    element={<Navigate to="/market" replace />} />
         <Route path="/daily-lineup" element={<DailyLineup />} />
         <Route path="/portfolio"   element={<Portfolio />} />
+        <Route path="/supply-chain" element={<SupplyChain />} />
+        <Route path="/supply-chain/:ticker" element={<SupplyChain />} />
         <Route path="/docs"        element={<Documentation />} />
         <Route path="/docs/:type"  element={<Documentation />} />
         <Route path="/settings"    element={<Settings />} />

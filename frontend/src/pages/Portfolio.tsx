@@ -64,6 +64,9 @@ const ORDER_COLUMNS: Column<PaperOrder & Record<string, unknown>>[] = [
   { key: 'action', label: 'ACTION', width: 90,
     render: r => <span className={r.action.startsWith('BUY') ? 'text-up' : 'text-down'}>{r.action.replace('_', ' ')}</span>
   },
+  { key: 'executionAlgo', label: 'ALGO', width: 110,
+    render: r => <span className="text-accent">{r.executionAlgo?.toUpperCase() ?? 'DIRECT'}</span>
+  },
   { key: 'ticker', label: 'TICKER', width: 90 },
   { key: 'quantity', label: 'QTY', width: 90, align: 'right',
     render: r => <span className="tabnum">{r.quantity}</span>

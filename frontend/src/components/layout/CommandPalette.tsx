@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 
 const COMMANDS = [
   { label: 'Home',               shortcut: 'Alt+1', action: '/' },
-  { label: 'Markets',            shortcut: 'Alt+2', action: '/market' },
+  { label: 'Equities',           shortcut: 'Alt+2', action: '/market' },
   { label: 'Quant Trading',      shortcut: 'Alt+3', action: '/system' },
   { label: 'Technical Ranking',  shortcut: 'Alt+4', action: '/technical' },
   { label: 'Daily Lineup',       shortcut: 'Alt+5', action: '/daily-lineup' },

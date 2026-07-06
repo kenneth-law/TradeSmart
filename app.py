@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 import os
 import math
 import markdown
+import requests as http_requests
 from curl_cffi import requests
 import re
 
@@ -24,6 +25,7 @@ from modules.trading_system import BACKTEST_TRAINING_LOOKBACK_DAYS, TradingSyste
 from modules.utils import set_message_handler, log_message
 from modules.data_retrieval import get_stock_info, get_stock_history, get_yf_session
 from modules.technical_analysis import get_stock_data
+from modules.fast_ranking import rank_stocks_fast
 from modules.visualization import prepare_price_chart_data, get_detailed_stock_metrics
 from modules.market_data import get_sector_performance
 from modules.alpaca_live_data import alpaca_live_data
@@ -68,6 +70,7 @@ integrated_queues = {}
 # Configure session at app startup to avoid repeated session creation
 yf_session = get_yf_session()
 _market_data_status_cache = {"expires_at": 0, "value": None}
+_market_data_status_lock = threading.Lock()
 
 
 def _safe_float(value, default=0.0):
@@ -87,39 +90,64 @@ def _probe_yfinance_status():
     if cached and now < _market_data_status_cache.get("expires_at", 0):
         return cached
 
-    started = time.time()
-    status = {
-        "provider": "yfinance",
-        "reachable": False,
-        "delayed": True,
-        "latency_ms": None,
-        "checked_at": datetime.now().isoformat(),
-        "error": None,
-    }
+    # React can issue overlapping status requests during startup.  curl_cffi
+    # sessions are used elsewhere for yfinance, but sharing one here allowed a
+    # stalled probe to accumulate Flask request threads.  Let one short,
+    # standard HTTP probe run at a time and serve the last result meanwhile.
+    if not _market_data_status_lock.acquire(blocking=False):
+        if cached:
+            return cached
+        return {
+            "provider": "yfinance",
+            "reachable": False,
+            "delayed": True,
+            "latency_ms": None,
+            "checked_at": datetime.now().isoformat(),
+            "error": "Yahoo Finance status check is already in progress",
+        }
 
     try:
-        response = yf_session.get(
-            "https://query1.finance.yahoo.com/v8/finance/chart/SPY",
-            params={"range": "1d", "interval": "1d"},
-            timeout=4,
-        )
-        status["latency_ms"] = round((time.time() - started) * 1000)
-        status_code = getattr(response, "status_code", None)
-        if not getattr(response, "ok", False):
-            status["error"] = f"Yahoo Finance returned {status_code}"
-        else:
-            payload = response.json()
-            result = payload.get("chart", {}).get("result") or []
-            status["reachable"] = bool(result)
-            if not status["reachable"]:
-                status["error"] = "Yahoo Finance returned no chart data"
-    except Exception as exc:
-        status["latency_ms"] = round((time.time() - started) * 1000)
-        status["error"] = str(exc)
+        # Another request may have refreshed the cache before this request
+        # acquired the lock.
+        now = time.time()
+        cached = _market_data_status_cache.get("value")
+        if cached and now < _market_data_status_cache.get("expires_at", 0):
+            return cached
 
-    _market_data_status_cache["value"] = status
-    _market_data_status_cache["expires_at"] = now + 20
-    return status
+        started = time.time()
+        status = {
+            "provider": "yfinance",
+            "reachable": False,
+            "delayed": True,
+            "latency_ms": None,
+            "checked_at": datetime.now().isoformat(),
+            "error": None,
+        }
+
+        try:
+            response = http_requests.get(
+                "https://query1.finance.yahoo.com/v8/finance/chart/SPY",
+                params={"range": "1d", "interval": "1d"},
+                timeout=(2, 4),
+            )
+            status["latency_ms"] = round((time.time() - started) * 1000)
+            if not response.ok:
+                status["error"] = f"Yahoo Finance returned {response.status_code}"
+            else:
+                payload = response.json()
+                result = payload.get("chart", {}).get("result") or []
+                status["reachable"] = bool(result)
+                if not status["reachable"]:
+                    status["error"] = "Yahoo Finance returned no chart data"
+        except Exception as exc:
+            status["latency_ms"] = round((time.time() - started) * 1000)
+            status["error"] = str(exc)
+
+        _market_data_status_cache["value"] = status
+        _market_data_status_cache["expires_at"] = now + 20
+        return status
+    finally:
+        _market_data_status_lock.release()
 
 
 def _market_data_status():
@@ -409,6 +437,22 @@ def api_live_stream():
         "X-Accel-Buffering": "no",
     })
 
+def _run_detailed_stock_analysis(tickers):
+    ranked_stocks = []
+    failed_tickers = []
+    for i, ticker in enumerate(tickers):
+        log_message(f"Processing {i + 1}/{len(tickers)}: {ticker}")
+        stock_data, error = get_stock_data(ticker)
+        if error or not stock_data:
+            log_message(f"Error analyzing {ticker}: {error}")
+            failed_tickers.append(ticker)
+            continue
+        ranked_stocks.append(stock_data)
+
+    ranked_stocks.sort(key=lambda row: row.get('day_trading_score', 0), reverse=True)
+    return ranked_stocks, failed_tickers
+
+
 def run_analysis_with_updates(tickers, analysis_id, message_queue):
     """Run stock analysis with progress updates sent to the client using the integrated trading system"""
     try:
@@ -432,26 +476,33 @@ def run_analysis_with_updates(tickers, analysis_id, message_queue):
             "message": f"Starting analysis of {total_tickers} tickers..."
         })
 
-        # Initialize the trading system
-        system = TradingSystem(initial_capital=100000.0)
-
-        # Use the trading system to analyze stocks
         message_queue.put({
             "progress": 10,
-            "message": "Initializing trading system..."
+            "message": "Preparing technical ranking..."
         })
 
-        # Analyze stocks
-        ranked_stocks, failed_tickers = system.analyze_stocks(tickers, use_ml=False)
+        fast_rank_min_tickers = int(os.getenv("TRADESMART_FAST_RANK_MIN_TICKERS", "8"))
+        if total_tickers >= fast_rank_min_tickers:
+            message_queue.put({
+                "progress": 20,
+                "message": "Running fast bulk technical ranking..."
+            })
+            ranked_stocks, failed_tickers = rank_stocks_fast(tickers)
+            if not ranked_stocks:
+                message_queue.put({
+                    "progress": 25,
+                    "message": "Fast ranking returned no rows; falling back to detailed analysis..."
+                })
+                ranked_stocks, failed_tickers = _run_detailed_stock_analysis(tickers)
+        else:
+            ranked_stocks, failed_tickers = _run_detailed_stock_analysis(tickers)
 
         # Generate watchlist
         if ranked_stocks:
             message_queue.put({
                 "progress": 80,
-                "message": "Generating watchlist..."
+                "message": "Preparing ranked results..."
             })
-
-            system.generate_watchlist(ranked_stocks)
 
             # Create session for data storage
             session_id = datetime.now().strftime('%Y%m%d%H%M%S')
@@ -899,6 +950,153 @@ def api_stock_detail(ticker):
 # Financials don't change intraday so a 1-hour TTL is plenty.
 _financials_cache = {}
 _FINANCIALS_TTL_SECONDS = 3600
+_equity_research_cache = {}
+_EQUITY_RESEARCH_TTL_SECONDS = 1800
+
+
+def _yf_records(value, limit=100):
+    """Convert yfinance frames, series, lists and dicts into JSON-safe rows."""
+    if value is None:
+        return []
+    try:
+        if isinstance(value, pd.DataFrame):
+            if value.empty:
+                return []
+            frame = value.reset_index()
+            return _sanitize(frame.head(limit).to_dict(orient='records'))
+        if isinstance(value, pd.Series):
+            if value.empty:
+                return []
+            frame = value.rename('value').reset_index()
+            return _sanitize(frame.head(limit).to_dict(orient='records'))
+    except Exception:
+        pass
+    if isinstance(value, list):
+        return _sanitize(value[:limit])
+    if isinstance(value, dict):
+        return _sanitize(value)
+    return _sanitize(value)
+
+
+def _yf_call(ticker_obj, method_name, default=None, **kwargs):
+    try:
+        method = getattr(ticker_obj, method_name)
+        return method(**kwargs) if callable(method) else method
+    except Exception:
+        return default
+
+
+def _research_profile(info):
+    keys = (
+        'symbol', 'shortName', 'longName', 'longBusinessSummary', 'website', 'city', 'state', 'country',
+        'sector', 'industry', 'fullTimeEmployees', 'exchange', 'currency', 'quoteType', 'marketCap',
+        'enterpriseValue', 'sharesOutstanding', 'floatShares', 'previousClose', 'open', 'dayLow', 'dayHigh',
+        'fiftyTwoWeekLow', 'fiftyTwoWeekHigh', 'volume', 'averageVolume', 'bid', 'ask', 'beta',
+        'trailingPE', 'forwardPE', 'priceToBook', 'priceToSalesTrailing12Months', 'enterpriseToRevenue',
+        'enterpriseToEbitda', 'pegRatio', 'trailingEps', 'forwardEps', 'bookValue', 'totalRevenue',
+        'grossProfits', 'ebitda', 'netIncomeToCommon', 'totalCash', 'totalDebt', 'freeCashflow',
+        'operatingCashflow', 'dividendRate', 'dividendYield', 'payoutRatio', 'returnOnAssets',
+        'returnOnEquity', 'grossMargins', 'operatingMargins', 'profitMargins', 'debtToEquity',
+        'heldPercentInsiders', 'heldPercentInstitutions', 'auditRisk', 'boardRisk', 'compensationRisk',
+        'shareHolderRightsRisk', 'overallRisk', 'governanceEpochDate',
+    )
+    return _sanitize({key: info.get(key) for key in keys})
+
+
+def _peer_symbols(sector, ticker):
+    mapping = {
+        'Technology': ['AAPL', 'MSFT', 'GOOGL', 'META', 'NVDA'],
+        'Consumer Cyclical': ['AMZN', 'TSLA', 'HD', 'MCD', 'NKE'],
+        'Financial Services': ['JPM', 'BAC', 'WFC', 'C', 'GS'],
+        'Healthcare': ['LLY', 'JNJ', 'UNH', 'MRK', 'ABBV'],
+        'Industrials': ['GE', 'CAT', 'RTX', 'HON', 'UNP'],
+        'Energy': ['XOM', 'CVX', 'COP', 'SLB', 'EOG'],
+        'Consumer Defensive': ['WMT', 'COST', 'PG', 'KO', 'PEP'],
+        'Communication Services': ['GOOGL', 'META', 'NFLX', 'DIS', 'TMUS'],
+        'Basic Materials': ['LIN', 'BHP', 'RIO', 'FCX', 'NEM'],
+        'Real Estate': ['PLD', 'AMT', 'EQIX', 'WELL', 'SPG'],
+        'Utilities': ['NEE', 'SO', 'DUK', 'CEG', 'AEP'],
+    }
+    symbols = mapping.get(sector, ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META'])
+    return [symbol for symbol in symbols if symbol.upper() != ticker.upper()][:5]
+
+
+@app.route('/api/equity_research/<ticker>')
+def api_equity_research(ticker):
+    """Lazy Bloomberg-style equity research datasets backed by yfinance."""
+    section = request.args.get('section', 'profile').lower()
+    allowed = {'profile', 'estimates', 'valuation', 'ownership', 'research'}
+    if section not in allowed:
+        return jsonify({'error': f"section must be one of {', '.join(sorted(allowed))}"}), 400
+
+    symbol = ticker.upper()
+    cache_key = (symbol, section)
+    cached = _equity_research_cache.get(cache_key)
+    now = time.time()
+    if cached and now - cached[0] < _EQUITY_RESEARCH_TTL_SECONDS:
+        return jsonify(cached[1])
+
+    try:
+        import yfinance as yf
+        ticker_obj = yf.Ticker(symbol, session=get_yf_session())
+        info = _yf_call(ticker_obj, 'get_info', {}) or {}
+        payload = {
+            'ticker': symbol,
+            'section': section,
+            'as_of': datetime.now().isoformat(),
+            'profile': _research_profile(info),
+        }
+
+        if section == 'profile':
+            payload.update({
+                'calendar': _yf_records(_yf_call(ticker_obj, 'get_calendar', {})),
+                'actions': _yf_records(_yf_call(ticker_obj, 'get_actions', pd.DataFrame()), 80),
+                'dividends': _yf_records(_yf_call(ticker_obj, 'get_dividends', pd.Series(dtype=float)), 80),
+                'splits': _yf_records(_yf_call(ticker_obj, 'get_splits', pd.Series(dtype=float)), 40),
+                'sustainability': _yf_records(_yf_call(ticker_obj, 'get_sustainability', pd.DataFrame()), 80),
+            })
+        elif section == 'estimates':
+            payload.update({
+                'recommendations': _yf_records(_yf_call(ticker_obj, 'get_recommendations', pd.DataFrame()), 100),
+                'recommendations_summary': _yf_records(_yf_call(ticker_obj, 'get_recommendations_summary', pd.DataFrame()), 30),
+                'analyst_price_targets': _yf_records(_yf_call(ticker_obj, 'get_analyst_price_targets', {})),
+                'earnings_estimate': _yf_records(_yf_call(ticker_obj, 'get_earnings_estimate', pd.DataFrame()), 30),
+                'revenue_estimate': _yf_records(_yf_call(ticker_obj, 'get_revenue_estimate', pd.DataFrame()), 30),
+                'earnings_history': _yf_records(_yf_call(ticker_obj, 'get_earnings_history', pd.DataFrame()), 40),
+                'growth_estimates': _yf_records(_yf_call(ticker_obj, 'get_growth_estimates', pd.DataFrame()), 30),
+                'earnings_dates': _yf_records(_yf_call(ticker_obj, 'get_earnings_dates', pd.DataFrame(), limit=24), 24),
+            })
+        elif section == 'valuation':
+            peers = []
+            for peer_symbol in _peer_symbols(info.get('sector'), symbol):
+                peer_obj = yf.Ticker(peer_symbol, session=get_yf_session())
+                peer_info = _yf_call(peer_obj, 'get_info', {}) or {}
+                peers.append(_research_profile(peer_info))
+            payload['peers'] = peers
+        elif section == 'ownership':
+            payload.update({
+                'major_holders': _yf_records(_yf_call(ticker_obj, 'get_major_holders', pd.DataFrame()), 30),
+                'institutional_holders': _yf_records(_yf_call(ticker_obj, 'get_institutional_holders', pd.DataFrame()), 60),
+                'mutualfund_holders': _yf_records(_yf_call(ticker_obj, 'get_mutualfund_holders', pd.DataFrame()), 60),
+                'insider_roster': _yf_records(_yf_call(ticker_obj, 'get_insider_roster_holders', pd.DataFrame()), 60),
+                'insider_transactions': _yf_records(_yf_call(ticker_obj, 'get_insider_transactions', pd.DataFrame()), 80),
+                'insider_purchases': _yf_records(_yf_call(ticker_obj, 'get_insider_purchases', pd.DataFrame()), 40),
+            })
+        elif section == 'research':
+            payload.update({
+                'news': _yf_records(_yf_call(ticker_obj, 'get_news', [], count=40, tab='news'), 40),
+                'press_releases': _yf_records(_yf_call(ticker_obj, 'get_news', [], count=30, tab='press releases'), 30),
+                'sec_filings': _yf_records(_yf_call(ticker_obj, 'get_sec_filings', []), 80),
+                'upgrades_downgrades': _yf_records(_yf_call(ticker_obj, 'get_upgrades_downgrades', pd.DataFrame()), 80),
+                'calendar': _yf_records(_yf_call(ticker_obj, 'get_calendar', {})),
+                'actions': _yf_records(_yf_call(ticker_obj, 'get_actions', pd.DataFrame()), 80),
+            })
+
+        payload = _sanitize(payload)
+        _equity_research_cache[cache_key] = (now, payload)
+        return jsonify(payload)
+    except Exception as exc:
+        return jsonify({'error': f'Failed to fetch equity research for {symbol}: {exc}'}), 500
 
 
 def _df_to_periods(df):

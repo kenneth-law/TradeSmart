@@ -22,20 +22,21 @@ const OVERLAY_COLORS = ['#E89B2C', '#3B82F6', '#A78BFA', '#14B8A6', '#F472B6', '
 interface PriceChartProps {
   ticker: string
   overlayPeers?: string[]
+  initialChartType?: ChartType
 }
 
 function isFiniteNumber(v: unknown): v is number {
   return typeof v === 'number' && Number.isFinite(v)
 }
 
-export default function PriceChart({ ticker, overlayPeers = [] }: PriceChartProps) {
+export default function PriceChart({ ticker, overlayPeers = [], initialChartType = 'candlestick' }: PriceChartProps) {
   const containerRef       = useRef<HTMLDivElement>(null)
   const chartRef           = useRef<IChartApi | null>(null)
   const candleSeriesRef    = useRef<any>(null)
   const volumeSeriesRef    = useRef<any>(null)
   const liveCandleRef      = useRef<{ time: number; open: number; high: number; low: number; close: number } | null>(null)
   const latestSeriesTimeRef = useRef<number | null>(null)
-  const [chartType, setChartType]           = useState<ChartType>('candlestick')
+  const [chartType, setChartType]           = useState<ChartType>(initialChartType)
   const [days, setDays]                     = useState(90)
   const [intradayScale, setIntradayScale]   = useState<IntradayScale>(5)
   const [selectedOverlays, setSelectedOverlays] = useState<string[]>([])

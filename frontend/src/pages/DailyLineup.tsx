@@ -2,14 +2,15 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Cell, ResponsiveContainer, ReferenceLine } from 'recharts'
-import { RefreshCw, Settings, Sparkles } from 'lucide-react'
+import { MessageCircle, RefreshCw, Settings, Sparkles } from 'lucide-react'
 import { api } from '../lib/api'
 import { OpenAIError, streamDailyLineup, type Citation } from '../lib/openai'
 import { getWatchlist } from '../lib/userPrefs'
-import { useAppStore } from '../store/useAppStore'
+import { isReasoningModel, useAppStore } from '../store/useAppStore'
 import MetricTile from '../components/data/MetricTile'
 import TickerSearchChart from '../components/charts/TickerSearchChart'
 import Markdown from '../components/strategy/Markdown'
+import DailyLineupChat from '../components/strategy/DailyLineupChat'
 
 type Period = '1d' | '1w' | '1m'
 
@@ -31,6 +32,7 @@ export default function DailyLineup() {
   const [aiError, setAiError] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
   const [isSearching, setIsSearching] = useState(false)
+  const [chatOpen, setChatOpen] = useState(false)
   const autoStarted = useRef(false)
   const abortRef = useRef<AbortController | null>(null)
 
@@ -72,6 +74,7 @@ export default function DailyLineup() {
     const controller = new AbortController()
     abortRef.current = controller
     setLineup('')
+    setChatOpen(false)
     setCitations([])
     setAiError('')
     setIsSearching(false)
@@ -84,7 +87,7 @@ export default function DailyLineup() {
         positions,
         marketOverview: data,
         signal: controller.signal,
-        temperature: settings.openaiTemperature,
+        temperature: isReasoningModel(settings.openaiModel) ? undefined : settings.openaiTemperature,
         extraSystemPrompt: settings.openaiSystemPrompt,
         onSearchStart: () => setIsSearching(true),
         onCitation: citation => setCitations(prev => (
@@ -294,7 +297,7 @@ export default function DailyLineup() {
           </div>
         </div>
 
-        <aside className="w-[26rem] shrink-0 border-l border-border bg-s1/70 overflow-y-auto">
+        <aside className="flex w-[26rem] min-h-0 shrink-0 flex-col overflow-hidden border-l border-border bg-s1/70">
           <div className="flex items-center gap-2 border-b border-border px-4 py-3">
             <Sparkles size={15} className="text-accent" aria-hidden="true" />
             <div className="min-w-0">
@@ -305,9 +308,18 @@ export default function DailyLineup() {
             </div>
             <button
               type="button"
+              onClick={() => setChatOpen(true)}
+              disabled={!lineup || isGenerating || chatOpen}
+              className="ml-auto flex h-8 items-center gap-1 border border-border bg-s2 px-2 text-2xs text-muted hover:border-border-strong hover:text-text disabled:opacity-40"
+            >
+              <MessageCircle size={13} aria-hidden="true" />
+              Chat
+            </button>
+            <button
+              type="button"
               onClick={() => void generateLineup()}
               disabled={!openaiKey || isGenerating}
-              className="ml-auto flex h-8 items-center gap-1 border border-border bg-s2 px-2 text-2xs text-muted hover:border-border-strong hover:text-text disabled:opacity-40"
+              className="flex h-8 items-center gap-1 border border-border bg-s2 px-2 text-2xs text-muted hover:border-border-strong hover:text-text disabled:opacity-40"
             >
               <RefreshCw size={13} className={isGenerating ? 'animate-spin' : ''} aria-hidden="true" />
               Run
@@ -333,7 +345,8 @@ export default function DailyLineup() {
               </div>
             </div>
           ) : (
-            <div className="p-4">
+            <>
+            <div className={`${chatOpen ? 'shrink-0 basis-1/2' : 'flex-1'} min-h-0 overflow-y-auto p-4`}>
               <div className="mb-3 flex flex-wrap gap-2">
                 {focusTickers.slice(0, 10).map(ticker => (
                   <Link
@@ -383,6 +396,16 @@ export default function DailyLineup() {
                 </div>
               )}
             </div>
+            {chatOpen && lineup && (
+              <DailyLineupChat
+                lineup={lineup}
+                watchlist={watchlist}
+                positions={positions}
+                marketOverview={data}
+                onClose={() => setChatOpen(false)}
+              />
+            )}
+            </>
           )}
         </aside>
       </div>

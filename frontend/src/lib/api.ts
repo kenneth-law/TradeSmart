@@ -38,6 +38,9 @@ export const api = {
   getFinancials: (ticker: string, period: 'annual' | 'quarterly') =>
     get<import('../types').FinancialsResponse>(`/api/financials/${ticker}?period=${period}`),
 
+  getEquityResearch: (ticker: string, section: import('../types').EquityResearchSection) =>
+    get<import('../types').EquityResearchResponse>(`/api/equity_research/${ticker}?section=${section}`),
+
   getMarketOverview: () =>
     get<import('../types').MarketOverview>('/api/market_overview'),
 

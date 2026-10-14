@@ -26,12 +26,14 @@ from modules.technical_analysis import get_stock_data
 from modules.visualization import prepare_price_chart_data, get_detailed_stock_metrics
 from modules.market_data import get_sector_performance
 from modules.alpaca_live_data import alpaca_live_data
+from modules.prodia_images import prodia_images
 
 from requests.cookies import create_cookie
 import yfinance.data as _data
 
 
 app = Flask(__name__)
+app.register_blueprint(prodia_images)
 
 
 def _sanitize(obj):

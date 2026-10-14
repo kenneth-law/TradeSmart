@@ -11,6 +11,7 @@ import {
   X,
 } from 'lucide-react'
 import { isReasoningModel, maxOutputTokensFor, useAppStore } from '../store/useAppStore'
+import { generateProdiaImage } from '../lib/prodia'
 import vibeOsLogo from '../assets/generated/vibeos-logo.png'
 import xpAiWallpaper from '../assets/generated/xp-ai-wallpaper.png'
 
@@ -185,7 +186,6 @@ const MAX_SAVED_PROGRAMS = 200
 const VIBEOS_CORE_EVENT = 'vibeos-core-update'
 const VIBEOS_APPS_PATH = 'C:\\ProgramData\\VibeOS\\Applications'
 const DESKTOP_WALLPAPER_STORAGE = 'system_desktop_wallpaper_xp_v2'
-const PRODIA_IMAGE_URL = 'https://inference.prodia.com/v2/job'
 type VibeImageCategory = 'nature' | 'city' | 'technology' | 'food' | 'still_life' | 'abstract' | 'wildlife'
 const HAUNTED_WALLPAPER_CACHE_ID = 'wallpaper_analog_signal_current'
 
@@ -1007,30 +1007,13 @@ async function fetchProdiaGeneratedImage(prodiaKey: string, category: VibeImageC
   if (!prodiaKey) return null
 
   try {
-    const response = await fetch(PRODIA_IMAGE_URL, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${prodiaKey}`,
-        Accept: 'image/jpeg;quality=82;progressive=1',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        type: 'inference.flux-fast.schnell.txt2img.v2',
-        config: {
-          prompt,
-          steps: 4,
-          width: 768,
-          height: 512,
-        },
-      }),
-      signal,
-    })
-    if (!response.ok) return fallbackBrowserImageDataUrl(category, title)
-    const dataUrl = await blobToDataUrl(await response.blob())
+    const image = await generateProdiaImage(prodiaKey, { prompt, steps: 4, width: 768, height: 512 }, 'image/jpeg;quality=82;progressive=1', signal)
+    const dataUrl = await blobToDataUrl(image)
     const now = new Date().toISOString()
     void saveCachedGeneratedImage({ id, prompt, category, title, dataUrl, createdAt: now, updatedAt: now })
     return dataUrl
-  } catch {
+  } catch (error) {
+    if (!signal?.aborted) console.warn('VibeOS image generation failed:', error)
     return fallbackBrowserImageDataUrl(category, title)
   }
 }
@@ -1048,43 +1031,20 @@ function hauntedWallpaperPrompt(seed: number) {
 }
 
 async function fetchHauntedWallpaper(prodiaKey: string, seed = Date.now(), signal?: AbortSignal) {
-  if (!prodiaKey) return null
   const prompt = hauntedWallpaperPrompt(seed)
-  try {
-    const response = await fetch(PRODIA_IMAGE_URL, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${prodiaKey}`,
-        Accept: 'image/jpeg;quality=84;progressive=1',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        type: 'inference.flux-fast.schnell.txt2img.v2',
-        config: {
-          prompt,
-          steps: 4,
-          width: 1365,
-          height: 768,
-        },
-      }),
-      signal,
-    })
-    if (!response.ok) return null
-    const dataUrl = await blobToDataUrl(await response.blob())
-    const now = new Date().toISOString()
-    void saveCachedGeneratedImage({
-      id: HAUNTED_WALLPAPER_CACHE_ID,
-      prompt,
-      category: 'nature',
-      title: 'Desktop background retune',
-      dataUrl,
-      createdAt: now,
-      updatedAt: now,
-    })
-    return dataUrl
-  } catch {
-    return null
-  }
+  const image = await generateProdiaImage(prodiaKey, { prompt, steps: 4, width: 1365, height: 768 }, 'image/jpeg;quality=84;progressive=1', signal)
+  const dataUrl = await blobToDataUrl(image)
+  const now = new Date().toISOString()
+  void saveCachedGeneratedImage({
+    id: HAUNTED_WALLPAPER_CACHE_ID,
+    prompt,
+    category: 'nature',
+    title: 'Desktop background retune',
+    dataUrl,
+    createdAt: now,
+    updatedAt: now,
+  })
+  return dataUrl
 }
 
 function customWallpaperPrompt(subject: string) {
@@ -1102,27 +1062,9 @@ function customWallpaperPrompt(subject: string) {
 // HAUNTED_WALLPAPER_CACHE_ID (that slot belongs to the haunted retune image and is
 // reloaded on mount); for v1 the custom image is in-memory only, like the retune.
 async function fetchCustomWallpaper(prodiaKey: string, subject: string, seed = Date.now(), signal?: AbortSignal) {
-  if (!prodiaKey) return null
   const prompt = customWallpaperPrompt(subject)
-  try {
-    const response = await fetch(PRODIA_IMAGE_URL, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${prodiaKey}`,
-        Accept: 'image/jpeg;quality=84;progressive=1',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        type: 'inference.flux-fast.schnell.txt2img.v2',
-        config: { prompt, seed, steps: 4, width: 1365, height: 768 },
-      }),
-      signal,
-    })
-    if (!response.ok) return null
-    return await blobToDataUrl(await response.blob())
-  } catch {
-    return null
-  }
+  const image = await generateProdiaImage(prodiaKey, { prompt, seed, steps: 4, width: 1365, height: 768 }, 'image/jpeg;quality=84;progressive=1', signal)
+  return await blobToDataUrl(image)
 }
 
 function appIconRuntimeKey(app: Pick<VibeApp, 'prompt' | 'version' | 'kind'>) {
@@ -1270,31 +1212,14 @@ async function fetchProdiaGeneratedAppIcon(prodiaKey: string, app: VibeApp, sign
   if (!prodiaKey) return fallbackAppIconDataUrl(app)
 
   try {
-    const response = await fetch(PRODIA_IMAGE_URL, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${prodiaKey}`,
-        Accept: 'image/jpeg;quality=90',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        type: 'inference.flux-fast.schnell.txt2img.v2',
-        config: {
-          prompt,
-          steps: 4,
-          width: 512,
-          height: 512,
-        },
-      }),
-      signal,
-    })
-    if (!response.ok) return fallbackAppIconDataUrl(app)
-    const rawDataUrl = await blobToDataUrl(await response.blob())
+    const image = await generateProdiaImage(prodiaKey, { prompt, steps: 4, width: 512, height: 512 }, 'image/jpeg;quality=90', signal)
+    const rawDataUrl = await blobToDataUrl(image)
     const dataUrl = await makeTransparentIconPng(rawDataUrl)
     const now = new Date().toISOString()
     void saveCachedGeneratedImage({ id, prompt, category: 'technology', title: app.title, dataUrl, createdAt: now, updatedAt: now })
     return dataUrl
-  } catch {
+  } catch (error) {
+    if (!signal?.aborted) console.warn('VibeOS icon generation failed:', error)
     return fallbackAppIconDataUrl(app)
   }
 }
@@ -4101,6 +4026,7 @@ export default function VibeOS() {
   const [desktopWallpaper, setDesktopWallpaper] = useState<DesktopWallpaper>(() => loadDesktopWallpaper())
   const [hauntedWallpaperUrl, setHauntedWallpaperUrl] = useState<string | null>(null)
   const [wallpaperRetuning, setWallpaperRetuning] = useState(false)
+  const [wallpaperError, setWallpaperError] = useState<string | null>(null)
   const [customWallpaperText, setCustomWallpaperText] = useState('')
   const [generatedWallpaperLabel, setGeneratedWallpaperLabel] = useState<string | null>(null)
   const [haunt, setHaunt] = useState<HauntState>({
@@ -4771,6 +4697,7 @@ export default function VibeOS() {
     wallpaperControllerRef.current?.abort()
     const controller = new AbortController()
     wallpaperControllerRef.current = controller
+    setWallpaperError(null)
     setWallpaperRetuning(true)
     setHaunt({
       signal: 'retuning',
@@ -4786,6 +4713,10 @@ export default function VibeOS() {
       setHauntedWallpaperUrl(url)
       setGeneratedWallpaperLabel(null)
       applyWallpaper('rolling-hills')
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        setWallpaperError(error instanceof Error ? error.message : 'Image generation failed. Please try again.')
+      }
     } finally {
       if (wallpaperControllerRef.current === controller) wallpaperControllerRef.current = null
       setWallpaperRetuning(false)
@@ -4799,6 +4730,7 @@ export default function VibeOS() {
     wallpaperControllerRef.current?.abort()
     const controller = new AbortController()
     wallpaperControllerRef.current = controller
+    setWallpaperError(null)
     setWallpaperRetuning(true)
     try {
       const url = await fetchCustomWallpaper(prodiaKey, subject, Date.now(), controller.signal)
@@ -4806,6 +4738,10 @@ export default function VibeOS() {
       setHauntedWallpaperUrl(url)
       setGeneratedWallpaperLabel(subject.slice(0, 32))
       applyWallpaper('rolling-hills')
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        setWallpaperError(error instanceof Error ? error.message : 'Image generation failed. Please try again.')
+      }
     } finally {
       if (wallpaperControllerRef.current === controller) wallpaperControllerRef.current = null
       setWallpaperRetuning(false)
@@ -5061,6 +4997,9 @@ export default function VibeOS() {
                           {wallpaperRetuning ? 'Retuning...' : 'Retune background'}
                         </button>
                       </div>
+                      {wallpaperError && (
+                        <p role="alert" className="mt-2 text-[11px] text-[#a00000]">{wallpaperError}</p>
+                      )}
                       <div className="mt-3 border border-[#808080] bg-[#ece9d8] p-2 shadow-[inset_1px_1px_0_#fff,inset_-1px_-1px_0_#aaa]">
                         <div className="flex items-center gap-1 font-bold">
                           Background Wizard 95

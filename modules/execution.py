@@ -39,6 +39,13 @@ class OrderSide(Enum):
     BUY = "BUY"
     SELL = "SELL"
 
+class OrderTimeInForce(Enum):
+    """Enum for order time-in-force"""
+    DAY = "DAY"
+    GTC = "GTC"  # Good Till Cancelled
+    IOC = "IOC"  # Immediate or Cancel
+    FOK = "FOK"  # Fill or Kill
+
 class OrderStatus(Enum):
     """Enum for order statuses"""
     PENDING = "PENDING"

@@ -18,7 +18,8 @@ export async function generateProdiaImage(
     body: JSON.stringify({
       api_key: apiKey.trim().replace(/^Bearer\s+/i, ''),
       accept,
-      job: { type: 'inference.flux-fast.schnell.txt2img.v2', config },
+      // The backend chooses the model and handles provider migrations.
+      job: { config },
     }),
     signal,
   })

@@ -8,7 +8,11 @@ from flask import Blueprint, Response, jsonify, request
 
 prodia_images = Blueprint('prodia_images', __name__)
 PRODIA_JOB_URL = 'https://inference.prodia.com/v2/job'
-PRODIA_JOB_TYPE = 'inference.flux-fast.schnell.txt2img.v2'
+# Keep model selection on the server so a provider migration does not depend
+# on users refreshing cached frontend bundles.
+# Schema: https://docs.prodia.com/job-types/inference-flux-2-klein-4b-txt2img-v1/
+PRODIA_JOB_TYPE = 'inference.flux-2.klein.4b.txt2img.v1'
+LEGACY_JOB_TYPE = 'inference.flux-fast.schnell.txt2img.v2'
 
 
 @prodia_images.post('/api/vibeos/images')
@@ -28,22 +32,24 @@ def generate_image():
 
     job = payload.get('job')
     config = job.get('config') if isinstance(job, dict) else None
-    if not isinstance(config, dict) or job.get('type') != PRODIA_JOB_TYPE:
+    if not isinstance(config, dict) or job.get('type') not in (None, PRODIA_JOB_TYPE, LEGACY_JOB_TYPE):
         return jsonify(error='Unsupported Prodia image job.'), 400
     if set(config) - {'prompt', 'width', 'height', 'steps', 'seed'}:
         return jsonify(error='Unsupported image configuration.'), 400
     prompt = config.get('prompt')
-    if not isinstance(prompt, str) or not 3 <= len(prompt) <= 4096:
-        return jsonify(error='Image prompt must contain 3–4096 characters.'), 400
+    if not isinstance(prompt, str) or not 1 <= len(prompt) <= 32768:
+        return jsonify(error='Image prompt must contain 1–32768 characters.'), 400
     for field in ('width', 'height', 'steps', 'seed'):
         value = config.get(field)
         if field in config and (isinstance(value, bool) or not isinstance(value, int)):
             return jsonify(error=f'{field} must be an integer.'), 400
     for field in ('width', 'height'):
-        if field in config and not 256 <= config[field] <= 1920:
-            return jsonify(error=f'{field} must be between 256 and 1920.'), 400
+        if field in config and not 512 <= config[field] <= 2048:
+            return jsonify(error=f'{field} must be between 512 and 2048.'), 400
     if 'steps' in config and not 1 <= config['steps'] <= 4:
         return jsonify(error='steps must be between 1 and 4.'), 400
+    if 'seed' in config and not 0 <= config['seed'] <= 2**64 - 1:
+        return jsonify(error='seed must be an unsigned 64-bit integer.'), 400
     accept = payload.get('accept', 'image/jpeg')
     if accept not in ('image/jpeg', 'image/jpeg;quality=82;progressive=1',
                       'image/jpeg;quality=84;progressive=1', 'image/jpeg;quality=90'):

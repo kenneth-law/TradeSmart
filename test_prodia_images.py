@@ -50,8 +50,10 @@ class ProdiaImagesTest(unittest.TestCase):
 
     @patch('modules.prodia_images.requests.post')
     def test_invalid_job_does_not_call_upstream(self, post):
-        for config in [{'prompt': 'x'}, {'prompt': 'valid', 'width': 1921},
+        for config in [{'prompt': ''}, {'prompt': 'valid', 'width': 2049},
+                       {'prompt': 'valid', 'height': 511},
                        {'prompt': 'valid', 'steps': 5}, {'prompt': 'valid', 'seed': True},
+                       {'prompt': 'valid', 'seed': -1}, {'prompt': 'valid', 'seed': 2**64},
                        {'prompt': 'valid', 'url': 'https://example.com'}]:
             with self.subTest(config=config):
                 self.payload['job']['config'] = config
@@ -59,6 +61,35 @@ class ProdiaImagesTest(unittest.TestCase):
         self.payload['job']['type'] = 'workflow.serial.v1'
         self.assertEqual(self.client.post('/api/vibeos/images', json=self.payload).status_code, 400)
         post.assert_not_called()
+
+    @patch('modules.prodia_images.requests.post')
+    def test_cached_frontend_requests_use_replacement_model(self, post):
+        post.return_value = Mock(status_code=200, content=b'jpeg-bytes',
+                                 headers={'Content-Type': 'image/jpeg'})
+        # Every VibeOS image size must work, even with the old frontend bundle.
+        for width, height in [(768, 512), (512, 512), (1365, 768)]:
+            for job_type in [None, 'inference.flux-fast.schnell.txt2img.v2',
+                             'inference.flux-2.klein.4b.txt2img.v1']:
+                with self.subTest(size=(width, height), job_type=job_type):
+                    self.payload['job'] = {'config': {'prompt': 'A meadow', 'width': width,
+                                                     'height': height, 'steps': 4, 'seed': 123}}
+                    if job_type is not None:
+                        self.payload['job']['type'] = job_type
+                    response = self.client.post('/api/vibeos/images', json=self.payload)
+                    self.assertEqual(response.status_code, 200)
+                    sent_job = post.call_args.kwargs['json']
+                    self.assertEqual(sent_job['type'], 'inference.flux-2.klein.4b.txt2img.v1')
+                    self.assertEqual(sent_job['config'], self.payload['job']['config'])
+
+    @patch('modules.prodia_images.requests.post')
+    def test_replacement_model_limits(self, post):
+        post.return_value = Mock(status_code=200, content=b'jpeg-bytes',
+                                 headers={'Content-Type': 'image/jpeg'})
+        self.payload['job']['config'] = {'prompt': 'x' * 32768, 'width': 2048,
+                                        'height': 512, 'seed': 2**64 - 1}
+        self.assertEqual(self.client.post('/api/vibeos/images', json=self.payload).status_code, 200)
+        self.payload['job']['config']['prompt'] += 'x'
+        self.assertEqual(self.client.post('/api/vibeos/images', json=self.payload).status_code, 400)
 
     @patch('modules.prodia_images.requests.post')
     def test_upstream_error_status_and_retry_header_preserved(self, post):

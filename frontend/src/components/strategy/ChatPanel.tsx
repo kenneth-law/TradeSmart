@@ -272,7 +272,7 @@ export default function ChatPanel({ stock, onClose }: Props) {
             placeholder={useWeb ? 'Ask (web search on)...' : 'Ask about this stock...'}
             rows={2}
             disabled={streaming}
-            className="flex-1 min-w-0 resize-none border border-border bg-bg/80 px-2 py-1.5 text-2xs text-text outline-none focus-visible:border-accent placeholder:text-dim disabled:opacity-60"
+            className="flex-1 min-w-0 resize-none border border-border bg-bg px-2 py-1.5 text-2xs text-text outline-none focus-visible:border-accent placeholder:text-dim disabled:opacity-60"
           />
           <button
             type="button"

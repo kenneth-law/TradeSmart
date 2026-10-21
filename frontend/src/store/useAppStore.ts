@@ -5,10 +5,11 @@ export type ThemeMode = 'dark' | 'light'
 export type FontFamily = 'lato' | 'ibm-plex' | 'inter' | 'system' | 'mono'
 export type AccentColor = 'amber' | 'blue' | 'green' | 'rose' | 'custom'
 export type InterfaceDensity = 'standard' | 'compact'
-export type OpenAIModel = 'gpt-4.1-mini' | 'gpt-4.1' | 'gpt-5.5'
+export type OpenAIModel = 'gpt-5.5' | 'gpt-5.4-mini' | 'gpt-5.4-nano'
 export type PaperInstrumentKind = 'stock' | 'option'
 export type PaperOptionType = 'call' | 'put'
 export type PaperOrderAction = 'BUY' | 'SELL' | 'BUY_OPTION' | 'SELL_OPTION'
+export type PaperExecutionAlgo = 'smart' | 'pov' | 'twap' | 'vwap' | 'arrival' | 'open' | 'close' | 'iceberg'
 export type FinancialsDepth = 'concise' | 'full'
 export type BrokerPreset = 'ibkr' | 'retail' | 'conservative' | 'custom'
 
@@ -68,6 +69,11 @@ export interface PaperOrder {
   optionType?: PaperOptionType
   strike?: number
   expiry?: string
+  executionAlgo?: PaperExecutionAlgo
+  orderType?: 'market' | 'limit' | 'stop' | 'stop-limit'
+  timeInForce?: 'DAY' | 'IOC' | 'FOK'
+  latencyMs?: number
+  sliceCount?: number
 }
 
 export interface PaperAccount {
@@ -81,19 +87,21 @@ export interface PaperAccount {
 export type PaperTradeResult = { ok: true } | { ok: false; error: string }
 
 export function isReasoningModel(model: string): boolean {
-  return model === 'gpt-5.5'
+  return model === 'gpt-5.5' || model === 'gpt-5.4-mini' || model === 'gpt-5.4-nano'
 }
 
 export const OPENAI_MODEL_OPTIONS: Array<{ value: OpenAIModel; label: string }> = [
-  { value: 'gpt-4.1-mini', label: 'gpt-4.1-mini (fast, cheap)' },
-  { value: 'gpt-4.1', label: 'gpt-4.1 (stronger)' },
-  { value: 'gpt-5.5', label: 'gpt-5.5 (reasoning)' },
+  { value: 'gpt-5.5', label: 'gpt-5.5 (best quality · $5/$30 MTok)' },
+  { value: 'gpt-5.4-mini', label: 'gpt-5.4-mini (balanced · $0.75/$4.50 MTok)' },
+  { value: 'gpt-5.4-nano', label: 'gpt-5.4-nano (fast value · $0.20/$1.25 MTok)' },
 ]
 
 const LEGACY_MODEL_MIGRATION: Record<string, OpenAIModel> = {
-  'gpt-4o-mini': 'gpt-4.1-mini',
-  'gpt-4o': 'gpt-4.1',
-  'gpt-4-turbo': 'gpt-4.1',
+  'gpt-4o-mini': 'gpt-5.4-mini',
+  'gpt-4.1-mini': 'gpt-5.4-mini',
+  'gpt-4o': 'gpt-5.5',
+  'gpt-4.1': 'gpt-5.5',
+  'gpt-4-turbo': 'gpt-5.5',
 }
 
 export const FONT_OPTIONS: Array<{ value: FontFamily; label: string; css: string }> = [
@@ -120,7 +128,7 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
   reduceMotion: false,
   density: 'standard',
   marketRefreshSeconds: 300,
-  openaiModel: 'gpt-4.1-mini',
+  openaiModel: 'gpt-5.4-mini',
   briefWebSearch: true,
   fastPaperRefresh: true,
   openaiTemperature: 0.4,
@@ -318,6 +326,17 @@ function normalizePaperOrder(value: unknown): PaperOrder | null {
     optionType: raw.optionType === 'put' ? 'put' : raw.optionType === 'call' ? 'call' : undefined,
     strike: Number.isFinite(Number(raw.strike)) ? Number(raw.strike) : undefined,
     expiry: typeof raw.expiry === 'string' ? raw.expiry : undefined,
+    executionAlgo: ['smart', 'pov', 'twap', 'vwap', 'arrival', 'open', 'close', 'iceberg'].includes(String(raw.executionAlgo))
+      ? raw.executionAlgo as PaperExecutionAlgo
+      : undefined,
+    orderType: ['market', 'limit', 'stop', 'stop-limit'].includes(String(raw.orderType))
+      ? raw.orderType as PaperOrder['orderType']
+      : undefined,
+    timeInForce: ['DAY', 'IOC', 'FOK'].includes(String(raw.timeInForce))
+      ? raw.timeInForce as PaperOrder['timeInForce']
+      : undefined,
+    latencyMs: Number.isFinite(Number(raw.latencyMs)) ? Math.max(0, Number(raw.latencyMs)) : undefined,
+    sliceCount: Number.isFinite(Number(raw.sliceCount)) ? Math.max(1, Math.floor(Number(raw.sliceCount))) : undefined,
   }
 }
 
@@ -468,8 +487,16 @@ interface AppStore {
     sector?: string
     quantity: number
     price: number
+    fillPrice?: number
+    execution?: Pick<PaperOrder, 'executionAlgo' | 'orderType' | 'timeInForce' | 'latencyMs' | 'sliceCount'>
   }) => PaperTradeResult
-  sellPaperStock: (order: { ticker: string; quantity: number; price: number }) => PaperTradeResult
+  sellPaperStock: (order: {
+    ticker: string
+    quantity: number
+    price: number
+    fillPrice?: number
+    execution?: Pick<PaperOrder, 'executionAlgo' | 'orderType' | 'timeInForce' | 'latencyMs' | 'sliceCount'>
+  }) => PaperTradeResult
   buyPaperOption: (order: {
     ticker: string
     companyName?: string
@@ -542,14 +569,22 @@ export const useAppStore = create<AppStore>((set) => ({
     persistPaperAccount(account)
     return { paperAccount: account }
   }),
-  buyPaperStock: ({ ticker, companyName, sector, quantity, price }) => {
+  buyPaperStock: ({ ticker, companyName, sector, quantity, price, fillPrice, execution }) => {
     const t = ticker.trim().toUpperCase()
     const qty = Math.floor(Number(quantity))
     const px = Number(price)
     if (!t || qty <= 0 || !Number.isFinite(px) || px <= 0) return { ok: false, error: 'Enter a valid stock order.' }
     let result: PaperTradeResult = { ok: true }
     set((state) => {
-      const fill = stockFill(state.paperAccount.costModel, 'buy', qty, px)
+      const simulatedPx = Number(fillPrice)
+      const fill = Number.isFinite(simulatedPx) && simulatedPx > 0
+        ? {
+            fillPrice: simulatedPx,
+            notional: simulatedPx * qty,
+            fee: state.paperAccount.costModel.stockPerShare * qty,
+            slippage: (simulatedPx - px) * qty,
+          }
+        : stockFill(state.paperAccount.costModel, 'buy', qty, px)
       const totalCost = fill.notional + fill.fee
       if (totalCost > state.paperAccount.cash) {
         result = { ok: false, error: 'Insufficient paper cash.' }
@@ -595,6 +630,7 @@ export const useAppStore = create<AppStore>((set) => ({
           notional: fill.notional,
           fee: fill.fee,
           slippage: fill.slippage,
+          ...execution,
         }, ...state.paperAccount.orders].slice(0, 200),
       }
       persistPaperAccount(account)
@@ -602,7 +638,7 @@ export const useAppStore = create<AppStore>((set) => ({
     })
     return result
   },
-  sellPaperStock: ({ ticker, quantity, price }) => {
+  sellPaperStock: ({ ticker, quantity, price, fillPrice, execution }) => {
     const t = ticker.trim().toUpperCase()
     const qty = Math.floor(Number(quantity))
     const px = Number(price)
@@ -614,7 +650,15 @@ export const useAppStore = create<AppStore>((set) => ({
         result = { ok: false, error: 'Not enough shares to sell.' }
         return state
       }
-      const fill = stockFill(state.paperAccount.costModel, 'sell', qty, px)
+      const simulatedPx = Number(fillPrice)
+      const fill = Number.isFinite(simulatedPx) && simulatedPx > 0
+        ? {
+            fillPrice: simulatedPx,
+            notional: simulatedPx * qty,
+            fee: state.paperAccount.costModel.stockPerShare * qty,
+            slippage: (simulatedPx - px) * qty,
+          }
+        : stockFill(state.paperAccount.costModel, 'sell', qty, px)
       const proceeds = fill.notional - fill.fee
       const realizedPnl = proceeds - (existing.costBasis * qty)
       const positions = state.paperAccount.positions
@@ -636,6 +680,7 @@ export const useAppStore = create<AppStore>((set) => ({
           fee: fill.fee,
           slippage: fill.slippage,
           realizedPnl,
+          ...execution,
         }, ...state.paperAccount.orders].slice(0, 200),
       }
       persistPaperAccount(account)

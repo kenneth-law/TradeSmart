@@ -381,3 +381,164 @@ export interface FinancialsResponse {
   balance_sheet: FinancialsStatement
   cash_flow: FinancialsStatement
 }
+
+export type EquityResearchSection = 'profile' | 'estimates' | 'valuation' | 'ownership' | 'research'
+
+export interface EquityResearchResponse {
+  ticker: string
+  section: EquityResearchSection
+  as_of: string
+  profile: Record<string, unknown>
+  peers?: Array<Record<string, unknown>>
+  calendar?: Record<string, unknown> | Array<Record<string, unknown>>
+  actions?: Array<Record<string, unknown>>
+  dividends?: Array<Record<string, unknown>>
+  splits?: Array<Record<string, unknown>>
+  sustainability?: Array<Record<string, unknown>> | Record<string, unknown>
+  recommendations?: Array<Record<string, unknown>>
+  recommendations_summary?: Array<Record<string, unknown>>
+  analyst_price_targets?: Record<string, unknown> | Array<Record<string, unknown>>
+  earnings_estimate?: Array<Record<string, unknown>>
+  revenue_estimate?: Array<Record<string, unknown>>
+  earnings_history?: Array<Record<string, unknown>>
+  growth_estimates?: Array<Record<string, unknown>>
+  earnings_dates?: Array<Record<string, unknown>>
+  major_holders?: Array<Record<string, unknown>>
+  institutional_holders?: Array<Record<string, unknown>>
+  mutualfund_holders?: Array<Record<string, unknown>>
+  insider_roster?: Array<Record<string, unknown>>
+  insider_transactions?: Array<Record<string, unknown>>
+  insider_purchases?: Array<Record<string, unknown>>
+  news?: Array<Record<string, unknown>>
+  press_releases?: Array<Record<string, unknown>>
+  sec_filings?: Array<Record<string, unknown>>
+  upgrades_downgrades?: Array<Record<string, unknown>>
+}
+
+export type SupplyChainRelationshipKind = 'supplier' | 'customer' | 'competitor'
+export type SupplyChainEvidenceClass = 'reported' | 'calculated' | 'estimated' | 'relationship_only'
+
+export interface SupplyChainCompany {
+  name: string
+  ticker: string | null
+  country: string | null
+  sector: string | null
+  description: string
+}
+
+export interface SupplyChainRelationship {
+  id: string
+  kind: SupplyChainRelationshipKind
+  company_name: string
+  ticker: string | null
+  country: string | null
+  sector: string | null
+  relationship: string
+  exposure_pct: number | null
+  exposure_basis: 'revenue' | 'cogs' | 'capex' | 'procurement' | 'none'
+  revenue_pct: number | null
+  cogs_pct: number | null
+  capex_pct: number | null
+  evidence_class: SupplyChainEvidenceClass
+  confidence: number
+  evidence_summary: string
+  source_urls: string[]
+  last_verified: string
+}
+
+export interface SupplyChainRisk {
+  title: string
+  severity: 'low' | 'medium' | 'high'
+  description: string
+  affected_relationship_ids: string[]
+}
+
+export interface SupplyChainSource {
+  url: string
+  title: string
+  publisher: string
+  published_at: string | null
+}
+
+export type SupplyChainFacilityType = 'manufacturing' | 'distribution' | 'warehouse' | 'research' | 'office' | 'headquarters' | 'other'
+
+export interface SupplyChainFacility {
+  id: string
+  company_name: string
+  company_ticker: string | null
+  facility_name: string
+  facility_type: SupplyChainFacilityType
+  city: string | null
+  region: string | null
+  country: string
+  latitude: number
+  longitude: number
+  coordinate_precision: 'exact' | 'city' | 'region'
+  products: string[]
+  description: string
+  confidence: number
+  source_urls: string[]
+  last_verified: string
+}
+
+export type RelatedEntityType = 'ultimate_parent' | 'parent' | 'subsidiary' | 'major_investor' | 'joint_venture' | 'debt_issuer' | 'related_entity' | 'other'
+export type RelatedSecurityType = 'debt' | 'equity' | 'fund' | 'joint' | 'none'
+
+export interface SupplyChainRelatedEntity {
+  id: string
+  parent_id: string | null
+  hierarchy_level: number
+  entity_name: string
+  ticker: string | null
+  relationship_type: RelatedEntityType
+  security_type: RelatedSecurityType
+  ownership_pct: number | null
+  country: string | null
+  government_owned: boolean
+  state_owner_country: string | null
+  risk_level: 'low' | 'medium' | 'high' | 'unknown'
+  description: string
+  confidence: number
+  source_urls: string[]
+  last_verified: string
+}
+
+export interface SupplyChainDocument {
+  id: string
+  company_name: string
+  company_ticker: string | null
+  title: string
+  document_type: 'annual_report' | 'regulatory_filing' | 'earnings' | 'procurement' | 'contract' | 'presentation' | 'policy' | 'other'
+  published_at: string | null
+  summary: string
+  disruption_relevance: string
+  url: string
+}
+
+export interface SupplyChainNewsItem {
+  id: string
+  company_name: string
+  company_ticker: string | null
+  headline: string
+  publisher: string
+  published_at: string | null
+  event_type: 'supply_disruption' | 'plant_event' | 'labour' | 'logistics' | 'sanctions' | 'geopolitical' | 'weather' | 'cyber' | 'regulatory' | 'other'
+  severity: 'low' | 'medium' | 'high'
+  summary: string
+  location: string | null
+  url: string
+}
+
+export interface SupplyChainResearch {
+  company: SupplyChainCompany
+  summary: string
+  generated_at: string
+  data_quality: 'limited' | 'moderate' | 'strong'
+  relationships: SupplyChainRelationship[]
+  facilities: SupplyChainFacility[]
+  related_entities: SupplyChainRelatedEntity[]
+  documents: SupplyChainDocument[]
+  news: SupplyChainNewsItem[]
+  risks: SupplyChainRisk[]
+  sources: SupplyChainSource[]
+}

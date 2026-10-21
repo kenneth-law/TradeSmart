@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Bookmark } from 'lucide-react'
+import { Bookmark, Network } from 'lucide-react'
 import { api } from '../lib/api'
 import PriceChart from '../components/charts/PriceChart'
 import SignalBadge from '../components/data/SignalBadge'
@@ -11,8 +11,27 @@ import ChatPanel from '../components/strategy/ChatPanel'
 import Financials from '../components/financials/Financials'
 import type { StockResult, DetailedMetrics } from '../types'
 import { addRecentSearch, isInWatchlist, toggleWatchlist } from '../lib/userPrefs'
-import { useAppStore, type PaperOptionType } from '../store/useAppStore'
+import { useAppStore } from '../store/useAppStore'
+import PaperTradeTicket from '../components/trading/PaperTradeTicket'
 import { quotePrice, useLiveQuotes } from '../hooks/useLiveQuotes'
+import SupplyChain from './SupplyChain'
+import EquityResearchWorkspace, { type ResearchCategory } from '../components/research/EquityResearchWorkspace'
+
+type DetailTab = 'overview' | 'supply-chain' | ResearchCategory
+
+const DETAIL_TABS: Array<[DetailTab, string]> = [
+  ['overview', 'Overview'],
+  ['supply-chain', 'TradeSmart Intelligence'],
+  ['markets', 'Market View'],
+  ['screening', 'Screening'],
+  ['fundamentals', 'Fundamentals'],
+  ['estimates', 'Estimates'],
+  ['valuation', 'Valuation'],
+  ['ownership', 'Ownership'],
+  ['research', 'Research'],
+  ['charts', 'Charts'],
+  ['testing', 'Testing'],
+]
 
 function n(v: unknown, dp = 2): string {
   return typeof v === 'number' ? v.toFixed(dp) : '-'
@@ -30,7 +49,6 @@ function retColor(v: unknown): string {
   if (typeof v !== 'number') return 'text-text'
   return v >= 0 ? 'text-up' : 'text-down'
 }
-
 function KV({ label, value, cls = 'text-text' }: { label: string; value: string; cls?: string }) {
   return (
     <div>
@@ -97,300 +115,10 @@ function TickerHeader({
   )
 }
 
-function nextMonthlyExpiry() {
-  const d = new Date()
-  d.setMonth(d.getMonth() + 1)
-  d.setDate(15)
-  return d.toISOString().slice(0, 10)
-}
-
-function PaperTradeTicket({ stock }: { stock: StockResult }) {
-  const account = useAppStore(s => s.paperAccount)
-  const buyPaperStock = useAppStore(s => s.buyPaperStock)
-  const sellPaperStock = useAppStore(s => s.sellPaperStock)
-  const buyPaperOption = useAppStore(s => s.buyPaperOption)
-  const sellPaperOption = useAppStore(s => s.sellPaperOption)
-  const [mode, setMode] = useState<'buy' | 'sell' | 'option'>('buy')
-  const [stockQty, setStockQty] = useState('10')
-  const [optionAction, setOptionAction] = useState<'buy' | 'sell'>('buy')
-  const [optionType, setOptionType] = useState<PaperOptionType>('call')
-  const [strike, setStrike] = useState(String(Math.round(stock.current_price)))
-  const [expiry, setExpiry] = useState(nextMonthlyExpiry())
-  const [contracts, setContracts] = useState('1')
-  const [premium, setPremium] = useState(Math.max(0.05, stock.current_price * 0.03).toFixed(2))
-  const [closePositionId, setClosePositionId] = useState('')
-  const [message, setMessage] = useState<{ text: string; tone: 'ok' | 'error' } | null>(null)
-
-  useEffect(() => {
-    setStrike(String(Math.round(stock.current_price)))
-    setPremium(Math.max(0.05, stock.current_price * 0.03).toFixed(2))
-    setMessage(null)
-  }, [stock.ticker])
-
-  const stockPosition = account.positions.find(p => p.kind === 'stock' && p.ticker === stock.ticker)
-  const optionPositions = account.positions.filter(p => p.kind === 'option' && p.ticker === stock.ticker)
-  const selectedOption = optionPositions.find(p => p.id === closePositionId) ?? optionPositions[0]
-  const qty = Number(stockQty)
-  const slippageRate = account.costModel.slippageBps / 10000
-  const stockFill = mode === 'sell'
-    ? stock.current_price * (1 - slippageRate)
-    : stock.current_price * (1 + slippageRate)
-  const stockFee = Number.isFinite(qty) ? account.costModel.stockPerShare * qty : 0
-  const stockNotional = Number.isFinite(qty) ? qty * stockFill : 0
-  const optionQty = Number(contracts)
-  const optionPx = Number(premium)
-  const optionFill = optionAction === 'sell'
-    ? optionPx * (1 - slippageRate)
-    : optionPx * (1 + slippageRate)
-  const optionFee = Number.isFinite(optionQty) ? account.costModel.optionPerContract * optionQty : 0
-  const optionNotional = optionQty * optionFill * 100
-  const hasTradeCosts = account.costModel.stockPerShare > 0 || account.costModel.optionPerContract > 0 || account.costModel.slippageBps > 0
-
-  function show(result: { ok: true } | { ok: false; error: string }, okText: string) {
-    if (result.ok) {
-      setMessage({ text: okText, tone: 'ok' })
-    } else if ('error' in result) {
-      setMessage({ text: result.error, tone: 'error' })
-    }
-  }
-
-  function submitStock() {
-    if (mode === 'buy') {
-      show(buyPaperStock({
-        ticker: stock.ticker,
-        companyName: stock.company_name,
-        sector: stock.sector,
-        quantity: Number(stockQty),
-        price: stock.current_price,
-      }), `Bought ${Math.floor(Number(stockQty))} ${stock.ticker}`)
-    } else {
-      show(sellPaperStock({
-        ticker: stock.ticker,
-        quantity: Number(stockQty),
-        price: stock.current_price,
-      }), `Sold ${Math.floor(Number(stockQty))} ${stock.ticker}`)
-    }
-  }
-
-  function submitOption() {
-    if (optionAction === 'buy') {
-      show(buyPaperOption({
-        ticker: stock.ticker,
-        companyName: stock.company_name,
-        sector: stock.sector,
-        optionType,
-        strike: Number(strike),
-        expiry,
-        contracts: Number(contracts),
-        premium: Number(premium),
-      }), `Opened ${Math.floor(Number(contracts))} ${stock.ticker} option contract${Math.floor(Number(contracts)) === 1 ? '' : 's'}`)
-      return
-    }
-    if (!selectedOption) {
-      setMessage({ text: 'No open option contracts for this ticker.', tone: 'error' })
-      return
-    }
-    show(sellPaperOption({
-      positionId: selectedOption.id,
-      contracts: Number(contracts),
-      premium: Number(premium),
-    }), `Closed ${Math.floor(Number(contracts))} ${stock.ticker} option contract${Math.floor(Number(contracts)) === 1 ? '' : 's'}`)
-  }
-
-  return (
-    <div className="border-b border-border p-3">
-      <div className="flex items-center justify-between gap-2 mb-2">
-        <div className="text-2xs uppercase tracking-[0.2em] text-dim">Paper Trade</div>
-        <div className="text-2xs text-muted tabnum">Cash ${Math.round(account.cash).toLocaleString()}</div>
-      </div>
-
-      <div className="grid grid-cols-3 gap-px bg-border mb-3">
-        {(['buy', 'sell', 'option'] as const).map(value => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => setMode(value)}
-            className={[
-              'bg-s1 px-2 py-1.5 text-2xs font-medium capitalize',
-              mode === value ? 'text-accent' : 'text-muted hover:text-text',
-            ].join(' ')}
-            aria-pressed={mode === value}
-          >
-            {value}
-          </button>
-        ))}
-      </div>
-
-      {mode !== 'option' ? (
-        <div className="space-y-2">
-          <div className="grid grid-cols-2 gap-2">
-            <label className="block">
-              <span className="block text-2xs text-dim mb-1">Shares</span>
-              <input
-                type="number"
-                min={1}
-                step={1}
-                value={stockQty}
-                onChange={event => setStockQty(event.target.value)}
-                className="w-full border border-border bg-bg px-2 py-1 text-xs text-text outline-none focus:border-accent tabnum"
-              />
-            </label>
-            <div>
-              <div className="text-2xs text-dim mb-1">Est. Notional</div>
-              <div className="border border-border bg-bg px-2 py-1 text-xs text-text tabnum">
-                ${Math.round(stockNotional || 0).toLocaleString()}
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center justify-between text-2xs">
-            <span className="text-muted">Held</span>
-            <span className="text-text tabnum">{stockPosition?.quantity ?? 0} shares</span>
-          </div>
-          {hasTradeCosts && (
-            <div className="flex items-center justify-between text-2xs">
-              <span className="text-muted">Est. Costs</span>
-              <span className="text-accent tabnum">${stockFee.toFixed(2)}</span>
-            </div>
-          )}
-          <button
-            type="button"
-            onClick={submitStock}
-            className={`w-full px-3 py-2 text-2xs font-semibold text-bg ${mode === 'buy' ? 'bg-up' : 'bg-down'}`}
-          >
-            {mode === 'buy' ? 'Buy Stock' : 'Sell Stock'}
-          </button>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          <div className="grid grid-cols-2 gap-px bg-border">
-            {(['buy', 'sell'] as const).map(value => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setOptionAction(value)}
-                className={[
-                  'bg-s1 px-2 py-1.5 text-2xs font-medium capitalize',
-                  optionAction === value ? 'text-accent' : 'text-muted hover:text-text',
-                ].join(' ')}
-                aria-pressed={optionAction === value}
-              >
-                {value === 'buy' ? 'Buy to Open' : 'Sell to Close'}
-              </button>
-            ))}
-          </div>
-
-          {optionAction === 'sell' && optionPositions.length > 0 && (
-            <label className="block">
-              <span className="block text-2xs text-dim mb-1">Contract</span>
-              <select
-                value={selectedOption?.id ?? ''}
-                onChange={event => setClosePositionId(event.target.value)}
-                className="w-full border border-border bg-bg px-2 py-1 text-xs text-text outline-none focus:border-accent tabnum"
-              >
-                {optionPositions.map(position => (
-                  <option key={position.id} value={position.id}>
-                    {position.expiry} {position.strike?.toFixed(2)} {position.optionType?.toUpperCase()} x{position.quantity}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-
-          {optionAction === 'buy' && (
-            <div className="grid grid-cols-2 gap-2">
-              <label className="block">
-                <span className="block text-2xs text-dim mb-1">Type</span>
-                <select
-                  value={optionType}
-                  onChange={event => setOptionType(event.target.value as PaperOptionType)}
-                  className="w-full border border-border bg-bg px-2 py-1 text-xs text-text outline-none focus:border-accent"
-                >
-                  <option value="call">Call</option>
-                  <option value="put">Put</option>
-                </select>
-              </label>
-              <label className="block">
-                <span className="block text-2xs text-dim mb-1">Strike</span>
-                <input
-                  type="number"
-                  min={0.01}
-                  step={0.01}
-                  value={strike}
-                  onChange={event => setStrike(event.target.value)}
-                  className="w-full border border-border bg-bg px-2 py-1 text-xs text-text outline-none focus:border-accent tabnum"
-                />
-              </label>
-            </div>
-          )}
-
-          {optionAction === 'buy' && (
-            <label className="block">
-              <span className="block text-2xs text-dim mb-1">Expiry</span>
-              <input
-                type="date"
-                value={expiry}
-                onChange={event => setExpiry(event.target.value)}
-                className="w-full border border-border bg-bg px-2 py-1 text-xs text-text outline-none focus:border-accent tabnum"
-              />
-            </label>
-          )}
-
-          <div className="grid grid-cols-2 gap-2">
-            <label className="block">
-              <span className="block text-2xs text-dim mb-1">Contracts</span>
-              <input
-                type="number"
-                min={1}
-                step={1}
-                value={contracts}
-                onChange={event => setContracts(event.target.value)}
-                className="w-full border border-border bg-bg px-2 py-1 text-xs text-text outline-none focus:border-accent tabnum"
-              />
-            </label>
-            <label className="block">
-              <span className="block text-2xs text-dim mb-1">Premium</span>
-              <input
-                type="number"
-                min={0.01}
-                step={0.01}
-                value={premium}
-                onChange={event => setPremium(event.target.value)}
-                className="w-full border border-border bg-bg px-2 py-1 text-xs text-text outline-none focus:border-accent tabnum"
-              />
-            </label>
-          </div>
-          <div className="flex items-center justify-between text-2xs">
-            <span className="text-muted">Est. Notional</span>
-            <span className="text-text tabnum">${Math.round(optionNotional || 0).toLocaleString()}</span>
-          </div>
-          {hasTradeCosts && (
-            <div className="flex items-center justify-between text-2xs">
-              <span className="text-muted">Est. Costs</span>
-              <span className="text-accent tabnum">${optionFee.toFixed(2)}</span>
-            </div>
-          )}
-          <button
-            type="button"
-            onClick={submitOption}
-            className={`w-full px-3 py-2 text-2xs font-semibold text-bg ${optionAction === 'buy' ? 'bg-up' : 'bg-down'}`}
-          >
-            {optionAction === 'buy' ? 'Buy Option' : 'Sell Option'}
-          </button>
-        </div>
-      )}
-
-      {message && (
-        <div className={`mt-2 text-2xs ${message.tone === 'ok' ? 'text-up' : 'text-down'}`}>
-          {message.text}
-        </div>
-      )}
-    </div>
-  )
-}
-
 export default function StockDetail() {
   const { ticker } = useParams<{ ticker: string }>()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const settings = useAppStore(s => s.settings)
   const [tickerInput, setTickerInput] = useState(ticker?.toUpperCase() ?? '')
   const [watched, setWatched] = useState(false)
@@ -398,6 +126,15 @@ export default function StockDetail() {
   const [bottomTab, setBottomTab] = useState<'technicals' | 'financials'>('technicals')
   const [stripHeight, setStripHeight] = useState<number | null>(null)
   const stripRef = useRef<HTMLDivElement | null>(null)
+  const requestedTab = searchParams.get('tab')
+  const detailTab = DETAIL_TABS.some(([tab]) => tab === requestedTab) ? requestedTab as DetailTab : 'overview'
+
+  function setDetailTab(tab: DetailTab) {
+    const next = new URLSearchParams(searchParams)
+    if (tab === 'overview') next.delete('tab')
+    else next.set('tab', tab)
+    setSearchParams(next, { replace: true })
+  }
 
   function startStripDrag(e: React.MouseEvent) {
     e.preventDefault()
@@ -532,6 +269,14 @@ export default function StockDetail() {
           </div>
           <SignalBadge signal={s.day_trading_strategy} />
           <button
+            onClick={() => setDetailTab('supply-chain')}
+            title="Research suppliers, customers and competitors"
+            className="flex items-center gap-1 text-2xs text-dim transition-colors hover:text-accent"
+          >
+            <Network size={13} strokeWidth={1.8} />
+            <span>TradeSmart Intelligence</span>
+          </button>
+          <button
             onClick={() => setWatched(toggleWatchlist(ticker!.toUpperCase()))}
             title={watched ? 'Remove from watchlist' : 'Add to watchlist'}
             className={`flex items-center gap-1 text-2xs transition-colors ${watched ? 'text-accent' : 'text-dim hover:text-text'}`}
@@ -542,8 +287,34 @@ export default function StockDetail() {
         </div>
       </TickerHeader>
 
+      <div className="flex shrink-0 items-center overflow-x-auto border-b border-border bg-s1/40 px-3">
+        {DETAIL_TABS.map(([tab, label]) => (
+          <button
+            key={tab}
+            type="button"
+            onClick={() => setDetailTab(tab)}
+            className={`-mb-px border-b-2 px-4 py-2 text-2xs uppercase tracking-[0.18em] transition-colors ${detailTab === tab ? 'border-accent text-text' : 'border-transparent text-dim hover:text-text'}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       {/* Body */}
-      <div className="flex flex-1 overflow-hidden">
+      {detailTab === 'supply-chain' ? (
+        <div className="min-h-0 flex-1 overflow-hidden">
+          <SupplyChain embedded tickerOverride={ticker.toUpperCase()} />
+        </div>
+      ) : detailTab !== 'overview' ? (
+        <div className="min-h-0 flex-1 overflow-hidden">
+          <EquityResearchWorkspace category={detailTab} ticker={ticker.toUpperCase()} stock={tradableStock} peerTickers={peerTickers} onOpenIntelligence={intelligenceView => {
+            const next = new URLSearchParams(searchParams)
+            next.set('tab', 'supply-chain')
+            if (intelligenceView) next.set('intel', intelligenceView)
+            setSearchParams(next, { replace: true })
+          }} />
+        </div>
+      ) : <div className="flex flex-1 overflow-hidden">
         {/* Left: chart + metrics strip */}
         <div className="flex-1 overflow-hidden flex flex-col min-w-0">
           <div className="flex-1 min-h-0">
@@ -617,7 +388,7 @@ export default function StockDetail() {
         </div>
 
         {/* Sidebar */}
-        <div className="w-[300px] shrink-0 border-l border-border flex flex-col bg-s1/40 min-h-0 overflow-hidden">
+        <div className="w-[390px] xl:w-[430px] shrink-0 border-l border-border flex flex-col bg-s1/40 min-h-0 overflow-hidden">
           {/* Scrollable upper area: score, quick stats, peers, brief */}
           <div className={`${chatOpen ? 'shrink-0 basis-1/2' : 'flex-1'} min-h-0 overflow-y-auto`}>
             {/* Score */}
@@ -689,7 +460,7 @@ export default function StockDetail() {
             <ChatPanel stock={s} onClose={() => setChatOpen(false)} />
           )}
         </div>
-      </div>
+      </div>}
     </div>
   )
 }

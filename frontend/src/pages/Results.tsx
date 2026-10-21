@@ -126,7 +126,7 @@ export default function Results() {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full min-h-0 flex-col">
       {/* Header bar */}
       <div className="flex items-center gap-4 px-4 py-2 border-b border-border bg-s1 shrink-0">
         <button
@@ -160,15 +160,17 @@ export default function Results() {
       </div>
 
       {/* Two-column: table + sidebar */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* Main table */}
-        <div className="flex-1 overflow-auto">
+        <div className="min-h-0 flex-1 overflow-hidden">
           <DataTable
             columns={COLUMNS}
             data={tableData}
             rowKey={r => r.ticker}
             onRowClick={onRowClick}
             virtualRows={ranked_stocks.length > 50}
+            fillHeight
+            fitColumns
             emptyMessage="No stocks in results."
           />
         </div>

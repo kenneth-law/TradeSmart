@@ -24,6 +24,7 @@ from modules.portfolio_management import PortfolioManager
 from modules.execution import ExecutionManager, OrderType, OrderSide
 from modules.technical_analysis import get_stock_data
 from modules.data_retrieval import get_stock_history, get_stock_info
+from modules.fast_ranking import rank_stocks_fast
 
 # Create cache directory for the trading system if it doesn't exist
 os.makedirs('cache/trading_system', exist_ok=True)
@@ -185,6 +186,29 @@ class TradingSystem:
             tuple: (ranked_stocks, failed_tickers)
         """
         log_message(f"Analyzing {len(tickers)} stocks with {'ML' if use_ml else 'traditional'} scoring")
+
+        fast_rank_min_tickers = int(os.getenv("TRADESMART_FAST_RANK_MIN_TICKERS", "8"))
+        if not use_ml and len(tickers) >= fast_rank_min_tickers:
+            try:
+                ranked_stocks, failed_tickers = rank_stocks_fast(tickers)
+                if ranked_stocks:
+                    for stock_data in ranked_stocks:
+                        ticker = stock_data.get('ticker')
+                        self.execution_manager.update_market_data(
+                            ticker,
+                            stock_data.get('current_price', 0),
+                            stock_data.get('volume_ratio', 1) * 100000
+                        )
+                        self.market_data[ticker] = {
+                            'price': stock_data.get('current_price', 0),
+                            'volume': stock_data.get('volume_ratio', 1) * 100000,
+                            'sector': stock_data.get('sector', 'Unknown'),
+                            'beta': 1.0,
+                            'volatility': stock_data.get('atr_pct', 5.0)
+                        }
+                    return ranked_stocks, failed_tickers
+            except Exception as e:
+                log_message(f"Fast technical ranking failed; falling back to detailed analysis: {e}")
 
         stock_data_list = []
         failed_tickers = []

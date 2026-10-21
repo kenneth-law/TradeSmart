@@ -1,6 +1,6 @@
 # TradeSmart Analytics
 
-TradeSmart Analytics is a private investment research terminal for systematic equity strategy development, market analysis, backtesting, and portfolio review. It brings together a React research workspace, a Flask analytics API, market data pipelines, Gradient Boosted Decision Tree models, risk analytics, and strategy simulation tools into one platform for exploring equity ideas across technical, fundamental, sentiment, and portfolio contexts.
+TradeSmart Analytics is a private equities research terminal for systematic strategy development, company analysis, backtesting, and portfolio review. It brings together a React research workspace, a Flask analytics API, market data pipelines, Gradient Boosted Decision Tree models, risk analytics, and strategy simulation tools into one platform for exploring equity ideas across technical, fundamental, sentiment, ownership, supply-chain, and portfolio contexts.
 
 The project is designed as a personal quantitative research environment rather than a single-purpose stock screener. It supports ticker-level research, strategy scoring, model-driven signal generation, historical performance simulation, portfolio diagnostics, and market status monitoring, with an emphasis on repeatable research workflows and realistic assumptions.
 
@@ -14,7 +14,7 @@ The project is designed as a personal quantitative research environment rather t
 
 TradeSmart Analytics is built around the research process used to develop and evaluate systematic equity strategies:
 
-- **Market research terminal**: Search and inspect equities, review price history, fundamentals, peers, market context, watchlists, and recent research activity.
+- **Equities research terminal**: Search and inspect listed companies, review prices, fundamentals, estimates, valuation, ownership, peers, company research, watchlists, and recent activity.
 - **Quantitative signal development**: Combine technical indicators, volatility measures, returns, volume behavior, sentiment features, and model outputs into explainable stock-level signals.
 - **Machine learning scoring**: Use Gradient Boosted Decision Tree models to identify non-linear relationships across engineered market features and produce regression or classification outputs.
 - **Backtesting and strategy validation**: Simulate strategy ideas across historical periods with transaction costs, drawdown analysis, benchmarks, position-level diagnostics, and walk-forward style evaluation.
@@ -26,14 +26,26 @@ TradeSmart Analytics is built around the research process used to develop and ev
 
 ## Core Modules
 
-### Research Terminal
+### Equities Research Terminal
 
 - Search any supported ticker and inspect live market data, charts, financials, peer context, and system-generated signals.
 - Maintain a private watchlist and recent-search workflow for ongoing research.
 - Monitor backend, market data, model, and live data status from the application shell.
+- Navigate equity workflows through major categories for market view, screening, fundamentals, estimates, valuation, ownership, research, charts, and testing.
+- Move directly between company profiles, quotes, statements, estimates, peer valuation, ownership, news, filings, charts, technical studies, and strategy testing using plain-language tabs.
+- Review purpose-built research views rather than generic data dumps: recommendation distributions, target-price ranges, estimate bands, earnings surprises, ownership composition, holder concentration, insider activity, rating changes, event timelines, and capital structure.
+- Compare normalized returns across peers, chart revenue/EBITDA/net-income trends, inspect OHLCV history, and edit WACC or dividend-model assumptions interactively.
+- Only expose research pages that have a functional TradeSmart implementation; unsupported placeholder pages are omitted from navigation.
+
+### TradeSmart Intelligence
+
+- Map suppliers, customers, competitors, normalized revenue exposure, COGS, and CAPEX composition.
+- Review related entities, ultimate parents, major investors, state-ownership risk, documents, and disruption news.
+- Explore evidenced manufacturing, distribution, warehousing, R&D, office, and headquarters locations on an interactive facilities map.
+- Open ticker-bearing companies directly in the Equities detail workspace.
 
 <img width="1728" height="1117" alt="Screenshot 2026-05-21 at 17 55 06" src="https://github.com/user-attachments/assets/2cba66a6-767c-4b83-9ac7-c7c804e25622" />
-<img width="1728" height="1117" alt="TradeSmart market research dashboard" src="https://github.com/user-attachments/assets/150dbbac-6aa7-4daa-9f60-3be425d91a35" />
+<img width="1728" height="1117" alt="TradeSmart equities research dashboard" src="https://github.com/user-attachments/assets/150dbbac-6aa7-4daa-9f60-3be425d91a35" />
 
 
 ### Signal and Scoring Engine
@@ -87,6 +99,7 @@ The backtesting system is designed for strategy research rather than simple hist
 - Optional Alpaca live market data status and snapshot support.
 - OpenAI-supported research and sentiment workflows where configured.
 - API endpoints for stock history, financials, peers, market overview, trained models, portfolio data, backtests, and documentation.
+- Lazy equity-research endpoints for company profiles, estimates, peer valuation, ownership, filings, events, actions, ratings, and news.
 
 <img width="357" height="229" alt="Screenshot 2026-06-16 at 00 50 31" src="https://github.com/user-attachments/assets/81543a0d-40d9-4086-8cf9-d2f8c6da1cbc" />
 

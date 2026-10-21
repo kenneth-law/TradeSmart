@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { ArrowRight } from 'lucide-react'
 
 const ENTRY_POINTS = [
-  { label: 'Markets', to: '/market' },
+  { label: 'Equities', to: '/market' },
   { label: 'Quant Trading', to: '/system' },
   { label: 'Technical Ranking', to: '/technical' },
   { label: 'Daily Lineup', to: '/daily-lineup' },

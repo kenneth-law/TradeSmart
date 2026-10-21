@@ -11,6 +11,13 @@ import openai
 from bs4 import BeautifulSoup
 from modules.utils import log_message
 
+
+OPENAI_SENTIMENT_MODEL = os.getenv(
+    "OPENAI_SENTIMENT_MODEL",
+    "gpt-5.4-nano-2026-03-17",
+)
+
+
 def get_news_sentiment_with_timeframes(ticker_symbol, company_name):
     """
     Analyzes the sentiment of market news headlines for a given company over various
@@ -219,10 +226,10 @@ def get_news_sentiment_with_timeframes(ticker_symbol, company_name):
 
         try:
             response = client.chat.completions.create(
-                model="gpt-4.1-mini-2025-04-14",
+                model=OPENAI_SENTIMENT_MODEL,
                 messages=[{"role": "user", "content": prompt}],
-                max_tokens=50,
-                temperature=0.2,
+                max_completion_tokens=160,
+                reasoning_effort="none",
             )
 
             result = response.choices[0].message.content.strip().split('\n')

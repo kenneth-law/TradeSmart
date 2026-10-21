@@ -20,6 +20,7 @@ interface DataTableProps<T extends Record<string, unknown>> {
   virtualRows?: boolean
   rowHeight?: number
   fitColumns?: boolean
+  fillHeight?: boolean
 }
 
 export default function DataTable<T extends Record<string, unknown>>({
@@ -32,6 +33,7 @@ export default function DataTable<T extends Record<string, unknown>>({
   virtualRows = false,
   rowHeight = 26,
   fitColumns = false,
+  fillHeight = false,
 }: DataTableProps<T>) {
   const [sortKey, setSortKey] = useState<string | null>(null)
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
@@ -154,7 +156,11 @@ export default function DataTable<T extends Record<string, unknown>>({
 
   const vItems = virtualizer.getVirtualItems()
   return (
-    <div ref={parentRef} className="overflow-auto w-full" style={{ maxHeight: 600 }}>
+    <div
+      ref={parentRef}
+      className={`overflow-auto w-full ${fillHeight ? 'h-full min-h-0' : ''}`}
+      style={fillHeight ? undefined : { maxHeight: 600 }}
+    >
       <table className={fitColumns ? 'table-fixed' : 'w-full table-fixed'} style={tableStyle}>
         {header}
         <tbody style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>

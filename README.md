@@ -239,3 +239,5 @@ This project is licensed under the Apache License 2.0. See the [LICENSE](https:/
 - Yahoo Finance for market data access.
 - OpenAI for AI and language-model capabilities where configured.
 - The Python, Flask, React, Vite, and scikit-learn ecosystems that power the research stack.
+
+- 
